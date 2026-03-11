@@ -1,0 +1,17 @@
+packages:
+  "framer-motion": "Smooth page transitions and component animations for kiosk UI"
+  "date-fns": "For formatting session dates and times easily"
+  "lucide-react": "Icons for medical vital signs"
+
+images:
+  - path: "artifacts/risecare-kiosk/public/images/kiosk-bg.png"
+    description: "Abstract clean medical background with soft light waves in teal, blue, and white, very calm, premium and professional"
+    aspect_ratio: "16:9"
+  - path: "artifacts/risecare-kiosk/public/images/risecare-logo.png"
+    description: "Minimal geometric logo mark for a modern health tech company, featuring a stylized cross and heart in deep teal on transparent background"
+    aspect_ratio: "1:1"
+
+notes:
+  - Expects @workspace/api-client-react for generated React Query hooks
+  - Using wouter for routing
+  - Designing specifically for a touch-based Kiosk: large tap targets, no hover-dependency

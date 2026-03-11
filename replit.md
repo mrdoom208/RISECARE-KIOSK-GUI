@@ -21,7 +21,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
+│   ├── api-server/         # Express API server
+│   └── risecare-kiosk/     # RISECARE Health Kiosk React frontend
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
@@ -34,6 +35,32 @@ artifacts-monorepo/
 ├── tsconfig.json           # Root TS project references
 └── package.json            # Root package with hoisted devDeps
 ```
+
+## RISECARE Health Kiosk
+
+Touch-friendly React/TypeScript GUI for a Raspberry Pi-based health kiosk. Designed for large screens with large touch targets.
+
+**Features:**
+- Welcome screen with "Start Measurement" and "View History" buttons
+- Patient registration (name, age, gender)
+- Vital signs dashboard with interactive cards for all major vitals
+- Results summary with color-coded health status (normal/warning/critical)
+- Measurement history with session details
+
+**Vital Signs Measured:**
+- Blood Pressure (systolic/diastolic mmHg)
+- Heart Rate (bpm)
+- SpO2 Oxygen Saturation (%)
+- Body Temperature (°C)
+- Weight (kg) + Height (cm) → auto-calculated BMI
+- Blood Glucose (mmol/L)
+
+**Routes:**
+- `/` — Welcome screen
+- `/register` — Patient registration
+- `/session/:id` — Vital signs dashboard
+- `/session/:id/results` — Results summary
+- `/history` — Session history
 
 ## TypeScript & Composite Projects
 
@@ -50,47 +77,39 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ## Packages
 
+### `artifacts/risecare-kiosk` (`@workspace/risecare-kiosk`)
+
+React + Vite kiosk frontend. Served at `/`.
+
+- Entry: `src/main.tsx`
+- App router: `src/App.tsx` (wouter routing)
+- Pages: `src/pages/` (Home, Register, Dashboard, Results, History)
+- Components: `src/components/` (KioskHeader, VitalCard, KeypadDialog)
+- Utils: `src/lib/vitals-utils.ts` (threshold checks, BMI calc, status helpers)
+
 ### `artifacts/api-server` (`@workspace/api-server`)
 
 Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
 
 - Entry: `src/index.ts` — reads `PORT`, starts Express
 - App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
+- Routes: `src/routes/index.ts` mounts sub-routers; `health.ts`, `sessions.ts`, `vitals.ts`
 - Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
 
 ### `lib/db` (`@workspace/db`)
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
+Database layer using Drizzle ORM with PostgreSQL.
 
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+- `src/schema/sessions.ts` — `sessionsTable`, `vitalReadingsTable`
 
 ### `lib/api-spec` (`@workspace/api-spec`)
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
+Owns the OpenAPI 3.1 spec (`openapi.yaml`) and Orval config. Run codegen: `pnpm --filter @workspace/api-spec run codegen`
 
 ### `lib/api-zod` (`@workspace/api-zod`)
 
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
+Generated Zod schemas: `CreateSessionBody`, `SaveVitalsBody`, `GetSessionParams`, `SaveVitalsParams`, etc.
 
 ### `lib/api-client-react` (`@workspace/api-client-react`)
 
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+Generated React Query hooks: `useListSessions`, `useCreateSession`, `useGetSession`, `useSaveVitals`, `useGetLatestVitals`.

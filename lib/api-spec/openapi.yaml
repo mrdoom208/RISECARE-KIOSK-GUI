@@ -1,15 +1,18 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: RISECARE Health Kiosk API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: vitals
+    description: Vital signs operations
+  - name: sessions
+    description: Measurement session operations
 paths:
   /healthz:
     get:
@@ -24,6 +27,104 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List all sessions
+      description: Returns a list of all measurement sessions
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a new session
+      description: Starts a new measurement session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get session by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/{id}/vitals:
+    post:
+      operationId: saveVitals
+      tags: [vitals]
+      summary: Save vital signs for a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveVitalsRequest"
+      responses:
+        "201":
+          description: Vitals saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalReading"
+
+  /vitals/latest:
+    get:
+      operationId: getLatestVitals
+      tags: [vitals]
+      summary: Get the latest vital readings
+      responses:
+        "200":
+          description: Latest vitals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LatestVitals"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +135,147 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+    CreateSessionRequest:
+      type: object
+      properties:
+        patientName:
+          type: string
+        patientAge:
+          type: integer
+          nullable: true
+        patientGender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+          nullable: true
+      required:
+        - patientName
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: integer
+        patientName:
+          type: string
+        patientAge:
+          type: integer
+          nullable: true
+        patientGender:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        vitals:
+          type: array
+          items:
+            $ref: "#/components/schemas/VitalReading"
+      required:
+        - id
+        - patientName
+        - startedAt
+        - vitals
+
+    SaveVitalsRequest:
+      type: object
+      properties:
+        bloodPressureSystolic:
+          type: integer
+          nullable: true
+        bloodPressureDiastolic:
+          type: integer
+          nullable: true
+        heartRate:
+          type: integer
+          nullable: true
+        oxygenSaturation:
+          type: number
+          nullable: true
+        temperature:
+          type: number
+          nullable: true
+        weight:
+          type: number
+          nullable: true
+        height:
+          type: number
+          nullable: true
+        bloodGlucose:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    VitalReading:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        bloodPressureSystolic:
+          type: integer
+          nullable: true
+        bloodPressureDiastolic:
+          type: integer
+          nullable: true
+        heartRate:
+          type: integer
+          nullable: true
+        oxygenSaturation:
+          type: number
+          nullable: true
+        temperature:
+          type: number
+          nullable: true
+        weight:
+          type: number
+          nullable: true
+        height:
+          type: number
+          nullable: true
+        bloodGlucose:
+          type: number
+          nullable: true
+        bmi:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        recordedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - sessionId
+        - recordedAt
+
+    LatestVitals:
+      type: object
+      properties:
+        session:
+          $ref: "#/components/schemas/Session"
+          nullable: true
+        vitals:
+          $ref: "#/components/schemas/VitalReading"
+          nullable: true
+      required:
+        - session
+        - vitals
