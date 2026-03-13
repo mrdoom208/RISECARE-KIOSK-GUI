@@ -26,7 +26,7 @@ router.get("/sessions", async (_req, res) => {
         .orderBy(desc(vitalReadingsTable.recordedAt))
         .limit(1);
       return { ...s, vitals };
-    })
+    }),
   );
 
   res.json(result);
@@ -83,28 +83,61 @@ router.post("/sessions/:id/vitals", async (req, res) => {
     return;
   }
 
+  const [existing] = await db
+    .select()
+    .from(vitalReadingsTable)
+    .where(eq(vitalReadingsTable.sessionId, id))
+    .limit(1);
+
   let bmi: number | null = null;
-  if (body.weight && body.height && body.height > 0) {
-    const heightM = body.height / 100;
-    bmi = Math.round((body.weight / (heightM * heightM)) * 10) / 10;
+  const weight = body.weight ?? existing?.weight ?? null;
+  const height = body.height ?? existing?.height ?? null;
+  if (weight && height && height > 0) {
+    const heightM = height / 100;
+    bmi = Math.round((weight / (heightM * heightM)) * 10) / 10;
   }
 
-  const [vital] = await db
-    .insert(vitalReadingsTable)
-    .values({
-      sessionId: id,
-      bloodPressureSystolic: body.bloodPressureSystolic ?? null,
-      bloodPressureDiastolic: body.bloodPressureDiastolic ?? null,
-      heartRate: body.heartRate ?? null,
-      oxygenSaturation: body.oxygenSaturation ?? null,
-      temperature: body.temperature ?? null,
-      weight: body.weight ?? null,
-      height: body.height ?? null,
-      bloodGlucose: body.bloodGlucose ?? null,
-      bmi,
-      notes: body.notes ?? null,
-    })
-    .returning();
+  let vital;
+  if (existing) {
+    const [updated] = await db
+      .update(vitalReadingsTable)
+      .set({
+        bloodPressureSystolic:
+          body.bloodPressureSystolic ?? existing.bloodPressureSystolic,
+        bloodPressureDiastolic:
+          body.bloodPressureDiastolic ?? existing.bloodPressureDiastolic,
+        heartRate: body.heartRate ?? existing.heartRate,
+        oxygenSaturation: body.oxygenSaturation ?? existing.oxygenSaturation,
+        temperature: body.temperature ?? existing.temperature,
+        weight: body.weight ?? existing.weight,
+        height: body.height ?? existing.height,
+        bloodGlucose: body.bloodGlucose ?? existing.bloodGlucose,
+        bmi,
+        notes: body.notes ?? existing.notes,
+        recordedAt: new Date(),
+      })
+      .where(eq(vitalReadingsTable.id, existing.id))
+      .returning();
+    vital = updated;
+  } else {
+    const [inserted] = await db
+      .insert(vitalReadingsTable)
+      .values({
+        sessionId: id,
+        bloodPressureSystolic: body.bloodPressureSystolic ?? null,
+        bloodPressureDiastolic: body.bloodPressureDiastolic ?? null,
+        heartRate: body.heartRate ?? null,
+        oxygenSaturation: body.oxygenSaturation ?? null,
+        temperature: body.temperature ?? null,
+        weight: body.weight ?? null,
+        height: body.height ?? null,
+        bloodGlucose: body.bloodGlucose ?? null,
+        bmi,
+        notes: body.notes ?? null,
+      })
+      .returning();
+    vital = inserted;
+  }
 
   await db
     .update(sessionsTable)

@@ -1,21 +1,36 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 export default function NotFound() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
-          </div>
+  const [countdown, setCountdown] = useState(5);
+  const [, setLocation] = useLocation();
 
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
-          </p>
-        </CardContent>
-      </Card>
+  useEffect(() => {
+    // Countdown timer
+    const timer = setInterval(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+
+    // Redirect when countdown reaches 0
+    if (countdown <= 0) {
+      setLocation("/");
+    }
+
+    return () => clearInterval(timer);
+  }, [countdown]);
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+      {/* Circular Loader */}
+      <div className="w-24 h-24 border-4 border-primary border-t-transparent rounded-full animate-spin mb-8"></div>
+
+      <div className="text-center">
+        <h1 className="text-3xl md:text-5xl font-bold text-destructive mb-4">
+          Page not found
+        </h1>
+        <p className="text-xl text-muted-foreground">
+          Redirecting to home in {countdown} second
+          {countdown !== 1 ? "s" : ""}...
+        </p>
+      </div>
     </div>
   );
 }

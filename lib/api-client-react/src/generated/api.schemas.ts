@@ -27,6 +27,7 @@ export const CreateSessionRequestPatientGender = {
 
 export interface CreateSessionRequest {
   patientName: string;
+  patientPhone?: string | null;
   patientAge?: number | null;
   patientGender?: CreateSessionRequestPatientGender;
 }
