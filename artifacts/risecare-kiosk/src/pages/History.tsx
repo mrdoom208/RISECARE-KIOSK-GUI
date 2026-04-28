@@ -37,7 +37,7 @@ export default function History() {
                   <tr
                     key={session.id}
                     onClick={() =>
-                      setLocation(`/session/${session.id}/results`)
+                      setLocation(`/session/${session.token}/results`)
                     }
                     className="hover:bg-muted/30 active:bg-secondary cursor-pointer transition-colors group"
                   >

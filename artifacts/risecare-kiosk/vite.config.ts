@@ -42,7 +42,7 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path.resolve(import.meta.dirname, "dist", "public"),
     emptyOutDir: true,
   },
   server: {
@@ -54,7 +54,7 @@ export default defineConfig({
       deny: ["**/.*"],
     },
     // Proxy /api to the backend when running locally (Replit uses its own reverse proxy)
-    ...(process.env.REPL_ID === undefined && {
+    ...(process.env.REPL_ID === undefined && process.env.NODE_ENV !== "production" && {
       proxy: {
         "/api": {
           target: `http://localhost:${apiPort}`,

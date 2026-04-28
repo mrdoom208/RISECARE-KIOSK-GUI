@@ -7,8 +7,8 @@
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "devDependencies": {
-    "@types/node": "catalog:",
-    "tsx": "catalog:"
-  }
+   "devDependencies": {
+     "@types/node": "^24.0.0",
+     "tsx": "^4.21.0"
+   }
 }

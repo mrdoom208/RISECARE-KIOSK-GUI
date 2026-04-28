@@ -99,7 +99,7 @@ export default function Home() {
               <div className="divide-y divide-border/50">
                 {sessions.slice(0, 3).map((session) => (
                   <Link
-                    href={`/session/${session.id}/results`}
+                    href={`/session/${session.token}/results`}
                     key={session.id}
                   >
                     <div className="p-3 hover:bg-secondary/50 active:bg-secondary transition-colors cursor-pointer flex items-center justify-between">

@@ -30,8 +30,13 @@ if (
   app.use(express.static(staticPath));
 
   // Catch-all: send index.html for any non-API route (React router)
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(staticPath, "index.html"));
+  app.use((_req, res, next) => {
+    // Skip API routes
+    if (_req.path.startsWith("/api")) {
+      return next();
+    }
+    const indexPath = path.join(staticPath, "index.html");
+    res.sendFile(indexPath);
   });
 }
 

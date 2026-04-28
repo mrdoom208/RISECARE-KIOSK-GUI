@@ -7,21 +7,13 @@
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts"
   },
-  "scripts": {
-    "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
-  },
   "dependencies": {
     "dotevn": "0.0.1-security",
-    "drizzle-orm": "catalog:",
-    "drizzle-zod": "^0.8.3",
-    "pg": "^8.20.0",
-    "zod": "catalog:"
+    "sql.js": "^1.10.4",
+    "zod": "^3.24.2"
   },
-  "devDependencies": {
-    "@types/node": "catalog:",
-    "@types/pg": "^8.18.0",
-    "dotenv": "^17.3.1",
-    "drizzle-kit": "^0.31.9"
-  }
+   "devDependencies": {
+     "@types/node": "^24.0.0",
+     "dotenv": "^17.3.1"
+   }
 }

@@ -1,7 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRoute, useLocation } from "wouter";
-import { useGetSession, useSaveVitals } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSaveVitals } from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+// @ts-ignore - Session type from @workspace/api-zod
+type Session = any;
 import {
   Heart,
   Activity,
@@ -16,7 +19,19 @@ import { getStatusColor, getStatusText } from "@/lib/vitals-utils";
 import { KioskHeader } from "@/components/KioskHeader";
 import { VitalCard } from "@/components/VitalCard";
 import InstructionModal from "@/components/InstructionModal";
+import { KeypadDialog } from "@/components/KeypadDialog";
 import type { Vitals } from "@/types/vitals";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import NotFound from "./not-found";
 
 import { sensorGuides } from "@/data/sensorGuides";
@@ -41,23 +56,107 @@ type VitalType =
   | "glucose";
 
 export default function Dashboard() {
-  const [, params] = useRoute("/session/:id");
+  const [, params] = useRoute("/session/:token");
   const [, setLocation] = useLocation();
-  const sessionId = parseInt(params?.id || "0", 10);
+  const sessionToken = params?.token || "";
   const queryClient = useQueryClient();
-
-  const { data: session, isLoading } = useGetSession(sessionId);
-  const saveVitalsMutation = useSaveVitals();
 
   const [activeKeypad, setActiveKeypad] = useState<VitalType | null>(null);
   const [activeSensor, setActiveSensor] = useState<
     (typeof sensorGuides)[0] | null
   >(null);
+  const [readingVital, setReadingVital] = useState<VitalType | null>(null);
+  const [stableCount, setStableCount] = useState(0);
+  const prevValueRef = useRef<any>(null);
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+
+  const isStable = stableCount >= 5;
+
+  const { data: session, isLoading } = useQuery<Session>({
+    queryKey: ["session", sessionToken],
+    queryFn: async () => {
+      const res = await fetch("/api/sessions/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: sessionToken }),
+      });
+      if (!res.ok) throw new Error("Session not found");
+      return res.json();
+    },
+    enabled: !!sessionToken,
+    refetchInterval: readingVital ? 2000 : false, // Poll every 2s while reading
+  });
+
+  const saveVitalsMutation = useSaveVitals();
 
   const currentVitals = useMemo<Vitals>(() => {
     if (!session?.vitals) return {};
-    return session.vitals.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+    return session.vitals.reduce((acc: Vitals, curr: Vitals) => ({ ...acc, ...curr }), {});
   }, [session]);
+
+  useEffect(() => {
+    if (!readingVital || !session) {
+      setStableCount(0);
+      prevValueRef.current = null;
+      return;
+    }
+
+    let currentValue: any;
+    let prevValue: any = prevValueRef.current;
+
+    switch (readingVital) {
+      case "bp":
+        currentValue = currentVitals.bloodPressureSystolic && currentVitals.bloodPressureDiastolic
+          ? { sys: currentVitals.bloodPressureSystolic, dia: currentVitals.bloodPressureDiastolic }
+          : null;
+        break;
+      case "hr":
+        currentValue = currentVitals.heartRate;
+        break;
+      case "spo2":
+        currentValue = currentVitals.oxygenSaturation;
+        break;
+      case "temp":
+        currentValue = currentVitals.temperature;
+        break;
+      case "weight":
+        currentValue = currentVitals.weight;
+        break;
+      case "height":
+        currentValue = currentVitals.height;
+        break;
+      case "glucose":
+        currentValue = currentVitals.bloodGlucose;
+        break;
+    }
+
+    if (currentValue === null) return;
+
+    if (prevValue !== null) {
+      let isFar = false;
+      if (readingVital === "bp") {
+        const diffSys = Math.abs(currentValue.sys - prevValue.sys);
+        const diffDia = Math.abs(currentValue.dia - prevValue.dia);
+        isFar = diffSys > 5 || diffDia > 5;
+      } else {
+        const diff = Math.abs(currentValue - prevValue);
+        isFar = diff > 2;
+      }
+
+      if (isFar) {
+        setStableCount(0);
+        prevValueRef.current = currentValue;
+        return;
+      }
+    }
+
+    if (JSON.stringify(currentValue) === JSON.stringify(prevValueRef.current)) {
+      setStableCount(prev => prev + 1);
+    } else {
+      setStableCount(0);
+    }
+    prevValueRef.current = currentValue;
+  }, [currentVitals, readingVital]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
 
@@ -80,16 +179,22 @@ export default function Dashboard() {
     else if (activeKeypad === "glucose") payload.bloodGlucose = num1;
 
     saveVitalsMutation.mutate(
-      { id: sessionId, data: payload },
+      { id: Number(sessionToken), data: payload },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({
-            queryKey: [`/api/sessions/${sessionId}`],
+            queryKey: [`/api/sessions/token`],
           });
           setActiveKeypad(null);
         },
       },
     );
+  };
+
+  const handleStartReading = () => {
+    if (!activeSensor) return;
+    setReadingVital(activeKeypad);
+    setActiveSensor(null);
   };
 
   if (isLoading)
@@ -102,14 +207,17 @@ export default function Dashboard() {
   if (!session) return <NotFound />;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col pb-16">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="h-screen bg-background flex flex-col overflow-hidden"
+    >
       <KioskHeader
         title={`Recording: ${session.patientName}`}
-        showBack
-        backTo="/"
       />
 
-      <main className="flex-1 p-4 max-w-[800px] mx-auto w-full">
+      <main className="flex-1 p-4 pb-20 max-w-[800px] mx-auto w-full min-h-0 overflow-y-auto">
         <div className="flex justify-between items-end mb-4">
           <div>
             <h2 className="text-2xl font-display font-bold text-foreground">
@@ -121,7 +229,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
           {/* Blood Pressure */}
           <VitalCard
             title="Blood Pressure"
@@ -277,21 +385,127 @@ export default function Dashboard() {
 
       {/* Bottom bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10 flex justify-center">
-        <button
-          onClick={() => setLocation(`/session/${sessionId}/results`)}
-          className="w-full max-w-[800px] h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <CheckCircle2 className="w-5 h-5" />
-          Finish & View Results
-        </button>
+        <AlertDialog open={showFinishConfirm} onOpenChange={setShowFinishConfirm}>
+          <AlertDialogTrigger asChild>
+            <button className="w-full max-w-[800px] h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 active:scale-95 transition-all flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-5 h-5" />
+              Finish & View Results
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-2xl">Finish Session?</AlertDialogTitle>
+              <AlertDialogDescription className="text-lg">
+                Are you sure you want to finish this measurement session and view your results?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="mt-6">
+              <AlertDialogCancel className="h-12 text-xl font-bold flex-1 bg-secondary hover:bg-secondary/80">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => setLocation(`/session/${sessionToken}/results`)}
+                className="h-12 text-xl font-bold flex-1 bg-primary text-primary-foreground hover:bg-primary/80"
+              >
+                Yes, Finish
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <InstructionModal
         isOpen={activeSensor !== null}
         onClose={() => setActiveSensor(null)}
-        onSave={handleSaveVital}
+        onStart={handleStartReading}
         sensorGuide={activeSensor || undefined}
       />
-    </div>
+
+      {/* Reading Display - shows real-time MQTT value */}
+      <AnimatePresence>
+        {readingVital && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+            >
+              <h2 className="text-2xl font-bold mb-6 text-center">
+                {readingVital === "bp" && "Blood Pressure"}
+                {readingVital === "hr" && "Heart Rate"}
+                {readingVital === "spo2" && "SpO2"}
+                {readingVital === "temp" && "Temperature"}
+                {readingVital === "weight" && "Weight"}
+                {readingVital === "height" && "Height"}
+                {readingVital === "glucose" && "Blood Glucose"}
+              </h2>
+
+              <div className="text-center mb-8">
+                <div className="text-6xl font-bold font-display text-primary mb-2">
+                  {readingVital === "bp" && currentVitals.bloodPressureSystolic
+                    ? `${currentVitals.bloodPressureSystolic}/${currentVitals.bloodPressureDiastolic || "..."}`
+                    : readingVital === "hr" && currentVitals.heartRate
+                    ? currentVitals.heartRate
+                    : readingVital === "spo2" && currentVitals.oxygenSaturation
+                    ? currentVitals.oxygenSaturation
+                    : readingVital === "temp" && currentVitals.temperature
+                    ? currentVitals.temperature
+                    : readingVital === "weight" && currentVitals.weight
+                    ? currentVitals.weight
+                    : readingVital === "height" && currentVitals.height
+                    ? currentVitals.height
+                    : readingVital === "glucose" && currentVitals.bloodGlucose
+                    ? currentVitals.bloodGlucose
+                    : "..."}
+                </div>
+                <div className="text-xl text-muted-foreground">
+                  {readingVital === "bp" && "mmHg"}
+                  {readingVital === "hr" && "bpm"}
+                  {readingVital === "spo2" && "%"}
+                  {readingVital === "temp" && "°C"}
+                  {readingVital === "weight" && "kg"}
+                  {readingVital === "height" && "cm"}
+                  {readingVital === "glucose" && "mmol/L"}
+                </div>
+              </div>
+
+              <p className="text-center text-muted-foreground mb-6">
+                Reading from sensor...
+              </p>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setReadingVital(null);
+                    setStableCount(0);
+                  }}
+                  className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 transition font-semibold text-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setReadingVital(null);
+                    setStableCount(0);
+                  }}
+                  disabled={!isStable}
+                  className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Done {!isStable && `(${stableCount}/5)`}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

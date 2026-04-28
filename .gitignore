@@ -1,7 +1,14 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
+# Database
+risecare.sqlite
+*.sqlite
+*.db
+*.db-journal
+
 # compiled output
 dist
+build
 tmp
 out-tsc
 *.tsbuildinfo
@@ -11,6 +18,13 @@ out-tsc
 # dependencies
 node_modules
 node_modules/
+.pnpm-debug.log
+
+# Build outputs (monorepo packages)
+artifacts/api-server/dist
+artifacts/risecare-kiosk/dist
+lib/api-client-react/dist
+lib/api-client-react/src/generated
 
 # IDEs and editors
 /.idea
@@ -20,6 +34,8 @@ node_modules/
 *.launch
 .settings/
 *.sublime-workspace
+*.swp
+*.swo
 
 # IDE - VSCode
 .vscode/*
@@ -32,19 +48,47 @@ node_modules/
 /.sass-cache
 /connect.lock
 /coverage
+/coverage-json
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
+pnpm-debug.log
 testem.log
 /typings
+
+# Testing
+/coverage
+*.log
 
 # System Files
 .DS_Store
 Thumbs.db
+desktop.ini
 
+# Cursor / AI tools
 .cursor/rules/nx-rules.mdc
+.cursor/
 .github/instructions/nx.instructions.md
+.ai/
+.claude/
 
 # Replit
 .cache/
 .local/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.sessions/
+
+# OS-specific
+._*
+~$*

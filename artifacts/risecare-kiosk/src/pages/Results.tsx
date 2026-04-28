@@ -1,7 +1,13 @@
 import { useRoute, useLocation } from "wouter";
-import { useGetSession } from "@workspace/api-client-react";
 import { KioskHeader } from "@/components/KioskHeader";
-import { Printer, Home, CheckCircle } from "lucide-react";
+import {
+  Printer,
+  Home,
+  CheckCircle,
+  Activity,
+  AlertCircle,
+  Check,
+} from "lucide-react";
 import { useState } from "react";
 import {
   getBPStatus,
@@ -16,24 +22,290 @@ import {
 } from "@/lib/vitals-utils";
 import type { Vitals } from "@/types/vitals";
 import { useMemo, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { clear } from "node:console";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+// @ts-ignore - Session type from @workspace/api-zod
+type Session = any;
 export default function Results() {
-  const [, params] = useRoute("/session/:id/results");
+  const [, params] = useRoute("/session/:token/results");
   const [, setLocation] = useLocation();
-  const sessionId = parseInt(params?.id || "10", 10);
+  const sessionToken = params?.token || "";
   const queryClient = useQueryClient();
   const [countdown, setCountdown] = useState(20);
 
-  const { data: session, isLoading } = useGetSession(sessionId);
+  const { data: session, isLoading } = useQuery<Session>({
+    queryKey: ["session", sessionToken],
+    queryFn: async () => {
+      const res = await fetch("/api/sessions/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: sessionToken }),
+      });
+      if (!res.ok) throw new Error("Session not found");
+      return res.json();
+    },
+    enabled: !!sessionToken,
+  });
 
   // Compute current vitals
   const currentVitals = useMemo<Vitals>(() => {
     if (!session?.vitals) return {};
-    return session.vitals.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+    return session.vitals.reduce((acc: Vitals, curr: Vitals) => ({ ...acc, ...curr }), {});
   }, [session]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
+
+  // Create results list (MUST be before conditional returns)
+  const resultsList = [
+    (() => {
+      const status = getBPStatus(currentVitals.bloodPressureSystolic, currentVitals.bloodPressureDiastolic);
+      return {
+        name: "Blood Pressure",
+        val: currentVitals.bloodPressureSystolic
+          ? `${currentVitals.bloodPressureSystolic}/${currentVitals.bloodPressureDiastolic}`
+          : null,
+        unit: "mmHg",
+        status,
+        msg: getBPMessage(status),
+      };
+    })(),
+    (() => {
+      const status = getHRStatus(currentVitals.heartRate);
+      return {
+        name: "Heart Rate",
+        val: currentVitals.heartRate,
+        unit: "bpm",
+        status,
+        msg: getHRMessage(status),
+      };
+    })(),
+    (() => {
+      const status = getSpO2Status(currentVitals.oxygenSaturation);
+      return {
+        name: "SpO2 Oxygen",
+        val: currentVitals.oxygenSaturation,
+        unit: "%",
+        status,
+        msg: getSpO2Message(status),
+      };
+    })(),
+    (() => {
+      const status = getTempStatus(currentVitals.temperature);
+      return {
+        name: "Body Temp",
+        val: currentVitals.temperature,
+        unit: "°C",
+        status,
+        msg: getTempMessage(status),
+      };
+    })(),
+    (() => {
+      const status = getGlucoseStatus(currentVitals.bloodGlucose);
+      return {
+        name: "Blood Glucose",
+        val: currentVitals.bloodGlucose,
+        unit: "mmol/L",
+        status,
+        msg: getGlucoseMessage(status),
+      };
+    })(),
+    (() => {
+      const status = getBMIStatus(autoBMI);
+      return {
+        name: "BMI",
+        val: autoBMI,
+        unit: "kg/m²",
+        status,
+        msg: getBMIMessage(status),
+      };
+    })(),
+  ].filter((r) => r.val !== undefined && r.val !== null);
+
+  // AI Overall Recommendation with varied advice (MUST be before conditional returns)
+  const overallRecommendation = useMemo(() => {
+    const criticalCount = resultsList.filter((r) => r.status === "critical").length;
+    const warningCount = resultsList.filter((r) => r.status === "warning").length;
+    const normalCount = resultsList.filter((r) => r.status === "normal").length;
+
+    // Check specific conditions for varied advice
+    const hasCriticalBP = resultsList.find(
+      (r) => r.name === "Blood Pressure" && r.status === "critical",
+    );
+    const hasCriticalHR = resultsList.find(
+      (r) => r.name === "Heart Rate" && r.status === "critical",
+    );
+    const hasCriticalSpO2 = resultsList.find(
+      (r) => r.name === "SpO2 Oxygen" && r.status === "critical",
+    );
+    const hasCriticalTemp = resultsList.find(
+      (r) => r.name === "Body Temp" && r.status === "critical",
+    );
+    const hasCriticalGlucose = resultsList.find(
+      (r) => r.name === "Blood Glucose" && r.status === "critical",
+    );
+
+    const hasWarningBP = resultsList.find(
+      (r) => r.name === "Blood Pressure" && r.status === "warning",
+    );
+    const hasWarningBMI = resultsList.find(
+      (r) => r.name === "BMI" && r.status === "warning",
+    );
+    const hasHighBMI = resultsList.find(
+      (r) => r.name === "BMI" && r.status === "critical",
+    );
+
+    if (criticalCount > 0) {
+      // Emergency / Clinic Visit
+      if (hasCriticalSpO2 || (hasCriticalTemp && (currentVitals.temperature ?? 0) > 39)) {
+        return {
+          status: "critical",
+          title: "🚨 Emergency: Seek Immediate Care",
+          message:
+            "Critical oxygen levels or high fever detected. This requires emergency medical attention.",
+          action:
+            "Go to the nearest emergency room or call emergency services (911) immediately. Do not wait.",
+        };
+      }
+
+      if (hasCriticalBP) {
+        return {
+          status: "critical",
+          title: "🏥 Clinic Visit Required",
+          message: "Your blood pressure is dangerously high. This needs immediate medical evaluation.",
+          action:
+            "Visit an urgent care clinic or hospital today. Avoid strenuous activity until cleared by a doctor.",
+        };
+      }
+
+      if (hasCriticalHR) {
+        return {
+          status: "critical",
+          title: "🏥 Clinic Visit Required",
+          message: "Your heart rate is at a critical level requiring medical assessment.",
+          action:
+            "Schedule an appointment with a cardiologist within 24 hours. Avoid caffeine and stress.",
+        };
+      }
+
+      if (hasCriticalGlucose) {
+        return {
+          status: "critical",
+          title: "🏥 Medical Attention Needed",
+          message: "Your blood glucose is at dangerous levels (hypoglycemia or hyperglycemia).",
+          action:
+            "Visit an urgent care clinic immediately. Bring a snack if hypoglycemic, or seek diabetes management if hyperglycemic.",
+        };
+      }
+
+      return {
+        status: "critical",
+        title: "⚠️ Immediate Medical Attention Recommended",
+        message: `You have ${criticalCount} critical reading(s). Please consult a healthcare professional as soon as possible.`,
+        action: "Schedule an appointment with your doctor immediately and bring this report.",
+      };
+    }
+
+    if (warningCount >= 2) {
+      // Retake instructions + Lifestyle suggestion
+      if (hasWarningBP) {
+        return {
+          status: "warning",
+          title: "⚠️ Blood Pressure Elevated",
+          message: "Your blood pressure is above normal. This could be due to stress, salt intake, or lack of exercise.",
+          action:
+            "Retake your BP after 15 minutes of rest in a quiet room. Reduce salt intake and practice stress management (meditation, walking).",
+        };
+      }
+
+      if (hasHighBMI) {
+        return {
+          status: "warning",
+          title: "⚠️ Weight Management Needed",
+          message: "Your BMI indicates you're in an obesity risk category. Lifestyle changes can help.",
+          action:
+            "Consult a nutritionist for a personalized meal plan. Aim for 150 minutes of moderate exercise per week (walking, swimming).",
+        };
+      }
+
+      return {
+        status: "warning",
+        title: "⚠️ Multiple Values Need Monitoring",
+        message: `You have ${warningCount} readings outside normal range. Monitor these trends closely.`,
+        action: "Book a check-up within the next week. Bring this report and discuss lifestyle changes with your doctor.",
+      };
+    }
+
+    if (warningCount === 1) {
+      // Hydration / Rest advice
+      const hasLowBP = resultsList.find(
+        (r) =>
+          r.name === "Blood Pressure" &&
+          r.status === "warning" &&
+          (currentVitals.bloodPressureSystolic ?? 0) < 100,
+      );
+      const hasHighHR = resultsList.find(
+        (r) =>
+          r.name === "Heart Rate" &&
+          r.status === "warning" &&
+          (currentVitals.heartRate ?? 0) > 100,
+      );
+      const hasLowSpO2 = resultsList.find(
+        (r) => r.name === "SpO2 Oxygen" && r.status === "warning",
+      );
+
+      if (hasLowBP) {
+        return {
+          status: "warning",
+          title: "⚠️ Low Blood Pressure Detected",
+          message: "Your blood pressure is lower than normal. This can cause dizziness or fatigue.",
+          action:
+            "Increase hydration (drink 2-3 glasses of water now). Rest for 20 minutes with your feet elevated. Eat a salty snack if feeling faint.",
+        };
+      }
+
+      if (hasHighHR) {
+        return {
+          status: "warning",
+          title: "⚠️ Elevated Heart Rate",
+          message: "Your heart rate is above normal resting range. This could be due to stress, caffeine, or dehydration.",
+          action:
+            "Rest for 10-15 minutes in a calm environment. Drink water and avoid caffeine for the next 4 hours. Retake measurement after resting.",
+        };
+      }
+
+      if (hasLowSpO2) {
+        return {
+          status: "warning",
+          title: "⚠️ Low Oxygen Saturation",
+          message: "Your oxygen levels are slightly below optimal. This may indicate respiratory issues.",
+          action:
+            "Practice deep breathing exercises (inhale 4 sec, hold 4 sec, exhale 4 sec). Avoid smoking and polluted areas. Retake after 10 minutes of fresh air.",
+        };
+      }
+
+      return {
+        status: "warning",
+        title: "⚠️ One Reading Needs Attention",
+        message: "One of your vital signs is slightly outside the normal range.",
+        action: "Retake this measurement in a few days to see if it was a temporary fluctuation.",
+      };
+    }
+
+    if (normalCount === resultsList.length && resultsList.length >= 4) {
+      return {
+        status: "normal",
+        title: "✅ All Vitals Looking Great!",
+        message: "All your vital signs are within healthy ranges. Excellent work maintaining your health!",
+        action: "Keep up your healthy habits! Continue regular check-ups every 6-12 months. Stay hydrated and keep active.",
+      };
+    }
+
+    return {
+      status: "normal",
+      title: "✅ Generally Healthy",
+      message: "Most of your readings are within normal ranges. You're doing well!",
+      action: "Maintain a balanced diet, stay physically active, and monitor your health regularly.",
+    };
+  }, [resultsList, currentVitals]);
 
   // Auto-reset the session after showing results (kiosk mode)
   useEffect(() => {
@@ -41,7 +313,7 @@ export default function Results() {
       setCountdown((prev) => prev - 1);
     }, 1000);
     const timer = setTimeout(() => {
-      queryClient.removeQueries({ queryKey: [`/api/sessions/${sessionId}`] });
+      queryClient.removeQueries({ queryKey: [`/api/sessions/token`] });
 
       // Redirect to home
       setLocation("/");
@@ -51,85 +323,37 @@ export default function Results() {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [sessionId, countdown]);
+  }, [sessionToken, countdown]);
 
   if (isLoading)
     return (
-      <div className="min-h-screen bg-background pt-16 text-center text-xl text-muted-foreground">
+      <div
+        className="min-h-screen bg-background pt-16 text-center text-xl text-muted-foreground"
+        style={{ minHeight: "100dvh" }}
+      >
         Loading results...
       </div>
     );
   if (!session)
     return (
-      <div className="min-h-screen bg-background pt-16 text-center text-xl text-destructive">
+      <div
+        className="min-h-screen bg-background pt-16 text-center text-xl text-destructive"
+        style={{ minHeight: "100dvh" }}
+      >
         Session not found
       </div>
     );
 
-  const resultsList = [
-    {
-      name: "Blood Pressure",
-      val: currentVitals.bloodPressureSystolic
-        ? `${currentVitals.bloodPressureSystolic}/${currentVitals.bloodPressureDiastolic}`
-        : null,
-      unit: "mmHg",
-      status: getBPStatus(
-        currentVitals.bloodPressureSystolic,
-        currentVitals.bloodPressureDiastolic,
-      ),
-      msg: getBPMessage(
-        getBPStatus(
-          currentVitals.bloodPressureSystolic,
-          currentVitals.bloodPressureDiastolic,
-        ),
-      ),
-    },
-    {
-      name: "Heart Rate",
-      val: currentVitals.heartRate,
-      unit: "bpm",
-      status: getHRStatus(currentVitals.heartRate),
-      msg: getHRMessage(getHRStatus(currentVitals.heartRate)),
-    },
-    {
-      name: "SpO2 Oxygen",
-      val: currentVitals.oxygenSaturation,
-      unit: "%",
-      status: getSpO2Status(currentVitals.oxygenSaturation),
-      msg: getSpO2Message(getSpO2Status(currentVitals.oxygenSaturation)),
-    },
-    {
-      name: "Body Temp",
-      val: currentVitals.temperature,
-      unit: "°C",
-      status: getTempStatus(currentVitals.temperature),
-      msg: getTempMessage(getTempStatus(currentVitals.temperature)),
-    },
-    {
-      name: "Blood Glucose",
-      val: currentVitals.bloodGlucose,
-      unit: "mmol/L",
-      status: getGlucoseStatus(currentVitals.bloodGlucose),
-      msg: getGlucoseMessage(getGlucoseStatus(currentVitals.bloodGlucose)),
-    },
-    {
-      name: "BMI",
-      val: autoBMI,
-      unit: "kg/m²",
-      status: getBMIStatus(autoBMI),
-      msg: getBMIMessage(getBMIStatus(autoBMI)),
-    },
-  ].filter((r) => r.val !== undefined && r.val !== null);
+
 
   return (
-    <div className="min-h-screen bg-background flex flex-col pb-20">
-      <KioskHeader
-        title="Session Results"
-        showBack
-        backTo={`/session/${sessionId}`}
-      />
+    <div
+      className="min-h-screen bg-background flex flex-col pb-20"
+      style={{ minHeight: "100dvh" }}
+    >
+      <KioskHeader title="Session Results" />
 
-      <main className="flex-1 p-4 max-w-3xl mx-auto w-full">
+      <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-success/20 text-success rounded-full mb-3">
             <CheckCircle className="w-6 h-6" />
@@ -140,6 +364,52 @@ export default function Results() {
           <p className="text-xl text-muted-foreground mt-2">
             Review the summary below for {session.patientName}
           </p>
+        </div>
+
+        {/* AI Overall Recommendation - Top */}
+        <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
+          <div
+            className={`p-4 border-b border-border ${
+              overallRecommendation.status === "critical"
+                ? "bg-destructive/10"
+                : overallRecommendation.status === "warning"
+                  ? "bg-yellow-500/10"
+                  : "bg-primary/5"
+            }`}
+          >
+            <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              {overallRecommendation.title}
+            </h3>
+          </div>
+          <div className="p-6">
+            <p className="text-lg text-foreground mb-4">
+              {overallRecommendation.message}
+            </p>
+            <div
+              className={`p-4 rounded-xl ${
+                overallRecommendation.status === "critical"
+                  ? "bg-destructive/5 border border-destructive/20"
+                  : overallRecommendation.status === "warning"
+                    ? "bg-yellow-500/5 border border-yellow-500/20"
+                    : "bg-primary/5 border border-primary/20"
+              }`}
+            >
+              <p className="text-base font-semibold text-foreground mb-1">
+                Recommended Action:
+              </p>
+              <p className="text-base text-muted-foreground">
+                {overallRecommendation.action}
+              </p>
+            </div>
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-base text-muted-foreground italic">
+                Note: This is an automated assessment based on your recorded
+                vitals. Please consult a healthcare professional for proper
+                medical advice.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
@@ -205,7 +475,7 @@ export default function Results() {
             onClick={() => {
               // Manual reset
               queryClient.removeQueries({
-                queryKey: [`/api/sessions/${sessionId}`],
+                queryKey: [`/api/sessions/token`],
               });
               setLocation("/");
             }}

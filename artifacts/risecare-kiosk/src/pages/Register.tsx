@@ -4,39 +4,55 @@ import { UserPlus, ArrowRight, User, Phone } from "lucide-react";
 import { useCreateSession } from "@workspace/api-client-react";
 import { KioskHeader } from "@/components/KioskHeader";
 
+const PH_PREFIX = "+63";
+
+function formatPhoneDisplay(digits: string): string {
+  const d = digits.replace(/\D/g, "").slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
+  return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+}
+
 export default function Register() {
   const [, setLocation] = useLocation();
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneRaw, setPhoneRaw] = useState("");
   const [age, setAge] = useState("");
-  const [gender, setGender] = useState<
-    "male" | "female" | "other" | "prefer_not_to_say" | ""
-  >("");
+  const [gender, setGender] = useState<"male" | "female" | "">("");
 
   const createSession = useCreateSession();
+  const phoneDigits = phoneRaw.replace(/\D/g, "");
+  const phoneValid = phoneDigits.length === 10 && phoneDigits[0] === "9";
+  const phoneDisplay = formatPhoneDisplay(phoneRaw);
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+    setPhoneRaw(value);
+  };
 
   const handleStart = () => {
-    if (!name) return;
+    if (!name || !phoneRaw || !age || !gender) return;
+    if (!phoneValid) return;
 
     createSession.mutate(
       {
         data: {
           patientName: name,
-          patientPhone: phone,
-          patientAge: age ? parseInt(age, 10) : undefined,
-          patientGender: gender || undefined,
+          patientPhone: PH_PREFIX + phoneDigits,
+          patientAge: parseInt(age, 10),
+          patientGender: gender,
         },
       },
       {
         onSuccess: (session) => {
-          setLocation(`/session/${session.id}`);
+          setLocation(`/session/${session.token}`);
         },
       },
     );
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col" style={{ minHeight: "100dvh" }}>
       <KioskHeader title="Patient Registration" showBack backTo="/" />
 
       <main className="flex-1 flex items-center justify-center p-4">
@@ -65,7 +81,7 @@ export default function Register() {
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => setName(e.target.value.replace(/[0-9]/g, ""))}
                   placeholder="Tap to enter patient name"
                   className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground"
                 />
@@ -76,32 +92,40 @@ export default function Register() {
                   <Phone className="w-8 h-8 text-primary" /> Phone No.{" "}
                   <span className="text-destructive">*</span>
                 </label>
-                <input
-                  type="number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Tap to enter phone number"
-                  className="no-spinner w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground"
-                />
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-muted-foreground font-medium z-10">
+                    +63
+                  </span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={phoneDisplay}
+                    onChange={handlePhoneChange}
+                    placeholder="912 345 6789"
+                    className="no-spinner w-full h-12 pl-16 pr-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2.5">
-                  <label className="text-xl font-semibold text-foreground">
-                    Age (Optional)
+                  <label className="text-xl font-semibold text-foreground flex items-center gap-2">
+                    Age <span className="text-destructive">*</span>
                   </label>
                   <input
                     type="number"
+                    min="1"
+                    max="999"
                     value={age}
-                    onChange={(e) => setAge(e.target.value)}
+                    onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
                     placeholder="Years"
                     className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                   />
                 </div>
 
                 <div className="space-y-2.5">
-                  <label className="text-xl font-semibold text-foreground">
-                    Gender (Optional)
+                  <label className="text-xl font-semibold text-foreground flex items-center gap-2">
+                    Sex <span className="text-destructive">*</span>
                   </label>
                   <select
                     value={gender}
@@ -111,8 +135,6 @@ export default function Register() {
                     <option value="">Select...</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
-                    <option value="other">Other</option>
-                    <option value="prefer_not_to_say">Prefer not to say</option>
                   </select>
                 </div>
               </div>
@@ -122,7 +144,9 @@ export default function Register() {
           <div className="p-4 bg-secondary/30 border-t border-border flex justify-end">
             <button
               onClick={handleStart}
-              disabled={!name || createSession.isPending || phone.length < 11}
+              disabled={
+                !name || !phoneValid || !age || !gender || createSession.isPending
+              }
               className="h-12 px-6 text-xl font-bold bg-primary text-primary-foreground rounded-lg shadow-xl shadow-primary/25 disabled:opacity-50 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               {createSession.isPending ? "Starting..." : "Begin Session"}

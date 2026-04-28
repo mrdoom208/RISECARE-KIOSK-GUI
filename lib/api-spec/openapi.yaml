@@ -14,7 +14,7 @@ tags:
   - name: sessions
     description: Measurement session operations
 paths:
-  /healthz:
+  /health:
     get:
       operationId: healthCheck
       tags: [health]
@@ -61,6 +61,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Session"
+
+  /sessions/token:
+    post:
+      operationId: getSessionByToken
+      tags: [sessions]
+      summary: Get session by token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+              required:
+                - token
+      responses:
+        "200":
+          description: Session found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /sessions/{id}:
     get:
@@ -151,12 +181,15 @@ components:
       properties:
         patientName:
           type: string
+        patientPhone:
+          type: string
+          nullable: true
         patientAge:
           type: integer
           nullable: true
         patientGender:
           type: string
-          enum: [male, female, other, prefer_not_to_say]
+          enum: [male, female]
           nullable: true
       required:
         - patientName

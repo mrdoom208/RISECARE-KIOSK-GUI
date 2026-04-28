@@ -1,7 +1,8 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Pages
 import Home from "./pages/Home";
@@ -21,15 +22,26 @@ const queryClient = new QueryClient({
 });
 
 function Router() {
+  const [location] = useLocation();
+
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/register" component={Register} />
-      <Route path="/session/:id" component={Dashboard} />
-      <Route path="/session/:id/results" component={Results} />
-      <Route path="/history" component={History} />
-      <Route component={NotFound} />
-    </Switch>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Switch fallback={NotFound}>
+          <Route path="/" component={Home} />
+          <Route path="/register" component={Register} />
+          <Route path="/history" component={History} />
+          <Route path="/session/:token/results" component={Results} />
+          <Route path="/session/:token" component={Dashboard} />
+        </Switch>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -37,7 +49,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <WouterRouter>
           <Router />
         </WouterRouter>
         <Toaster />
