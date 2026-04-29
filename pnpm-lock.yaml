@@ -322,7 +322,7 @@ importers:
       '@rollup/rollup-linux-arm64-gnu':
         specifier: ^4.60.2
         version: 4.60.2
-      '@rollup/rollup-win32-x64-msvc':
+      '@rollup/rollup-linux-x64-gnu':
         specifier: ^4.60.1
         version: 4.60.2
       '@tailwindcss/typography':
@@ -1271,12 +1271,6 @@ packages:
     resolution: {integrity: sha512-UQjrkIdWrKI626Du8lCQ6MJp/6V1LAo2bOK9OTu4mSn8GGXIkPXk/Vsp4bLHCd9Z9Iz2OTEaokUE90VweJgIYQ==}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
-
-  '@rollup/rollup-win32-x64-msvc@4.60.2':
-    resolution: {integrity: sha512-Nd/SgG27WoA9e+/TdK74KnHz852TLa94ovOYySo/yMPuTmpckK/jIF2jSwS3g7ELSKXK13/cVdmg1Z/DaCWKxA==}
-    cpu: [x64]
-    os: [win32]
 
   '@scalar/helpers@0.5.1':
     resolution: {integrity: sha512-9VvPfv8b+YZVIFwR3SWeq4Y8ij/kU3/kf2M6NKcbf2iVyh63d8s0ssap5m/nOhiz/Puidv/29MAJlJCA0LRssA==}
@@ -3828,10 +3822,7 @@ snapshots:
 
   '@rollup/rollup-linux-arm64-gnu@4.60.2': {}
 
-  '@rollup/rollup-linux-x64-gnu@4.60.2':
-    optional: true
-
-  '@rollup/rollup-win32-x64-msvc@4.60.2': {}
+  '@rollup/rollup-linux-x64-gnu@4.60.2': {}
 
   '@scalar/helpers@0.5.1': {}
 
