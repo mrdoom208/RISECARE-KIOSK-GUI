@@ -75,6 +75,29 @@ subscribe("risecare/sensors/glucose", async (data) => {
   }
 });
 
+// API endpoint to send sensor command (start=1 / stop=0)
+router.post("/sensors/command", async (req, res) => {
+  const { sessionId, sensor, value } = req.body;
+
+  if (!sessionId || !sensor || value === undefined) {
+    res.status(400).json({ error: "sessionId, sensor, and value required" });
+    return;
+  }
+
+  const sent = publish(`risecare/command/${sensor}`, {
+    sessionId,
+    sensor,
+    value,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (sent) {
+    res.json({ status: "sent", sensor, sessionId, value });
+  } else {
+    res.status(500).json({ error: "MQTT not connected" });
+  }
+});
+
 // API endpoint to trigger sensor reading (for testing or kiosk buttons)
 router.post("/sensors/trigger", async (req, res) => {
   const { sessionId, sensor } = req.body;

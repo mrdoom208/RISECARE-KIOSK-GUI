@@ -191,11 +191,57 @@ export default function Dashboard() {
     );
   };
 
-  const handleStartReading = () => {
-    if (!activeSensor) return;
-    setReadingVital(activeKeypad);
-    setActiveSensor(null);
-  };
+  const vitalToSensor: Record<VitalType, string> = {
+  bp: "bp",
+  hr: "heartrate",
+  spo2: "spo2",
+  temp: "temperature",
+  weight: "weight",
+  height: "height",
+  glucose: "glucose",
+};
+
+const handleStartReading = async () => {
+  if (!activeSensor || !activeKeypad || !session?.id) return;
+
+  try {
+    await fetch("/api/sensors/command", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: session.id,
+        sensor: vitalToSensor[activeKeypad],
+        value: 1,
+      }),
+    });
+  } catch (err) {
+    console.error("Failed to send start command:", err);
+  }
+
+  setReadingVital(activeKeypad);
+  setActiveSensor(null);
+};
+
+const handleStopReading = async () => {
+  if (!readingVital || !session?.id) return;
+
+  try {
+    await fetch("/api/sensors/command", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: session.id,
+        sensor: vitalToSensor[readingVital],
+        value: 0,
+      }),
+    });
+  } catch (err) {
+    console.error("Failed to send stop command:", err);
+  }
+
+  setReadingVital(null);
+  setStableCount(0);
+};
 
   if (isLoading)
     return (
@@ -483,19 +529,13 @@ export default function Dashboard() {
 
               <div className="flex gap-4">
                 <button
-                  onClick={() => {
-                    setReadingVital(null);
-                    setStableCount(0);
-                  }}
+                  onClick={handleStopReading}
                   className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 transition font-semibold text-lg"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setReadingVital(null);
-                    setStableCount(0);
-                  }}
+                  onClick={handleStopReading}
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
