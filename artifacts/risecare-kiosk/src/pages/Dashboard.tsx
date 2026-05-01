@@ -8,12 +8,12 @@ type Session = any;
 import {
   Heart,
   Activity,
-  Thermometer,
   Droplet,
   Scale,
   Ruler,
   Wind,
   CheckCircle2,
+  Lock,
 } from "lucide-react";
 import { getStatusColor, getStatusText } from "@/lib/vitals-utils";
 import { KioskHeader } from "@/components/KioskHeader";
@@ -40,7 +40,6 @@ import {
   getBPStatus,
   getHRStatus,
   getSpO2Status,
-  getTempStatus,
   getGlucoseStatus,
   getBMIStatus,
   calculateBMI,
@@ -50,10 +49,19 @@ type VitalType =
   | "bp"
   | "hr"
   | "spo2"
-  | "temp"
   | "weight"
   | "height"
   | "glucose";
+
+// Map vital types to sensor IDs
+const vitalToSensorId: Record<VitalType, string> = {
+  bp: "bp",
+  hr: "heartrate",
+  spo2: "spo2",
+  weight: "weight",
+  height: "height",
+  glucose: "glucose",
+};
 
 export default function Dashboard() {
   const [, params] = useRoute("/session/:token");
@@ -69,8 +77,31 @@ export default function Dashboard() {
   const [stableCount, setStableCount] = useState(0);
   const prevValueRef = useRef<any>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
+
+  // Load enabled state from localStorage
+  useEffect(() => {
+    const loadEnabledSensors = () => {
+      const saved = localStorage.getItem("enabledSensors");
+      if (saved) {
+        setEnabledSensors(JSON.parse(saved));
+      }
+    };
+    
+    loadEnabledSensors();
+    
+    // Listen for changes from other components
+    window.addEventListener("sensorStateChange", loadEnabledSensors);
+    return () => window.removeEventListener("sensorStateChange", loadEnabledSensors);
+  }, []);
 
   const isStable = stableCount >= 5;
+
+  // Check if a vital's sensor is enabled
+  const isVitalEnabled = (vital: VitalType) => {
+    const sensorId = vitalToSensorId[vital];
+    return enabledSensors[sensorId] || false;
+  };
 
   const { data: session, isLoading } = useQuery<Session>({
     queryKey: ["session", sessionToken],
@@ -115,9 +146,6 @@ export default function Dashboard() {
         break;
       case "spo2":
         currentValue = currentVitals.oxygenSaturation;
-        break;
-      case "temp":
-        currentValue = currentVitals.temperature;
         break;
       case "weight":
         currentValue = currentVitals.weight;
@@ -173,7 +201,6 @@ export default function Dashboard() {
       payload.bloodPressureDiastolic = num2;
     } else if (activeKeypad === "hr") payload.heartRate = num1;
     else if (activeKeypad === "spo2") payload.oxygenSaturation = num1;
-    else if (activeKeypad === "temp") payload.temperature = num1;
     else if (activeKeypad === "weight") payload.weight = num1;
     else if (activeKeypad === "height") payload.height = num1;
     else if (activeKeypad === "glucose") payload.bloodGlucose = num1;
@@ -192,14 +219,13 @@ export default function Dashboard() {
   };
 
   const vitalToSensor: Record<VitalType, string> = {
-  bp: "bp",
-  hr: "heartrate",
-  spo2: "spo2",
-  temp: "temperature",
-  weight: "weight",
-  height: "height",
-  glucose: "glucose",
-};
+    bp: "bp",
+    hr: "heartrate",
+    spo2: "spo2",
+    weight: "weight",
+    height: "height",
+    glucose: "glucose",
+  };
 
 const handleStartReading = async () => {
   if (!activeSensor || !activeKeypad || !session?.id) return;
@@ -297,101 +323,96 @@ const handleStopReading = async () => {
             isDouble
           />
 
-          {/* Heart Rate */}
-          <VitalCard
-            title="Heart Rate"
-            value={currentVitals.heartRate}
-            unit="bpm"
-            icon={<Activity className="w-5 h-5" />}
-            status={getHRStatus(currentVitals.heartRate)}
-            onClick={() => {
-              setActiveKeypad("hr");
-              setActiveSensor(
-                sensorGuides.find((s) => s.name === "Pulse Oximeter Sensor") ||
-                  null,
-              );
-            }}
-          />
+           {/* Heart Rate */}
+           <VitalCard
+             title="Heart Rate"
+             value={currentVitals.heartRate}
+             unit="bpm"
+             icon={<Activity className="w-5 h-5" />}
+             status={getHRStatus(currentVitals.heartRate)}
+             onClick={() => {
+               if (!isVitalEnabled("hr")) return;
+               setActiveKeypad("hr");
+               setActiveSensor(
+                 sensorGuides.find((s) => s.name === "Pulse Oximeter Sensor") ||
+                   null,
+               );
+             }}
+             disabled={!isVitalEnabled("hr")}
+           />
 
-          {/* SpO2 */}
-          <VitalCard
-            title="SpO2"
-            value={currentVitals.oxygenSaturation}
-            unit="%"
-            icon={<Wind className="w-5 h-5" />}
-            status={getSpO2Status(currentVitals.oxygenSaturation)}
-            onClick={() => {
-              setActiveKeypad("spo2");
-              setActiveSensor(
-                sensorGuides.find((s) => s.name === "Pulse Oximeter Sensor") ||
-                  null,
-              );
-            }}
-          />
+           {/* SpO2 */}
+           <VitalCard
+             title="SpO2"
+             value={currentVitals.oxygenSaturation}
+             unit="%"
+             icon={<Wind className="w-5 h-5" />}
+             status={getSpO2Status(currentVitals.oxygenSaturation)}
+             onClick={() => {
+               if (!isVitalEnabled("spo2")) return;
+               setActiveKeypad("spo2");
+               setActiveSensor(
+                 sensorGuides.find((s) => s.name === "Pulse Oximeter Sensor") ||
+                   null,
+               );
+             }}
+             disabled={!isVitalEnabled("spo2")}
+           />
 
-          {/* Temperature */}
-          <VitalCard
-            title="Temperature"
-            value={currentVitals.temperature}
-            unit="°C"
-            icon={<Thermometer className="w-5 h-5" />}
-            status={getTempStatus(currentVitals.temperature)}
-            onClick={() => {
-              setActiveKeypad("temp");
-              setActiveSensor(
-                sensorGuides.find((s) => s.name === "Thermometer") || null,
-              );
-            }}
-          />
+            {/* Blood Glucose */}
+           <VitalCard
+             title="Blood Glucose"
+             value={currentVitals.bloodGlucose}
+             unit="mmol/L"
+             icon={<Droplet className="w-5 h-5" />}
+             status={getGlucoseStatus(currentVitals.bloodGlucose)}
+             onClick={() => {
+               if (!isVitalEnabled("glucose")) return;
+               setActiveKeypad("glucose");
+               setActiveSensor(
+                 sensorGuides.find((s) => s.name === "Blood Glucose Sensor") ||
+                   null,
+               );
+             }}
+             disabled={!isVitalEnabled("glucose")}
+           />
 
-          {/* Blood Glucose */}
-          <VitalCard
-            title="Blood Glucose"
-            value={currentVitals.bloodGlucose}
-            unit="mmol/L"
-            icon={<Droplet className="w-5 h-5" />}
-            status={getGlucoseStatus(currentVitals.bloodGlucose)}
-            onClick={() => {
-              setActiveKeypad("glucose");
-              setActiveSensor(
-                sensorGuides.find((s) => s.name === "Blood Glucose Sensor") ||
-                  null,
-              );
-            }}
-          />
+           {/* Weight */}
+           <VitalCard
+             title="Weight"
+             value={currentVitals.weight}
+             unit="kg"
+             icon={<Scale className="w-5 h-5" />}
+             status="unknown"
+             onClick={() => {
+               if (!isVitalEnabled("weight")) return;
+               setActiveKeypad("weight");
+               setActiveSensor(
+                 sensorGuides.find((s) => s.name === "Body Weight Scale") ||
+                   null,
+               );
+             }}
+             disabled={!isVitalEnabled("weight")}
+           />
 
-          {/* Weight */}
-          <VitalCard
-            title="Weight"
-            value={currentVitals.weight}
-            unit="kg"
-            icon={<Scale className="w-5 h-5" />}
-            status="unknown"
-            onClick={() => {
-              setActiveKeypad("weight");
-              setActiveSensor(
-                sensorGuides.find((s) => s.name === "Body Weight Scale") ||
-                  null,
-              );
-            }}
-          />
-
-          {/* Height */}
-          <VitalCard
-            title="Height"
-            value={currentVitals.height}
-            unit="cm"
-            icon={<Ruler className="w-5 h-5" />}
-            status="unknown"
-            onClick={() => {
-              setActiveKeypad("height");
-              setActiveSensor(
-                sensorGuides.find(
-                  (s) => s.name === "Height Measurement Sensor",
-                ) || null,
-              );
-            }}
-          />
+           {/* Height */}
+           <VitalCard
+             title="Height"
+             value={currentVitals.height}
+             unit="cm"
+             icon={<Ruler className="w-5 h-5" />}
+             status="unknown"
+             onClick={() => {
+               if (!isVitalEnabled("height")) return;
+               setActiveKeypad("height");
+               setActiveSensor(
+                 sensorGuides.find(
+                   (s) => s.name === "Height Measurement Sensor",
+                 ) || null,
+               );
+             }}
+             disabled={!isVitalEnabled("height")}
+           />
 
           {/* Auto BMI */}
           <div className="relative overflow-hidden bg-secondary/30 rounded-xl p-3 border border-border/50 flex flex-col justify-between">
@@ -488,38 +509,34 @@ const handleStopReading = async () => {
                 {readingVital === "bp" && "Blood Pressure"}
                 {readingVital === "hr" && "Heart Rate"}
                 {readingVital === "spo2" && "SpO2"}
-                {readingVital === "temp" && "Temperature"}
                 {readingVital === "weight" && "Weight"}
                 {readingVital === "height" && "Height"}
                 {readingVital === "glucose" && "Blood Glucose"}
               </h2>
 
               <div className="text-center mb-8">
-                <div className="text-6xl font-bold font-display text-primary mb-2">
-                  {readingVital === "bp" && currentVitals.bloodPressureSystolic
-                    ? `${currentVitals.bloodPressureSystolic}/${currentVitals.bloodPressureDiastolic || "..."}`
-                    : readingVital === "hr" && currentVitals.heartRate
-                    ? currentVitals.heartRate
-                    : readingVital === "spo2" && currentVitals.oxygenSaturation
-                    ? currentVitals.oxygenSaturation
-                    : readingVital === "temp" && currentVitals.temperature
-                    ? currentVitals.temperature
-                    : readingVital === "weight" && currentVitals.weight
-                    ? currentVitals.weight
-                    : readingVital === "height" && currentVitals.height
-                    ? currentVitals.height
-                    : readingVital === "glucose" && currentVitals.bloodGlucose
-                    ? currentVitals.bloodGlucose
-                    : "..."}
-                </div>
-                <div className="text-xl text-muted-foreground">
-                  {readingVital === "bp" && "mmHg"}
-                  {readingVital === "hr" && "bpm"}
-                  {readingVital === "spo2" && "%"}
-                  {readingVital === "temp" && "°C"}
-                  {readingVital === "weight" && "kg"}
-                  {readingVital === "height" && "cm"}
-                  {readingVital === "glucose" && "mmol/L"}
+                  <div className="text-6xl font-bold font-display text-primary mb-2">
+                    {readingVital === "bp" && currentVitals.bloodPressureSystolic
+                      ? `${currentVitals.bloodPressureSystolic}/${currentVitals.bloodPressureDiastolic || "..."}`
+                      : readingVital === "hr" && currentVitals.heartRate
+                      ? currentVitals.heartRate
+                      : readingVital === "spo2" && currentVitals.oxygenSaturation
+                      ? currentVitals.oxygenSaturation
+                      : readingVital === "weight" && currentVitals.weight
+                      ? currentVitals.weight
+                      : readingVital === "height" && currentVitals.height
+                      ? currentVitals.height
+                      : readingVital === "glucose" && currentVitals.bloodGlucose
+                      ? currentVitals.bloodGlucose
+                      : "..."}
+                  </div>
+                  <div className="text-xl text-muted-foreground">
+                    {readingVital === "bp" && "mmHg"}
+                    {readingVital === "hr" && "bpm"}
+                    {readingVital === "spo2" && "%"}
+                    {readingVital === "weight" && "kg"}
+                    {readingVital === "height" && "cm"}
+                    {readingVital === "glucose" && "mmol/L"}
                 </div>
               </div>
 

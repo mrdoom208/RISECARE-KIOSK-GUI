@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { VitalStatus, getStatusColor, getStatusText } from "@/lib/vitals-utils";
-import { Plus } from "lucide-react";
+import { Plus, Lock } from "lucide-react";
 
 interface VitalCardProps {
   title: string;
@@ -11,6 +11,7 @@ interface VitalCardProps {
   status: VitalStatus;
   onClick: () => void;
   isDouble?: boolean;
+  disabled?: boolean;
 }
 
 export function VitalCard({
@@ -22,18 +23,22 @@ export function VitalCard({
   status,
   onClick,
   isDouble,
+  disabled = false,
 }: VitalCardProps) {
   const hasValue = value !== undefined && value !== null && value !== "";
 
   return (
     <div
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       className={`
-        relative overflow-hidden group cursor-pointer
+        relative overflow-hidden group
         bg-card rounded-xl p-3 border-2 
-        transition-all duration-200 active:scale-[0.98]
-        shadow-sm hover:shadow-md
-        ${hasValue ? "border-border/50" : "border-dashed border-border hover:border-primary/50"}
+        transition-all duration-200
+        ${disabled 
+          ? "cursor-not-allowed opacity-50 border-border/30" 
+          : "cursor-pointer active:scale-[0.98] shadow-sm hover:shadow-md border-border/50 hover:border-primary/50"
+        }
+        ${hasValue && !disabled ? "" : "border-dashed"}
       `}
     >
       <div className="flex justify-between items-start mb-3">
@@ -53,15 +58,18 @@ export function VitalCard({
           <h3 className="text-xl font-bold text-foreground">{title}</h3>
         </div>
 
-        {hasValue && (
-          <div
-            className={`px-2 py-1 rounded-full text-xs font-bold tracking-wide uppercase ${getStatusColor(
-              status,
-            )}`}
-          >
-            {getStatusText(status)}
-          </div>
-        )}
+        {!hasValue && !disabled && (
+           <div className="flex items-center gap-1.5 text-sm text-muted-foreground/60 py-1">
+             <Plus className="w-4 h-4" />
+             <span>Tap to record</span>
+           </div>
+         )}
+         {disabled && (
+           <div className="flex items-center gap-1.5 text-sm text-muted-foreground/60 py-1">
+             <Lock className="w-4 h-4" />
+             <span>Disabled</span>
+           </div>
+         )}
       </div>
 
       <div className="mt-2 flex items-baseline justify-between">

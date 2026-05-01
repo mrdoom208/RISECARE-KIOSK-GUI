@@ -1,0 +1,223 @@
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+
+interface SensorsDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const sensors = [
+  { id: "heartrate", name: "Heart Rate", icon: "❤️" },
+  { id: "spo2", name: "SpO2", icon: "🫁" },
+  { id: "height", name: "Height", icon: "📏" },
+  { id: "weight", name: "Weight", icon: "⚖️" },
+];
+
+export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
+  const { toast } = useToast();
+  const [sessionId] = useState(() => `session-${Date.now()}`);
+  const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>(
+    {},
+  );
+
+  // Load enabled state from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("enabledSensors");
+    if (saved) {
+      setEnabledSensors(JSON.parse(saved));
+    }
+  }, []);
+
+  // Save enabled state to localStorage
+  const saveEnabledState = (state: Record<string, boolean>) => {
+    localStorage.setItem("enabledSensors", JSON.stringify(state));
+    setEnabledSensors(state);
+    // Notify other components
+    window.dispatchEvent(new Event("sensorStateChange"));
+  };
+
+  const {
+    data: sensorStatus,
+    isLoading: statusLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["sensor-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/status");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: false,
+  });
+
+  const commandMutation = useMutation({
+    mutationFn: async ({
+      sensor,
+      value,
+    }: {
+      sensor: string;
+      value: number;
+    }) => {
+      const res = await fetch("/api/sensors/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, sensor, value }),
+      });
+      if (!res.ok) throw new Error("Failed to send command");
+      return res.json();
+    },
+    onSuccess: (data, variables) => {
+      const action =
+        variables.value === 1
+          ? "started"
+          : variables.value === 2
+            ? "calibrated"
+            : variables.value === 3
+              ? "tested"
+              : "stopped";
+      toast({
+        title: `Sensor ${action}`,
+        description: `${variables.sensor} ${action} successfully`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to send command",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleSensor = (sensorId: string) => {
+    const newState = { ...enabledSensors };
+    newState[sensorId] = !newState[sensorId];
+    saveEnabledState(newState);
+
+    // Send command to Python
+    const value = newState[sensorId] ? 1 : 0;
+    commandMutation.mutate({ sensor: sensorId, value });
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <button
+                onClick={onClose}
+                className="p-2 rounded-full hover:bg-muted transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h2 className="text-2xl font-bold">Sensors</h2>
+              <div className="w-10" />
+            </div>
+
+            {/* Status */}
+            <div className="mb-6 p-4 rounded-xl bg-secondary">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-semibold">MQTT Status</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {statusLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <div
+                      className={`w-3 h-3 rounded-full ${sensorStatus?.connected ? "bg-green-500" : "bg-red-500"}`}
+                    />
+                  )}
+                  <span
+                    className={
+                      sensorStatus?.connected
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }
+                  >
+                    {sensorStatus?.connected ? "Connected" : "Disconnected"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Sensors Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {sensors.map((sensor) => (
+                <div key={sensor.id} className="p-4 rounded-xl bg-secondary">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{sensor.icon}</span>
+                      <h3 className="font-semibold">{sensor.name}</h3>
+                    </div>
+                    <Button
+                      onClick={() => toggleSensor(sensor.id)}
+                      disabled={commandMutation.isPending}
+                      variant={
+                        enabledSensors[sensor.id] ? "default" : "outline"
+                      }
+                      size="sm"
+                    >
+                      {enabledSensors[sensor.id] ? "Enabled" : "Disabled"}
+                    </Button>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      onClick={() =>
+                        commandMutation.mutate({ sensor: sensor.id, value: 2 })
+                      }
+                      disabled={
+                        commandMutation.isPending || !enabledSensors[sensor.id]
+                      }
+                      variant="outline"
+                      size="sm"
+                    >
+                      Calibrate
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        commandMutation.mutate({ sensor: sensor.id, value: 3 })
+                      }
+                      disabled={
+                        commandMutation.isPending || !enabledSensors[sensor.id]
+                      }
+                      variant="secondary"
+                      size="sm"
+                    >
+                      Test
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              onClick={() => refetch()}
+              className="w-full mt-4"
+              variant="outline"
+            >
+              Refresh Status
+            </Button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

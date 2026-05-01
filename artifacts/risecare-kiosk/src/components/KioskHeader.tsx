@@ -54,17 +54,18 @@ export function KioskHeader({
           </span>
           <button
             onClick={() => setShowSettings(true)}
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-secondary-foreground active:scale-95 transition-transform ml-2"
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-secondary-foreground active:scale-95 transition-transform"
+            title="Settings"
           >
             <Settings className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      <SettingsDialog
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-      />
+       <SettingsDialog
+         isOpen={showSettings}
+         onClose={() => setShowSettings(false)}
+       />
     </>
   );
 }
