@@ -19,12 +19,15 @@ out-tsc
 node_modules
 node_modules/
 .pnpm-debug.log
+package-lock.json
 
 # Build outputs (monorepo packages)
 artifacts/api-server/dist
+artifacts/api-server/public/assets/
 artifacts/risecare-kiosk/dist
 lib/api-client-react/dist
 lib/api-client-react/src/generated
+lib/api-zod/src/generated
 
 # IDEs and editors
 /.idea
