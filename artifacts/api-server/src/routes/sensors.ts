@@ -75,6 +75,27 @@ subscribe("risecare/sensors/glucose", async (data) => {
   }
 });
 
+// In-memory calibration results (last result per sensor)
+let calibrationResults: Record<string, any> = {};
+
+// In-memory sensor availability (reported from Python hardware)
+let sensorAvailability: Record<string, boolean> = {};
+
+subscribe("risecare/sensors/availability", async (data) => {
+  sensorAvailability = data;
+  console.log("📡 Sensor availability:", data);
+});
+
+subscribe("risecare/calibration/height", async (data) => {
+  console.log("📏 Height calibration result:", data);
+  calibrationResults["height"] = data;
+});
+
+subscribe("risecare/calibration/weight", async (data) => {
+  console.log("⚖️ Weight calibration result:", data);
+  calibrationResults["weight"] = data;
+});
+
 // API endpoint to send sensor command (start=1 / stop=0)
 router.post("/sensors/command", async (req, res) => {
   const { sessionId, sensor, value } = req.body;
@@ -127,7 +148,13 @@ router.get("/sensors/status", async (_req, res) => {
   res.json({
     connected: isConnected(),
     broker: process.env.MQTT_BROKER || "mqtt://localhost:1883",
+    sensors: sensorAvailability,
   });
+});
+
+// Get latest calibration result
+router.get("/sensors/calibration", async (_req, res) => {
+  res.json(calibrationResults);
 });
 
 export default router;

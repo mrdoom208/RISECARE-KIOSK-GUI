@@ -1,5 +1,3 @@
-# install with: pip install max30102
-# install with: pip install hrcalc and numpy
 from max30102 import MAX30102
 import hrcalc
 import time
@@ -11,27 +9,45 @@ def setup():
     global sensor
     try:
         sensor = MAX30102()
-        print("$\checkmark$ MAX30102 sensor initialized")
+        print("\u2713 MAX30102 sensor initialized")
     except Exception as e:
-        print(f"$\times$ Failed to initialize MAX30102: {e}")
+        print(f"\u2717 Failed to initialize MAX30102: {e}")
         sensor = None
+
+
+def enable():
+    global sensor
+    try:
+        if sensor is None:
+            sensor = MAX30102()
+        else:
+            sensor.setup()
+    except Exception as e:
+        print(f"\u2717 Failed to enable MAX30102: {e}")
+
+
+def disable():
+    global sensor
+    if sensor is not None:
+        try:
+            sensor.shutdown()
+        except Exception:
+            pass
+
 
 def get_reading():
     if sensor is None:
-        print("$\times$ Sensor not initialized.")
         return 0, False, 0, False
 
-    # Collect a window of samples (100 samples ~ 1-2 seconds)
-    red, ir = sensor.read_sequential(samples=100)
-    
-    # Ensure the arrays are not empty
+    red, ir = sensor.read_sequential(samples=50)
+
     if len(red) < 10 or len(ir) < 10:
         return 0, False, 0, False
 
-    # This now correctly unpacks 4 values
     hr, hr_valid, spo2, spo2_valid = hrcalc.calc_hr_and_spo2(ir, red)
 
     return hr, hr_valid, spo2, spo2_valid
+
 
 def read_continuous():
     print("Reading MAX30102... Place your finger on the sensor.")

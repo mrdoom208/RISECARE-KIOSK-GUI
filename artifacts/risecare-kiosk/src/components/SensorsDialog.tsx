@@ -51,6 +51,17 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
+    enabled: isOpen,
+    refetchInterval: isOpen ? 5000 : false,
+  });
+
+  const { data: calibrationResults, refetch: refetchCalibration } = useQuery({
+    queryKey: ["calibration-results"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/calibration");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
     enabled: false,
   });
 
@@ -70,19 +81,16 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       if (!res.ok) throw new Error("Failed to send command");
       return res.json();
     },
-    onSuccess: (data, variables) => {
-      const action =
-        variables.value === 1
-          ? "started"
-          : variables.value === 2
-            ? "calibrated"
-            : variables.value === 3
-              ? "tested"
-              : "stopped";
-      toast({
-        title: `Sensor ${action}`,
-        description: `${variables.sensor} ${action} successfully`,
-      });
+    onSuccess: (_data, variables) => {
+      if (variables.value === 2) {
+        toast({
+          title: "Calibration initiated",
+          description: `Calibrating ${variables.sensor}... Check back shortly`,
+        });
+        setTimeout(() => refetchCalibration(), 3000);
+      } else {
+        setTimeout(() => refetchCalibration(), 3000);
+      }
     },
     onError: () => {
       toast({
@@ -97,10 +105,6 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     const newState = { ...enabledSensors };
     newState[sensorId] = !newState[sensorId];
     saveEnabledState(newState);
-
-    // Send command to Python
-    const value = newState[sensorId] ? 1 : 0;
-    commandMutation.mutate({ sensor: sensorId, value });
   };
 
   return (
@@ -167,6 +171,23 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                       <span className="text-2xl">{sensor.icon}</span>
                       <h3 className="font-semibold">{sensor.name}</h3>
                     </div>
+                    {sensorStatus?.sensors?.[sensor.id] === false && (
+                      <span className="text-xs text-red-500 bg-red-500/10 px-2 py-1 rounded-full">
+                        Not detected
+                      </span>
+                    )}
+                    {sensorStatus?.sensors?.[sensor.id] === true && (
+                      <span className="text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
+                        Detected
+                      </span>
+                    )}
+                    {(sensor.id === "height" || sensor.id === "weight") && calibrationResults?.[sensor.id] && (
+                      <span className="text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-full">
+                        {sensor.id === "height"
+                          ? `${calibrationResults.height.totalHeight?.toFixed(1)} cm`
+                          : `factor: ${calibrationResults.weight.factor?.toFixed(2)}`}
+                      </span>
+                    )}
                     <Button
                       onClick={() => toggleSensor(sensor.id)}
                       disabled={commandMutation.isPending}

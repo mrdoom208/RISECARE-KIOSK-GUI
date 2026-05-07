@@ -41,6 +41,10 @@ class MAX30102:
         self.write_reg(self.REG_FIFO_WR_PTR, 0x00)
         self.write_reg(self.REG_FIFO_RD_PTR, 0x00)
 
+    def shutdown(self):
+        self.write_reg(self.REG_MODE_CONFIG, 0x00)
+        time.sleep(0.01)
+
     def read_fifo(self):
         """Read Red and IR samples from the FIFO buffer."""
         # Read 6 bytes (3 for Red, 3 for IR)
@@ -49,8 +53,7 @@ class MAX30102:
         ir = (data[3] << 16 | data[4] << 8 | data[5]) & 0x3FFFF
         return red, ir
 
-    def read_sequential(self, samples=100, delay=0.02):
-        """Read multiple sequential samples for hrcalc processing."""
+    def read_sequential(self, samples=50, delay=0.01):
         red_samples = []
         ir_samples = []
 

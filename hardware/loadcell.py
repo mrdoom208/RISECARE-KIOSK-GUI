@@ -41,16 +41,15 @@ def load_calibration():
         print("⚠️ No calibration file found. Please calibrate.")
 
 
-def calibrate_loadcell():
+def calibrate_loadcell(known_weight_grams=1000):
     global calibration_factor, calibration_offset
     print("Calibrating loadcell...")
-    print("Place a known weight on the sensor (e.g., 1kg or 1000g)")
+    print(f"Place a {known_weight_grams}g weight on the sensor...")
 
     if not sensor_available:
         print("❌ Sensor not available")
-        return
+        return None
 
-    input("Press Enter when ready...")
     time.sleep(2)
 
     readings = []
@@ -61,9 +60,7 @@ def calibrate_loadcell():
         time.sleep(0.5)
 
     raw_value = sum(readings) / len(readings)
-
-    known_weight = float(input("Enter known weight in grams: "))
-    calibration_factor = raw_value / known_weight
+    calibration_factor = raw_value / known_weight_grams
     calibration_offset = 0
 
     if os.path.exists(CALIBRATION_FILE):
@@ -81,17 +78,14 @@ def calibrate_loadcell():
         json.dump(data, f)
 
     print(f"✅ Saved LoadCell Calibration: factor={calibration_factor}")
+    return calibration_factor
 
 
 def get_weight():
-    if calibration_factor is None:
-        print("❌ Please run calibrate_loadcell() first!")
+    if calibration_factor is None or not sensor_available:
         return None
 
-    if not sensor_available:
-        return None
-
-    raw = hx.get_weight_mean(5)
+    raw = hx.get_weight_mean(3)
     weight = raw / calibration_factor
     return round(weight, 2)
 

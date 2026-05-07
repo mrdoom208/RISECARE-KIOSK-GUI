@@ -5,8 +5,9 @@ import os
 
 TRIG = 23
 ECHO = 24
+TIMEOUT = 0.5
 
-TOTAL_HEIGHT = None  # will be set during calibration
+TOTAL_HEIGHT = None
 
 
 def setup():
@@ -16,30 +17,29 @@ def setup():
     print("✓ Ultrasonic sensor initialized")
 
 
-# ---------------------------
-# 1. Measure distance (core)
-# ---------------------------
 def measure_distance():
     GPIO.output(TRIG, False)
-    time.sleep(0.05)
+    time.sleep(0.01)
 
     GPIO.output(TRIG, True)
     time.sleep(0.00001)
     GPIO.output(TRIG, False)
 
-    pulse_start = time.time()
-    pulse_end = time.time()
+    timeout_start = time.monotonic()
+    pulse_start = time.monotonic()
 
-    # Wait for echo start
     while GPIO.input(ECHO) == 0:
-        pulse_start = time.time()
+        pulse_start = time.monotonic()
+        if time.monotonic() - timeout_start > TIMEOUT:
+            return None
 
-    # Wait for echo end
     while GPIO.input(ECHO) == 1:
-        pulse_end = time.time()
+        pulse_end = time.monotonic()
+        if time.monotonic() - timeout_start > TIMEOUT:
+            return None
 
     pulse_duration = pulse_end - pulse_start
-    distance = pulse_duration * 17150  # cm
+    distance = pulse_duration * 17150
     return round(distance, 2)
 
 
@@ -55,9 +55,14 @@ def calibrate_height():
 
     for _ in range(5):
         d = measure_distance()
-        readings.append(d)
-        print(f"Reading: {d} cm")
+        if d is not None:
+            readings.append(d)
+            print(f"Reading: {d} cm")
         time.sleep(0.5)
+
+    if not readings:
+        print("❌ Calibration failed: no valid readings")
+        return
 
     TOTAL_HEIGHT = sum(readings) / len(readings)
 
@@ -85,7 +90,7 @@ def test_sensor():
         while True:
             d = measure_distance()
             print(f"Distance: {d} cm")
-            time.sleep(1)
+            time.sleep(0.5)
     except KeyboardInterrupt:
         print("Test stopped")
 
@@ -95,13 +100,17 @@ def test_sensor():
 # ---------------------------
 def get_height():
     if TOTAL_HEIGHT is None:
-        print("❌ Please run calibrate_height() first!")
         return None
 
     readings = []
-    for _ in range(5):
-        readings.append(measure_distance())
-        time.sleep(0.1)
+    for _ in range(3):
+        d = measure_distance()
+        if d is not None:
+            readings.append(d)
+        time.sleep(0.05)
+
+    if not readings:
+        return None
 
     avg_distance = sum(readings) / len(readings)
     height = TOTAL_HEIGHT - avg_distance
