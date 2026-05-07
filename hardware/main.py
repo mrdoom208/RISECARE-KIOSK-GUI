@@ -176,8 +176,9 @@ def main():
                     mqtt_client.publish(f"risecare/sensors/weight", 
                         {"kg": weight / 1000, "sessionId": current_session_id, "timestamp": time.time()})
                 
-                print(f"HR: {hr:.2f if hr_valid and hr_enabled else 'N/A'} | SpO2: {spo2:.2f if spo2_valid and spo2_enabled else 'N/A'}% | H: {height} cm | W: {weight} g")
-                
+                print(f"HR: {f'{hr:.2f}' if hr_valid and hr_enabled else 'N/A'} | "
+                      f"SpO2: {f'{spo2:.2f}' if spo2_valid and spo2_enabled else 'N/A'}% | "
+                      f"H: {height} cm | W: {weight} g")
                 time.sleep(1)
             elif mode == 0:
                 time.sleep(1)

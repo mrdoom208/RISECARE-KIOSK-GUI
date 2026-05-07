@@ -98,5 +98,19 @@ def get_weight():
 
 def tare():
     if sensor_available:
-        hx.tare()
+        zero_value= hx.get_weight_mean(5)
         print("Tare complete")
+
+def setup():
+    """Initialize the load cell sensor."""
+    if not sensor_available:
+        print("❌ LoadCell sensor not available")
+        return
+
+    print("Initializing LoadCell (HX711)...")
+    # Reset the sensor
+    hx.reset()
+    # Load calibration if available
+    load_calibration()
+    # Tare the scale
+    print("✓ LoadCell initialized")

@@ -1,6 +1,6 @@
 # install with: pip install max30102
 # install with: pip install hrcalc and numpy
-import max30102
+from max30102 import MAX30102
 import hrcalc
 import time
 
@@ -9,22 +9,29 @@ sensor = None
 
 def setup():
     global sensor
-    # GPIO pins are set to default (SDA=2, SCL=3).
-    # 3.3 volts is recommended for the sensor. If using 5 volts, ensure to use a level shifter.
-    sensor = max30102.MAX30102()
-    print("✓ MAX30102 sensor initialized")
-
+    try:
+        sensor = MAX30102()
+        print("$\checkmark$ MAX30102 sensor initialized")
+    except Exception as e:
+        print(f"$\times$ Failed to initialize MAX30102: {e}")
+        sensor = None
 
 def get_reading():
     if sensor is None:
-        print("❌ Sensor not initialized. Call setup() first!")
-        return None, None, None, None
+        print("$\times$ Sensor not initialized.")
+        return 0, False, 0, False
 
-    red, ir = sensor.read_sequential()
+    # Collect a window of samples (100 samples ~ 1-2 seconds)
+    red, ir = sensor.read_sequential(samples=100)
+    
+    # Ensure the arrays are not empty
+    if len(red) < 10 or len(ir) < 10:
+        return 0, False, 0, False
+
+    # This now correctly unpacks 4 values
     hr, hr_valid, spo2, spo2_valid = hrcalc.calc_hr_and_spo2(ir, red)
 
     return hr, hr_valid, spo2, spo2_valid
-
 
 def read_continuous():
     print("Reading MAX30102... Place your finger on the sensor.")
