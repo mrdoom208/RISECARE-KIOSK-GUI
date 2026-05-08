@@ -158,7 +158,7 @@ export default function Dashboard() {
         break;
     }
 
-    if (currentValue === null) return;
+    if (currentValue == null) return;
 
     if (prevValue !== null) {
       let isFar = false;
@@ -268,6 +268,56 @@ const handleStopReading = async () => {
   setReadingVital(null);
   setStableCount(0);
 };
+
+  const getReadingDisplay = (vital: VitalType) => {
+    switch (vital) {
+      case "bp": {
+        const sys = currentVitals.bloodPressureSystolic;
+        const dia = currentVitals.bloodPressureDiastolic;
+        return {
+          title: "Blood Pressure",
+          value: sys != null && dia != null ? `${sys}/${dia}` : "Reading...",
+          unit: "mmHg",
+          hasValue: sys != null && dia != null,
+        };
+      }
+      case "hr":
+        return {
+          title: "Heart Rate",
+          value: currentVitals.heartRate != null ? currentVitals.heartRate.toFixed(0) : "Reading...",
+          unit: "bpm",
+          hasValue: currentVitals.heartRate != null,
+        };
+      case "spo2":
+        return {
+          title: "SpO2",
+          value: currentVitals.oxygenSaturation != null ? currentVitals.oxygenSaturation.toFixed(0) : "Reading...",
+          unit: "%",
+          hasValue: currentVitals.oxygenSaturation != null,
+        };
+      case "weight":
+        return {
+          title: "Weight",
+          value: currentVitals.weight != null ? currentVitals.weight.toFixed(2) : "Reading...",
+          unit: "kg",
+          hasValue: currentVitals.weight != null,
+        };
+      case "height":
+        return {
+          title: "Height",
+          value: currentVitals.height != null ? currentVitals.height.toFixed(1) : "Reading...",
+          unit: "cm",
+          hasValue: currentVitals.height != null,
+        };
+      case "glucose":
+        return {
+          title: "Blood Glucose",
+          value: currentVitals.bloodGlucose != null ? currentVitals.bloodGlucose.toFixed(1) : "Reading...",
+          unit: "mmol/L",
+          hasValue: currentVitals.bloodGlucose != null,
+        };
+    }
+  };
 
   if (isLoading)
     return (
@@ -505,44 +555,30 @@ const handleStopReading = async () => {
               transition={{ duration: 0.2 }}
               className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
             >
+              {(() => {
+                const display = getReadingDisplay(readingVital);
+
+                return (
+                  <>
               <h2 className="text-2xl font-bold mb-6 text-center">
-                {readingVital === "bp" && "Blood Pressure"}
-                {readingVital === "hr" && "Heart Rate"}
-                {readingVital === "spo2" && "SpO2"}
-                {readingVital === "weight" && "Weight"}
-                {readingVital === "height" && "Height"}
-                {readingVital === "glucose" && "Blood Glucose"}
+                {display.title}
               </h2>
 
               <div className="text-center mb-8">
-                  <div className="text-6xl font-bold font-display text-primary mb-2">
-                    {readingVital === "bp" && currentVitals.bloodPressureSystolic
-                      ? `${currentVitals.bloodPressureSystolic}/${currentVitals.bloodPressureDiastolic || "..."}`
-                      : readingVital === "hr" && currentVitals.heartRate
-                      ? currentVitals.heartRate
-                      : readingVital === "spo2" && currentVitals.oxygenSaturation
-                      ? currentVitals.oxygenSaturation
-                      : readingVital === "weight" && currentVitals.weight
-                      ? currentVitals.weight
-                      : readingVital === "height" && currentVitals.height
-                      ? currentVitals.height
-                      : readingVital === "glucose" && currentVitals.bloodGlucose
-                      ? currentVitals.bloodGlucose
-                      : "..."}
+                  <div className={`font-bold font-display text-primary mb-2 ${display.hasValue ? "text-6xl" : "text-4xl"}`}>
+                    {display.value}
                   </div>
                   <div className="text-xl text-muted-foreground">
-                    {readingVital === "bp" && "mmHg"}
-                    {readingVital === "hr" && "bpm"}
-                    {readingVital === "spo2" && "%"}
-                    {readingVital === "weight" && "kg"}
-                    {readingVital === "height" && "cm"}
-                    {readingVital === "glucose" && "mmol/L"}
+                    {display.unit}
                 </div>
               </div>
 
               <p className="text-center text-muted-foreground mb-6">
-                Reading from sensor...
+                {display.hasValue ? "Reading from sensor..." : "Waiting for sensor data..."}
               </p>
+                  </>
+                );
+              })()}
 
               <div className="flex gap-4">
                 <button
