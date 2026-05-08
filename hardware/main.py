@@ -63,30 +63,49 @@ def handle_command(sensor, session_id, value, payload):
 
     elif value == 3:
         print(f"🧪 Testing {sensor}...")
+        success = False
+        result = {}
         if sensor == "height":
             dist = ultrasonic.measure_distance()
             print(f"Ultrasonic distance: {dist} cm")
             height = ultrasonic.get_height()
             if height:
                 print(f"Height: {height} cm")
+                result = {"cm": height}
+                success = True
         elif sensor == "weight":
             weight = loadcell.get_weight()
             if weight:
                 print(f"LoadCell weight: {weight} g")
+                result = {"kg": weight / 1000}
+                success = True
         elif sensor == "heartrate":
             hr, hr_valid, spo2, spo2_valid = heartrateSpo2.get_reading()
             if hr_valid:
                 print(f"HeartRate: {hr:.2f} bpm")
+                result = {"bpm": hr}
+                success = True
             else:
                 print("HeartRate: Invalid reading")
         elif sensor == "spo2":
             hr, hr_valid, spo2, spo2_valid = heartrateSpo2.get_reading()
             if spo2_valid:
                 print(f"SpO2: {spo2:.2f}%")
+                result = {"value": spo2}
+                success = True
             else:
                 print("SpO2: Invalid reading")
         else:
             print(f"⚠️ Unknown sensor for test: {sensor}")
+        payload = {
+            "sensor": sensor,
+            "sessionId": current_session_id,
+            "timestamp": time.time(),
+            "status": "success" if success else "failed",
+            **result
+        }
+        mqtt_client.publish(f"risecare/test/{sensor}", payload)
+        print(f"   Test {'successful' if success else 'failed'}: {payload}")
         mode = 1
         running = True
 

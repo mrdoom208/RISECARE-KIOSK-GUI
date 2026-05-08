@@ -2,7 +2,6 @@ import time
 import json
 import os
 
-# HX711 DT and SCK pins
 DT = 5
 SCK = 6
 
@@ -16,65 +15,68 @@ except ImportError:
 
 if sensor_available:
     GPIO.setmode(GPIO.BCM)
-    hx = HX711(DT, SCK)
+    hx = HX711(dout_pin=DT, pd_sck_pin=SCK)
 else:
     hx = None
 
 CALIBRATION_FILE = "calibration.json"
 calibration_factor = None
-calibration_offset = None
+empty_offset = None
+
+
+def _raw():
+    data = hx.get_raw_data()
+    if isinstance(data, list):
+        return data[0]
+    return data
 
 
 def load_calibration():
-    global calibration_factor, calibration_offset
+    global calibration_factor, empty_offset
     if os.path.exists(CALIBRATION_FILE):
         with open(CALIBRATION_FILE, "r") as f:
             data = json.load(f)
             loadcell_data = data.get("loadcell", {})
             calibration_factor = loadcell_data.get("calibration_factor")
-            calibration_offset = loadcell_data.get("calibration_offset")
+            empty_offset = loadcell_data.get("empty_offset")
         if calibration_factor:
-            print(f"📂 Loaded LoadCell Calibration: factor={calibration_factor}, offset={calibration_offset}")
+            print(f" Loaded LoadCell Calibration: factor={calibration_factor}, offset={empty_offset}")
         else:
-            print("⚠️ No loadcell calibration found. Please calibrate.")
+            print(" No loadcell calibration found. Please calibrate.")
     else:
-        print("⚠️ No calibration file found. Please calibrate.")
-
-
-def _read_avg(samples=5):
-    readings = []
-    for _ in range(samples):
-        try:
-            readings.append(hx.read())
-        except Exception:
-            pass
-        time.sleep(0.05)
-    if not readings:
-        return 0
-    return sum(readings) / len(readings)
+        print(" No calibration file found. Please calibrate.")
 
 
 def calibrate_loadcell(known_weight_grams=1000):
-    global calibration_factor, calibration_offset
-    print("Calibrating loadcell...")
-    print(f"Place a {known_weight_grams}g weight on the sensor...")
+    global calibration_factor, empty_offset
 
     if not sensor_available:
-        print("❌ Sensor not available")
+        print(" Sensor not available")
         return None
 
-    time.sleep(2)
+    known_weight_kg = known_weight_grams / 1000
 
-    readings = []
-    for _ in range(10):
-        val = _read_avg(5)
-        readings.append(val)
-        print(f"Reading: {val}")
-        time.sleep(0.5)
+    print("Calibrating loadcell...")
+    print("Step 1: Clear the scale. Taring...")
+    hx.reset()
+    time.sleep(1)
+    raw_empty = _raw()
+    empty_offset = raw_empty
+    print(f"Empty Raw: {raw_empty}")
 
-    raw_value = sum(readings) / len(readings)
-    calibration_factor = raw_value / known_weight_grams
-    calibration_offset = 0
+    print(f"\nStep 2: Place your {known_weight_grams}g ({known_weight_kg}kg) weight on the scale NOW.")
+    time.sleep(5)
+
+    raw_loaded = _raw()
+    print(f"Loaded Raw: {raw_loaded}")
+
+    difference = raw_loaded - raw_empty
+    if difference <= 0:
+        print(" Error: Loaded reading must be higher than empty reading")
+        return None
+
+    new_factor = difference / known_weight_kg
+    calibration_factor = new_factor
 
     if os.path.exists(CALIBRATION_FILE):
         with open(CALIBRATION_FILE, "r") as f:
@@ -84,40 +86,32 @@ def calibrate_loadcell(known_weight_grams=1000):
 
     data["loadcell"] = {
         "calibration_factor": calibration_factor,
-        "calibration_offset": calibration_offset
+        "empty_offset": empty_offset
     }
 
     with open(CALIBRATION_FILE, "w") as f:
         json.dump(data, f)
 
-    print(f"✅ Saved LoadCell Calibration: factor={calibration_factor}")
+    print(f"\nSaved calibration: factor={calibration_factor}, offset={empty_offset}")
+    print(f"Formula: ({raw_loaded} - {raw_empty}) / {known_weight_kg}kg = {calibration_factor}")
     return calibration_factor
 
 
 def get_weight():
-    if calibration_factor is None or not sensor_available:
+    if calibration_factor is None or empty_offset is None or not sensor_available:
         return None
 
-    raw = _read_avg(3)
-    weight = raw / calibration_factor
+    raw = _raw()
+    weight = (raw - empty_offset) / calibration_factor
     return round(weight, 2)
 
 
-def tare():
-    if sensor_available:
-        zero_value = _read_avg(5)
-        print("Tare complete")
-
 def setup():
-    """Initialize the load cell sensor."""
     if not sensor_available:
-        print("❌ LoadCell sensor not available")
+        print(" LoadCell sensor not available")
         return
 
     print("Initializing LoadCell (HX711)...")
-    # Reset the sensor
     hx.reset()
-    # Load calibration if available
     load_calibration()
-    # Tare the scale
-    print("✓ LoadCell initialized")
+    print(" LoadCell initialized")
