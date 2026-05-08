@@ -78,6 +78,8 @@ export default function Dashboard() {
   const prevValueRef = useRef<any>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
+  const STABLE_READING_THRESHOLD = 5;
+  const STABLE_READING_COUNT = 5;
 
   // Load enabled state from localStorage
   useEffect(() => {
@@ -95,7 +97,7 @@ export default function Dashboard() {
     return () => window.removeEventListener("sensorStateChange", loadEnabledSensors);
   }, []);
 
-  const isStable = stableCount >= 5;
+  const isStable = stableCount >= STABLE_READING_COUNT;
 
   // Check if a vital's sensor is enabled
   const isVitalEnabled = (vital: VitalType) => {
@@ -197,28 +199,27 @@ export default function Dashboard() {
     if (currentValue == null) return;
 
     if (prevValue !== null) {
-      let isFar = false;
+      let isNear = false;
       if (readingVital === "bp") {
         const diffSys = Math.abs(currentValue.sys - prevValue.sys);
         const diffDia = Math.abs(currentValue.dia - prevValue.dia);
-        isFar = diffSys > 5 || diffDia > 5;
+        isNear = diffSys <= STABLE_READING_THRESHOLD && diffDia <= STABLE_READING_THRESHOLD;
       } else {
         const diff = Math.abs(currentValue - prevValue);
-        isFar = diff > 2;
+        isNear = diff <= STABLE_READING_THRESHOLD;
       }
 
-      if (isFar) {
-        setStableCount(0);
+      if (isNear) {
+        setStableCount((prev) => Math.min(prev + 1, STABLE_READING_COUNT));
+      } else {
+        setStableCount(1);
         prevValueRef.current = currentValue;
         return;
       }
+    } else {
+      setStableCount(1);
     }
 
-    if (JSON.stringify(currentValue) === JSON.stringify(prevValueRef.current)) {
-      setStableCount(prev => prev + 1);
-    } else {
-      setStableCount(0);
-    }
     prevValueRef.current = currentValue;
   }, [currentVitals, latestSensorReadings, readingVital]);
 
@@ -639,7 +640,7 @@ const handleStopReading = async () => {
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Done {!isStable && `(${stableCount}/5)`}
+                  Done {!isStable && `(${stableCount}/${STABLE_READING_COUNT})`}
                 </button>
               </div>
             </motion.div>
