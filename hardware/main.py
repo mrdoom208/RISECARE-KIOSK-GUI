@@ -46,14 +46,13 @@ def handle_command(sensor, session_id, value, payload):
         elif sensor == "weight":
             known_weight = payload.get("knownWeightGrams", 1000)
             factor = loadcell.calibrate_loadcell(known_weight_grams=known_weight)
-            if factor:
-                mqtt_client.publish("risecare/calibration/weight", {
-                    "status": "ok",
-                    "factor": factor,
-                    "knownWeightGrams": known_weight,
-                    "sessionId": current_session_id,
-                    "timestamp": time.time()
-                })
+            mqtt_client.publish("risecare/calibration/weight", {
+                "status": "ok" if factor is not None else "failed",
+                "factor": factor,
+                "knownWeightGrams": known_weight,
+                "sessionId": current_session_id,
+                "timestamp": time.time()
+            })
         elif sensor == "heartrate" or sensor == "spo2":
             print("⚠️ Calibration not implemented for heartrate/spo2")
         else:

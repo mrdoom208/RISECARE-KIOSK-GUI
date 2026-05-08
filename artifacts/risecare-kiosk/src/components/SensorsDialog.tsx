@@ -145,7 +145,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       if (result && result._receivedAt > started) {
         if (result.status === "success") {
           const sensor = sensors.find((s) => s.id === sensorId);
-          const val = sensor && result[sensor.key];
+          if (!sensor) continue;
+          const val = result[sensor.key];
           setSensorFeedback(sensorId, {
             type: "test",
             status: "success",
@@ -185,20 +186,31 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
 
       const result = calibrationResults?.[sensorId];
       if (result && result._receivedAt > started) {
+        const sensorName = sensors.find((s) => s.id === sensorId)?.name ?? sensorId;
         if (result.status === "ok") {
+          const value = sensorId === "height"
+            ? `${result.totalHeight?.toFixed(1)} cm`
+            : `factor: ${result.factor?.toFixed(2)}`;
           setSensorFeedback(sensorId, {
             type: "calibrate",
             status: "success",
-            message: `${sensorId === "height" ? "Height" : "Weight"} calibration saved`,
-            value: sensorId === "height"
-              ? `${result.totalHeight?.toFixed(1)} cm`
-              : `factor: ${result.factor?.toFixed(2)}`,
+            message: `${sensorName} calibration finished`,
+            value,
+          });
+          toast({
+            title: "Calibration finished",
+            description: `${sensorName}: ${value}`,
           });
         } else {
           setSensorFeedback(sensorId, {
             type: "calibrate",
             status: "fail",
             message: "Calibration failed",
+          });
+          toast({
+            title: "Calibration failed",
+            description: `${sensorName} did not finish calibration.`,
+            variant: "destructive",
           });
         }
         clearFeedbackAfter(sensorId);
