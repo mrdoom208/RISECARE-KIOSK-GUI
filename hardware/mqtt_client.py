@@ -33,6 +33,7 @@ def on_message(mqtt_client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
         topic = msg.topic
+        print(f"📥 MQTT received [{topic}]: {payload}")
         sensor = topic.split("/")[-1]
         session_id = payload.get("sessionId")
         value = payload.get("value")
@@ -72,8 +73,10 @@ def disconnect():
 def publish(topic, payload):
     if client and client.is_connected():
         message = json.dumps(payload)
+        print(f"📤 MQTT published [{topic}]: {payload}")
         client.publish(topic, message)
         return True
+    print(f"⚠️ MQTT not connected, cannot publish [{topic}]")
     return False
 
 

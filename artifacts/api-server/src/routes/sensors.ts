@@ -6,6 +6,7 @@ const router: IRouter = Router();
 
 // Subscribe to sensor data from Python
 subscribe("risecare/sensors/bp", async (data) => {
+  latestReadings["bp"] = data;
   if (data.sessionId && data.systolic && data.diastolic) {
     await run(
       `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
@@ -16,6 +17,7 @@ subscribe("risecare/sensors/bp", async (data) => {
 });
 
 subscribe("risecare/sensors/heartrate", async (data) => {
+  latestReadings["heartrate"] = data;
   if (data.sessionId && data.bpm) {
     await run(
       `UPDATE vital_readings SET heart_rate = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
@@ -26,6 +28,7 @@ subscribe("risecare/sensors/heartrate", async (data) => {
 });
 
 subscribe("risecare/sensors/spo2", async (data) => {
+  latestReadings["spo2"] = data;
   if (data.sessionId && data.value) {
     await run(
       `UPDATE vital_readings SET oxygen_saturation = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
@@ -36,6 +39,7 @@ subscribe("risecare/sensors/spo2", async (data) => {
 });
 
 subscribe("risecare/sensors/temperature", async (data) => {
+  latestReadings["temperature"] = data;
   if (data.sessionId && data.celsius) {
     await run(
       `UPDATE vital_readings SET temperature = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
@@ -46,6 +50,7 @@ subscribe("risecare/sensors/temperature", async (data) => {
 });
 
 subscribe("risecare/sensors/weight", async (data) => {
+  latestReadings["weight"] = data;
   if (data.sessionId && data.kg) {
     await run(
       `UPDATE vital_readings SET weight = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
@@ -56,6 +61,7 @@ subscribe("risecare/sensors/weight", async (data) => {
 });
 
 subscribe("risecare/sensors/height", async (data) => {
+  latestReadings["height"] = data;
   if (data.sessionId && data.cm) {
     await run(
       `UPDATE vital_readings SET height = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
@@ -66,6 +72,7 @@ subscribe("risecare/sensors/height", async (data) => {
 });
 
 subscribe("risecare/sensors/glucose", async (data) => {
+  latestReadings["glucose"] = data;
   if (data.sessionId && data.mmol) {
     await run(
       `UPDATE vital_readings SET blood_glucose = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
@@ -77,6 +84,9 @@ subscribe("risecare/sensors/glucose", async (data) => {
 
 // In-memory calibration results (last result per sensor)
 let calibrationResults: Record<string, any> = {};
+
+// In-memory latest sensor readings (for live preview)
+let latestReadings: Record<string, any> = {};
 
 // In-memory sensor availability (reported from Python hardware)
 let sensorAvailability: Record<string, boolean> = {};
@@ -155,6 +165,11 @@ router.get("/sensors/status", async (_req, res) => {
 // Get latest calibration result
 router.get("/sensors/calibration", async (_req, res) => {
   res.json(calibrationResults);
+});
+
+// Get latest sensor readings (for live preview)
+router.get("/sensors/latest-readings", async (_req, res) => {
+  res.json(latestReadings);
 });
 
 export default router;

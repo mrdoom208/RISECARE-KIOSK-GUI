@@ -11,10 +11,10 @@ interface SensorsDialogProps {
 }
 
 const sensors = [
-  { id: "heartrate", name: "Heart Rate", icon: "❤️" },
-  { id: "spo2", name: "SpO2", icon: "🫁" },
-  { id: "height", name: "Height", icon: "📏" },
-  { id: "weight", name: "Weight", icon: "⚖️" },
+  { id: "heartrate", name: "Heart Rate", icon: "❤️", unit: "bpm", key: "bpm" },
+  { id: "spo2", name: "SpO2", icon: "🫁", unit: "%", key: "value" },
+  { id: "height", name: "Height", icon: "📏", unit: "cm", key: "cm" },
+  { id: "weight", name: "Weight", icon: "⚖️", unit: "kg", key: "kg" },
 ];
 
 export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
@@ -23,8 +23,10 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>(
     {},
   );
+  const [testingSensors, setTestingSensors] = useState<Set<string>>(new Set());
 
-  // Load enabled state from localStorage
+  const isTesting = testingSensors.size > 0;
+
   useEffect(() => {
     const saved = localStorage.getItem("enabledSensors");
     if (saved) {
@@ -32,11 +34,9 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     }
   }, []);
 
-  // Save enabled state to localStorage
   const saveEnabledState = (state: Record<string, boolean>) => {
     localStorage.setItem("enabledSensors", JSON.stringify(state));
     setEnabledSensors(state);
-    // Notify other components
     window.dispatchEvent(new Event("sensorStateChange"));
   };
 
@@ -63,6 +63,17 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       return res.json();
     },
     enabled: false,
+  });
+
+  const { data: latestReadings } = useQuery({
+    queryKey: ["latest-readings"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/latest-readings");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: isOpen && isTesting,
+    refetchInterval: isTesting ? 1000 : false,
   });
 
   const commandMutation = useMutation({
@@ -105,6 +116,37 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     const newState = { ...enabledSensors };
     newState[sensorId] = !newState[sensorId];
     saveEnabledState(newState);
+  };
+
+  const handleTestToggle = (sensorId: string) => {
+    const isTestingThis = testingSensors.has(sensorId);
+    const value = isTestingThis ? 0 : 1;
+
+    commandMutation.mutate(
+      { sensor: sensorId, value },
+      {
+        onSuccess: () => {
+          setTestingSensors((prev) => {
+            const next = new Set(prev);
+            if (isTestingThis) {
+              next.delete(sensorId);
+            } else {
+              next.add(sensorId);
+            }
+            return next;
+          });
+        },
+      },
+    );
+  };
+
+  const getReadingValue = (sensorId: string): string | null => {
+    const reading = latestReadings?.[sensorId];
+    if (!reading) return null;
+    const sensor = sensors.find((s) => s.id === sensorId);
+    if (!sensor) return null;
+    const val = reading[sensor.key];
+    return val != null ? `${val} ${sensor.unit}` : null;
   };
 
   return (
@@ -164,69 +206,99 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
 
             {/* Sensors Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sensors.map((sensor) => (
-                <div key={sensor.id} className="p-4 rounded-xl bg-secondary">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{sensor.icon}</span>
-                      <h3 className="font-semibold">{sensor.name}</h3>
+              {sensors.map((sensor) => {
+                const isTestingThis = testingSensors.has(sensor.id);
+                const readingValue = getReadingValue(sensor.id);
+
+                return (
+                  <div key={sensor.id} className="p-4 rounded-xl bg-secondary">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{sensor.icon}</span>
+                        <h3 className="font-semibold">{sensor.name}</h3>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {sensorStatus?.sensors?.[sensor.id] === false && (
+                          <span className="text-xs text-red-500 bg-red-500/10 px-2 py-1 rounded-full">
+                            Not detected
+                          </span>
+                        )}
+                        {sensorStatus?.sensors?.[sensor.id] === true && (
+                          <span className="text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
+                            Detected
+                          </span>
+                        )}
+                        {(sensor.id === "height" || sensor.id === "weight") && calibrationResults?.[sensor.id] && (
+                          <span className="text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-full">
+                            {sensor.id === "height"
+                              ? `${calibrationResults.height.totalHeight?.toFixed(1)} cm`
+                              : `factor: ${calibrationResults.weight.factor?.toFixed(2)}`}
+                          </span>
+                        )}
+                        <Button
+                          onClick={() => toggleSensor(sensor.id)}
+                          disabled={commandMutation.isPending}
+                          variant={
+                            enabledSensors[sensor.id] ? "default" : "outline"
+                          }
+                          size="sm"
+                        >
+                          {enabledSensors[sensor.id] ? "Enabled" : "Disabled"}
+                        </Button>
+                      </div>
                     </div>
-                    {sensorStatus?.sensors?.[sensor.id] === false && (
-                      <span className="text-xs text-red-500 bg-red-500/10 px-2 py-1 rounded-full">
-                        Not detected
-                      </span>
+
+                    {/* Live reading */}
+                    {isTestingThis && (
+                      <div className="mb-3 p-3 rounded-lg bg-background/50 border border-border/30">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Reading:</span>
+                          <span className="text-xl font-bold text-primary">
+                            {readingValue ?? (
+                              <span className="flex items-center gap-1 text-sm font-normal text-muted-foreground">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Waiting...
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
                     )}
-                    {sensorStatus?.sensors?.[sensor.id] === true && (
-                      <span className="text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
-                        Detected
-                      </span>
-                    )}
-                    {(sensor.id === "height" || sensor.id === "weight") && calibrationResults?.[sensor.id] && (
-                      <span className="text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-full">
-                        {sensor.id === "height"
-                          ? `${calibrationResults.height.totalHeight?.toFixed(1)} cm`
-                          : `factor: ${calibrationResults.weight.factor?.toFixed(2)}`}
-                      </span>
-                    )}
-                    <Button
-                      onClick={() => toggleSensor(sensor.id)}
-                      disabled={commandMutation.isPending}
-                      variant={
-                        enabledSensors[sensor.id] ? "default" : "outline"
-                      }
-                      size="sm"
-                    >
-                      {enabledSensors[sensor.id] ? "Enabled" : "Disabled"}
-                    </Button>
+
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        onClick={() =>
+                          commandMutation.mutate({ sensor: sensor.id, value: 2 })
+                        }
+                        disabled={
+                          commandMutation.isPending || !enabledSensors[sensor.id] || isTestingThis
+                        }
+                        variant="outline"
+                        size="sm"
+                      >
+                        Calibrate
+                      </Button>
+                      <Button
+                        onClick={() => handleTestToggle(sensor.id)}
+                        disabled={
+                          commandMutation.isPending || !enabledSensors[sensor.id]
+                        }
+                        variant={isTestingThis ? "destructive" : "secondary"}
+                        size="sm"
+                      >
+                        {isTestingThis ? (
+                          <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-destructive-foreground animate-pulse" />
+                            Stop
+                          </span>
+                        ) : (
+                          "Test"
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      onClick={() =>
-                        commandMutation.mutate({ sensor: sensor.id, value: 2 })
-                      }
-                      disabled={
-                        commandMutation.isPending || !enabledSensors[sensor.id]
-                      }
-                      variant="outline"
-                      size="sm"
-                    >
-                      Calibrate
-                    </Button>
-                    <Button
-                      onClick={() =>
-                        commandMutation.mutate({ sensor: sensor.id, value: 3 })
-                      }
-                      disabled={
-                        commandMutation.isPending || !enabledSensors[sensor.id]
-                      }
-                      variant="secondary"
-                      size="sm"
-                    >
-                      Test
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <Button

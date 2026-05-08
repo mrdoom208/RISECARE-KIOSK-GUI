@@ -2,14 +2,26 @@ from max30102 import MAX30102
 import hrcalc
 import time
 
+SDA = 17
+SCL = 27
+
 sensor = None
+
+
+def _create_sensor():
+    s = MAX30102(sda=SDA, scl=SCL)
+    if s.pi is None or s.handle is None:
+        print(f"\u2717 MAX30102 not detected on SDA={SDA}, SCL={SCL}")
+        return None
+    return s
 
 
 def setup():
     global sensor
     try:
-        sensor = MAX30102()
-        print("\u2713 MAX30102 sensor initialized")
+        sensor = _create_sensor()
+        if sensor:
+            print(f"\u2713 MAX30102 initialized (SDA={SDA}, SCL={SCL})")
     except Exception as e:
         print(f"\u2717 Failed to initialize MAX30102: {e}")
         sensor = None
@@ -19,7 +31,7 @@ def enable():
     global sensor
     try:
         if sensor is None:
-            sensor = MAX30102()
+            sensor = _create_sensor()
         else:
             sensor.setup()
     except Exception as e:
@@ -33,6 +45,8 @@ def disable():
             sensor.shutdown()
         except Exception:
             pass
+        sensor.close()
+        sensor = None
 
 
 def get_reading():
