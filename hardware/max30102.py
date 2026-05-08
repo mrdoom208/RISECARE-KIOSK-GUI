@@ -1,11 +1,11 @@
 import time
 
 try:
-    import pigpio
-    pigpio_available = True
+    from smbus2 import SMBus
+    smbus_available = True
 except ImportError:
-    print("Warning: pigpio not installed. Install with: sudo apt install pigpio python3-pigpio")
-    pigpio_available = False
+    print("Warning: smbus2 not installed. Install with: python -m pip install smbus2")
+    smbus_available = False
 
 
 class MAX30102:
@@ -18,40 +18,32 @@ class MAX30102:
     REG_LED1_PA = 0x0C
     REG_LED2_PA = 0x0D
 
-    def __init__(self, sda=17, scl=27, address=0x57, baud=100000):
+    def __init__(self, bus=1, address=0x57):
         self.address = address
         self.handle = None
-        self.pi = None
+        self.bus = None
 
-        if not pigpio_available:
-            print("❌ pigpio not available")
+        if not smbus_available:
+            print("❌ smbus2 not available")
             return
 
-        pi = pigpio.pi()
-        if not pi.connected:
-            pi.stop()
-            print("❌ pigpio daemon not running (start with: sudo pigpiod)")
+        try:
+            self.bus = SMBus(bus)
+            self.handle = bus
+            self.read_reg(self.REG_INTR_STATUS_1)
+        except Exception as e:
+            self.close()
+            print(f"❌ MAX30102 not reachable on I2C bus {bus} at 0x{address:02X}: {e}")
             return
 
-        handle = pi.bb_i2c_open(sda, scl, baud)
-        if handle < 0:
-            pi.stop()
-            print(f"❌ Failed to open bit-bang I2C on SDA={sda}, SCL={scl}")
-            return
-
-        self.pi = pi
-        self.handle = handle
         self.reset()
         self.setup()
 
     def _write(self, reg, data):
-        chain = [self.address << 1, reg, data, 0]
-        self.pi.bb_i2c_zip(self.handle, chain)
+        self.bus.write_byte_data(self.address, reg, data)
 
     def _read(self, reg, count=1):
-        chain = [self.address << 1, reg, self.address << 1 | 1, count, 0]
-        _, data = self.pi.bb_i2c_zip(self.handle, chain)
-        return data
+        return self.bus.read_i2c_block_data(self.address, reg, count)
 
     def write_reg(self, reg, value):
         if self.handle is None:
@@ -101,15 +93,10 @@ class MAX30102:
         return red_samples, ir_samples
 
     def close(self):
-        if self.handle is not None:
+        self.handle = None
+        if self.bus is not None:
             try:
-                self.pi.bb_i2c_close(self.handle)
+                self.bus.close()
             except Exception:
                 pass
-            self.handle = None
-        if self.pi is not None:
-            try:
-                self.pi.stop()
-            except Exception:
-                pass
-            self.pi = None
+            self.bus = None

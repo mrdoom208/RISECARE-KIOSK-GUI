@@ -2,16 +2,15 @@ from max30102 import MAX30102
 import hrcalc
 import time
 
-SDA = 17
-SCL = 27
+I2C_BUS = 1
 
 sensor = None
 
 
 def _create_sensor():
-    s = MAX30102(sda=SDA, scl=SCL)
-    if s.pi is None or s.handle is None:
-        print(f"\u2717 MAX30102 not detected on SDA={SDA}, SCL={SCL}")
+    s = MAX30102(bus=I2C_BUS)
+    if s.bus is None or s.handle is None:
+        print(f"\u2717 MAX30102 not detected on I2C bus {I2C_BUS} (GPIO2 SDA, GPIO3 SCL)")
         return None
     return s
 
@@ -21,7 +20,7 @@ def setup():
     try:
         sensor = _create_sensor()
         if sensor:
-            print(f"\u2713 MAX30102 initialized (SDA={SDA}, SCL={SCL})")
+            print(f"\u2713 MAX30102 initialized on I2C bus {I2C_BUS} (GPIO2 SDA, GPIO3 SCL)")
     except Exception as e:
         print(f"\u2717 Failed to initialize MAX30102: {e}")
         sensor = None

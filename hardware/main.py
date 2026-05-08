@@ -36,10 +36,10 @@ def handle_command(sensor, session_id, value, payload):
     elif value == 2:
         print(f"⚙️ Calibrating {sensor}...")
         if sensor == "height":
-            ultrasonic.calibrate_height()
+            total_height = ultrasonic.calibrate_height()
             mqtt_client.publish("risecare/calibration/height", {
-                "status": "ok",
-                "totalHeight": ultrasonic.TOTAL_HEIGHT,
+                "status": "ok" if total_height is not None else "failed",
+                "totalHeight": total_height,
                 "sessionId": current_session_id,
                 "timestamp": time.time()
             })

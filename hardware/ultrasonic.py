@@ -6,6 +6,8 @@ import os
 TRIG = 23
 ECHO = 24
 TIMEOUT = 0.5
+MIN_DISTANCE_CM = 2
+MAX_DISTANCE_CM = 400
 
 TOTAL_HEIGHT = None
 
@@ -43,28 +45,41 @@ def measure_distance():
     return round(distance, 2)
 
 
+def _is_valid_distance(distance):
+    return distance is not None and MIN_DISTANCE_CM <= distance <= MAX_DISTANCE_CM
+
+
+def _average_readings(readings):
+    sorted_readings = sorted(readings)
+    if len(sorted_readings) >= 3:
+        sorted_readings = sorted_readings[1:-1]
+    return sum(sorted_readings) / len(sorted_readings)
+
+
 # ---------------------------
 # 2. Calibration function
 # ---------------------------
 def calibrate_height():
     global TOTAL_HEIGHT
-    print("Calibrating... Make sure nothing is under the sensor.")
+    print("Calibrating height... Make sure nothing is under the sensor.")
 
     time.sleep(2)
     readings = []
 
-    for _ in range(5):
+    for _ in range(7):
         d = measure_distance()
-        if d is not None:
+        if _is_valid_distance(d):
             readings.append(d)
             print(f"Reading: {d} cm")
+        else:
+            print(f"Ignored invalid reading: {d} cm")
         time.sleep(0.5)
 
-    if not readings:
+    if len(readings) < 3:
         print("❌ Calibration failed: no valid readings")
-        return
+        return None
 
-    TOTAL_HEIGHT = sum(readings) / len(readings)
+    TOTAL_HEIGHT = _average_readings(readings)
 
     # SAVE to file
     if os.path.exists(CALIBRATION_FILE):
@@ -79,6 +94,9 @@ def calibrate_height():
         json.dump(data, f)
 
     print(f"\n✅ Saved Ultrasonic Calibration: {TOTAL_HEIGHT:.2f} cm\n")
+
+
+    return TOTAL_HEIGHT
 
 
 # ---------------------------
@@ -99,21 +117,25 @@ def test_sensor():
 # 4. Use function (height)
 # ---------------------------
 def get_height():
-    if TOTAL_HEIGHT is None:
+    if TOTAL_HEIGHT is None or not _is_valid_distance(TOTAL_HEIGHT):
         return None
 
     readings = []
     for _ in range(3):
         d = measure_distance()
-        if d is not None:
+        if _is_valid_distance(d):
             readings.append(d)
         time.sleep(0.05)
 
     if not readings:
         return None
 
-    avg_distance = sum(readings) / len(readings)
+    avg_distance = _average_readings(readings)
     height = TOTAL_HEIGHT - avg_distance
+
+    if height < 0:
+        print(f"Ignored invalid height: calibrated={TOTAL_HEIGHT:.2f} cm, measured={avg_distance:.2f} cm")
+        return None
 
     return round(height, 2)
 
@@ -129,9 +151,10 @@ def load_calibration():
             data = json.load(f)
             TOTAL_HEIGHT = data.get("ultrasonic", {}).get("total_height")
 
-        if TOTAL_HEIGHT:
+        if _is_valid_distance(TOTAL_HEIGHT):
             print(f"📂 Loaded Ultrasonic Calibration: {TOTAL_HEIGHT:.2f} cm")
         else:
+            TOTAL_HEIGHT = None
             print("⚠️ No ultrasonic calibration found. Please calibrate.")
     else:
         print("⚠️ No calibration file found. Please calibrate.")
