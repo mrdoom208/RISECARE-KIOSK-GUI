@@ -9,10 +9,12 @@ mode = 1
 current_session_id = None
 hr_enabled = False
 spo2_enabled = False
+height_enabled = False
+weight_enabled = False
 
 
 def handle_command(sensor, session_id, value, payload):
-    global mode, running, current_session_id
+    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled
 
     if session_id:
         current_session_id = session_id
@@ -26,6 +28,10 @@ def handle_command(sensor, session_id, value, payload):
         elif sensor == "spo2":
             spo2_enabled = True
             heartrateSpo2.enable()
+        elif sensor == "height":
+            height_enabled = True
+        elif sensor == "weight":
+            weight_enabled = True
 
     elif value == 2:
         print(f"⚙️ Calibrating {sensor}...")
@@ -91,7 +97,11 @@ def handle_command(sensor, session_id, value, payload):
         elif sensor == "spo2":
             spo2_enabled = False
             heartrateSpo2.disable()
-        if not hr_enabled and not spo2_enabled:
+        elif sensor == "height":
+            height_enabled = False
+        elif sensor == "weight":
+            weight_enabled = False
+        if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled:
             running = False
             mode = 0
 
@@ -169,12 +179,12 @@ def main():
                         {"value": spo2, "sessionId": current_session_id, "timestamp": now})
                     published = True
 
-                if height is not None:
+                if height_enabled and height is not None:
                     mqtt_client.publish("risecare/sensors/height",
                         {"cm": height, "sessionId": current_session_id, "timestamp": now})
                     published = True
 
-                if weight is not None:
+                if weight_enabled and weight is not None:
                     mqtt_client.publish("risecare/sensors/weight",
                         {"kg": weight / 1000, "sessionId": current_session_id, "timestamp": now})
                     published = True

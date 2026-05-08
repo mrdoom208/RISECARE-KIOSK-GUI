@@ -14,10 +14,13 @@ MQTT_COMMAND_TOPIC = "risecare/command/+"
 
 client = None
 command_callback = None
+_warned_not_connected = False
 
 
 def on_connect(mqtt_client, userdata, flags, rc):
+    global _warned_not_connected
     if rc == 0:
+        _warned_not_connected = False
         print("✅ MQTT connected")
         mqtt_client.subscribe(MQTT_COMMAND_TOPIC)
     else:
@@ -71,12 +74,16 @@ def disconnect():
 
 
 def publish(topic, payload):
+    global _warned_not_connected
     if client and client.is_connected():
+        _warned_not_connected = False
         message = json.dumps(payload)
         print(f"📤 MQTT published [{topic}]: {payload}")
         client.publish(topic, message)
         return True
-    print(f"⚠️ MQTT not connected, cannot publish [{topic}]")
+    if not _warned_not_connected:
+        print(f"⚠️ MQTT not connected, cannot publish [{topic}]")
+        _warned_not_connected = True
     return False
 
 
