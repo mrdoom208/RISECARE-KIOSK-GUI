@@ -41,6 +41,19 @@ def load_calibration():
         print("⚠️ No calibration file found. Please calibrate.")
 
 
+def _read_avg(samples=5):
+    readings = []
+    for _ in range(samples):
+        try:
+            readings.append(hx.read())
+        except Exception:
+            pass
+        time.sleep(0.05)
+    if not readings:
+        return 0
+    return sum(readings) / len(readings)
+
+
 def calibrate_loadcell(known_weight_grams=1000):
     global calibration_factor, calibration_offset
     print("Calibrating loadcell...")
@@ -54,7 +67,7 @@ def calibrate_loadcell(known_weight_grams=1000):
 
     readings = []
     for _ in range(10):
-        val = hx.get_weight_mean(5)
+        val = _read_avg(5)
         readings.append(val)
         print(f"Reading: {val}")
         time.sleep(0.5)
@@ -85,14 +98,14 @@ def get_weight():
     if calibration_factor is None or not sensor_available:
         return None
 
-    raw = hx.get_weight_mean(3)
+    raw = _read_avg(3)
     weight = raw / calibration_factor
     return round(weight, 2)
 
 
 def tare():
     if sensor_available:
-        zero_value= hx.get_weight_mean(5)
+        zero_value = _read_avg(5)
         print("Tare complete")
 
 def setup():
