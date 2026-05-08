@@ -4,7 +4,7 @@ const MQTT_BROKER = process.env.MQTT_BROKER || "mqtt://localhost:1883";
 const MQTT_TOPIC = process.env.MQTT_TOPIC || "risecare/sensors/#";
 
 let client: mqtt.MqttClient | null = null;
-let messageHandlers: Map<string, (payload: any) => void> = new Map();
+let messageHandlers: Map<string, (payload: any, topic?: string) => void> = new Map();
 
 export function connectMQTT() {
   if (client?.connected) return client;
@@ -37,7 +37,7 @@ export function connectMQTT() {
       // Call registered handlers
       const handler = messageHandlers.get(topic);
       if (handler) {
-        handler(data);
+        handler(data, topic);
       }
 
       // Also call wildcard handlers
@@ -47,7 +47,7 @@ export function connectMQTT() {
             "^" + pattern.replace(/\/#$/, "/.*").replace(/\+/, "[^/]+") + "$"
           );
           if (regex.test(topic)) {
-            fn(data);
+            fn(data, topic);
           }
         }
       });
@@ -100,7 +100,7 @@ export function publish(topic: string, payload: any): boolean {
 
 export function subscribe(
   topic: string,
-  handler: (payload: any) => void
+  handler: (payload: any, topic?: string) => void
 ) {
   messageHandlers.set(topic, handler);
   console.log(`📡 Registered handler for: ${topic}`);

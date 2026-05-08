@@ -88,6 +88,9 @@ let calibrationResults: Record<string, any> = {};
 // In-memory latest sensor readings (for live preview)
 let latestReadings: Record<string, any> = {};
 
+// In-memory test results (last result per sensor)
+let testResults: Record<string, any> = {};
+
 // In-memory sensor availability (reported from Python hardware)
 let sensorAvailability: Record<string, boolean> = {};
 
@@ -96,14 +99,22 @@ subscribe("risecare/sensors/availability", async (data) => {
   console.log("📡 Sensor availability:", data);
 });
 
+subscribe("risecare/test/+", async (data, topic) => {
+  const sensor = topic?.split("/").pop();
+  if (sensor) {
+    testResults[sensor] = { ...data, _receivedAt: Date.now() };
+    console.log(`🧪 Test result [${sensor}]:`, data);
+  }
+});
+
 subscribe("risecare/calibration/height", async (data) => {
   console.log("📏 Height calibration result:", data);
-  calibrationResults["height"] = data;
+  calibrationResults["height"] = { ...data, _receivedAt: Date.now() };
 });
 
 subscribe("risecare/calibration/weight", async (data) => {
   console.log("⚖️ Weight calibration result:", data);
-  calibrationResults["weight"] = data;
+  calibrationResults["weight"] = { ...data, _receivedAt: Date.now() };
 });
 
 // API endpoint to send sensor command (start=1 / stop=0)
@@ -170,6 +181,11 @@ router.get("/sensors/calibration", async (_req, res) => {
 // Get latest sensor readings (for live preview)
 router.get("/sensors/latest-readings", async (_req, res) => {
   res.json(latestReadings);
+});
+
+// Get test results
+router.get("/sensors/test-results", async (_req, res) => {
+  res.json(testResults);
 });
 
 export default router;

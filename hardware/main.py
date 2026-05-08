@@ -76,8 +76,8 @@ def handle_command(sensor, session_id, value, payload):
         elif sensor == "weight":
             weight = loadcell.get_weight()
             if weight:
-                print(f"LoadCell weight: {weight} g")
-                result = {"kg": weight / 1000}
+                print(f"LoadCell weight: {weight} kg")
+                result = {"kg": weight}
                 success = True
         elif sensor == "heartrate":
             hr, hr_valid, spo2, spo2_valid = heartrateSpo2.get_reading()
@@ -205,7 +205,7 @@ def main():
 
                 if weight_enabled and weight is not None:
                     mqtt_client.publish("risecare/sensors/weight",
-                        {"kg": weight / 1000, "sessionId": current_session_id, "timestamp": now})
+                        {"kg": weight, "sessionId": current_session_id, "timestamp": now})
                     published = True
 
                 if published and tick % 5 == 0:
