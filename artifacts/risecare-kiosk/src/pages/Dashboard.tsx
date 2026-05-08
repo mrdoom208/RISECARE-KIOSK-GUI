@@ -118,12 +118,47 @@ export default function Dashboard() {
     refetchInterval: readingVital ? 2000 : false, // Poll every 2s while reading
   });
 
+  const { data: latestSensorReadings } = useQuery({
+    queryKey: ["latest-sensor-readings"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/latest-readings");
+      if (!res.ok) throw new Error("Failed to load sensor readings");
+      return res.json();
+    },
+    enabled: !!readingVital,
+    refetchInterval: readingVital ? 500 : false,
+  });
+
   const saveVitalsMutation = useSaveVitals();
 
   const currentVitals = useMemo<Vitals>(() => {
     if (!session?.vitals) return {};
     return session.vitals.reduce((acc: Vitals, curr: Vitals) => ({ ...acc, ...curr }), {});
   }, [session]);
+
+  const getLiveReadingValue = (vital: VitalType) => {
+    const sensorId = vitalToSensor[vital];
+    const reading = latestSensorReadings?.[sensorId];
+
+    if (!reading || String(reading.sessionId) !== String(session?.id)) return null;
+
+    switch (vital) {
+      case "bp":
+        return reading.systolic != null && reading.diastolic != null
+          ? { sys: reading.systolic, dia: reading.diastolic }
+          : null;
+      case "hr":
+        return reading.bpm ?? null;
+      case "spo2":
+        return reading.value ?? null;
+      case "weight":
+        return reading.kg ?? null;
+      case "height":
+        return reading.cm ?? null;
+      case "glucose":
+        return reading.mmol ?? null;
+    }
+  };
 
   useEffect(() => {
     if (!readingVital || !session) {
@@ -137,24 +172,25 @@ export default function Dashboard() {
 
     switch (readingVital) {
       case "bp":
-        currentValue = currentVitals.bloodPressureSystolic && currentVitals.bloodPressureDiastolic
-          ? { sys: currentVitals.bloodPressureSystolic, dia: currentVitals.bloodPressureDiastolic }
-          : null;
+        currentValue = getLiveReadingValue("bp") ??
+          (currentVitals.bloodPressureSystolic != null && currentVitals.bloodPressureDiastolic != null
+            ? { sys: currentVitals.bloodPressureSystolic, dia: currentVitals.bloodPressureDiastolic }
+            : null);
         break;
       case "hr":
-        currentValue = currentVitals.heartRate;
+        currentValue = getLiveReadingValue("hr") ?? currentVitals.heartRate;
         break;
       case "spo2":
-        currentValue = currentVitals.oxygenSaturation;
+        currentValue = getLiveReadingValue("spo2") ?? currentVitals.oxygenSaturation;
         break;
       case "weight":
-        currentValue = currentVitals.weight;
+        currentValue = getLiveReadingValue("weight") ?? currentVitals.weight;
         break;
       case "height":
-        currentValue = currentVitals.height;
+        currentValue = getLiveReadingValue("height") ?? currentVitals.height;
         break;
       case "glucose":
-        currentValue = currentVitals.bloodGlucose;
+        currentValue = getLiveReadingValue("glucose") ?? currentVitals.bloodGlucose;
         break;
     }
 
@@ -184,7 +220,7 @@ export default function Dashboard() {
       setStableCount(0);
     }
     prevValueRef.current = currentValue;
-  }, [currentVitals, readingVital]);
+  }, [currentVitals, latestSensorReadings, readingVital]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
 
@@ -272,8 +308,9 @@ const handleStopReading = async () => {
   const getReadingDisplay = (vital: VitalType) => {
     switch (vital) {
       case "bp": {
-        const sys = currentVitals.bloodPressureSystolic;
-        const dia = currentVitals.bloodPressureDiastolic;
+        const live = getLiveReadingValue("bp") as { sys: number; dia: number } | null;
+        const sys = live?.sys ?? currentVitals.bloodPressureSystolic;
+        const dia = live?.dia ?? currentVitals.bloodPressureDiastolic;
         return {
           title: "Blood Pressure",
           value: sys != null && dia != null ? `${sys}/${dia}` : "Reading...",
@@ -281,41 +318,51 @@ const handleStopReading = async () => {
           hasValue: sys != null && dia != null,
         };
       }
-      case "hr":
+      case "hr": {
+        const value = getLiveReadingValue("hr") ?? currentVitals.heartRate;
         return {
           title: "Heart Rate",
-          value: currentVitals.heartRate != null ? currentVitals.heartRate.toFixed(0) : "Reading...",
+          value: value != null ? Number(value).toFixed(0) : "Reading...",
           unit: "bpm",
-          hasValue: currentVitals.heartRate != null,
+          hasValue: value != null,
         };
-      case "spo2":
+      }
+      case "spo2": {
+        const value = getLiveReadingValue("spo2") ?? currentVitals.oxygenSaturation;
         return {
           title: "SpO2",
-          value: currentVitals.oxygenSaturation != null ? currentVitals.oxygenSaturation.toFixed(0) : "Reading...",
+          value: value != null ? Number(value).toFixed(0) : "Reading...",
           unit: "%",
-          hasValue: currentVitals.oxygenSaturation != null,
+          hasValue: value != null,
         };
-      case "weight":
+      }
+      case "weight": {
+        const value = getLiveReadingValue("weight") ?? currentVitals.weight;
         return {
           title: "Weight",
-          value: currentVitals.weight != null ? currentVitals.weight.toFixed(2) : "Reading...",
+          value: value != null ? Number(value).toFixed(2) : "Reading...",
           unit: "kg",
-          hasValue: currentVitals.weight != null,
+          hasValue: value != null,
         };
-      case "height":
+      }
+      case "height": {
+        const value = getLiveReadingValue("height") ?? currentVitals.height;
         return {
           title: "Height",
-          value: currentVitals.height != null ? currentVitals.height.toFixed(1) : "Reading...",
+          value: value != null ? Number(value).toFixed(1) : "Reading...",
           unit: "cm",
-          hasValue: currentVitals.height != null,
+          hasValue: value != null,
         };
-      case "glucose":
+      }
+      case "glucose": {
+        const value = getLiveReadingValue("glucose") ?? currentVitals.bloodGlucose;
         return {
           title: "Blood Glucose",
-          value: currentVitals.bloodGlucose != null ? currentVitals.bloodGlucose.toFixed(1) : "Reading...",
+          value: value != null ? Number(value).toFixed(1) : "Reading...",
           unit: "mmol/L",
-          hasValue: currentVitals.bloodGlucose != null,
+          hasValue: value != null,
         };
+      }
     }
   };
 

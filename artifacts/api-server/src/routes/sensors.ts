@@ -1,83 +1,95 @@
 import { Router, type IRouter } from "express";
-import { run } from "@workspace/db";
+import { query, run } from "@workspace/db";
 import { publish, subscribe } from "../mqtt";
 
 const router: IRouter = Router();
 
+async function saveSensorValue(sessionId: number, column: string, value: number) {
+  const existing = await query(
+    `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
+    [sessionId]
+  );
+
+  if (existing[0]) {
+    await run(
+      `UPDATE vital_readings SET ${column} = ?, recorded_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [value, existing[0].id]
+    );
+  } else {
+    await run(
+      `INSERT INTO vital_readings (session_id, ${column}) VALUES (?, ?)`,
+      [sessionId, value]
+    );
+  }
+}
+
 // Subscribe to sensor data from Python
 subscribe("risecare/sensors/bp", async (data) => {
   latestReadings["bp"] = data;
-  if (data.sessionId && data.systolic && data.diastolic) {
-    await run(
-      `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
-      [data.systolic, data.diastolic, data.sessionId]
+  if (data.sessionId && data.systolic != null && data.diastolic != null) {
+    const existing = await query(
+      `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
+      [data.sessionId]
     );
+    if (existing[0]) {
+      await run(
+        `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, recorded_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [data.systolic, data.diastolic, existing[0].id]
+      );
+    } else {
+      await run(
+        `INSERT INTO vital_readings (session_id, blood_pressure_systolic, blood_pressure_diastolic) VALUES (?, ?, ?)`,
+        [data.sessionId, data.systolic, data.diastolic]
+      );
+    }
     console.log("💾 BP saved from sensor:", data);
   }
 });
 
 subscribe("risecare/sensors/heartrate", async (data) => {
   latestReadings["heartrate"] = data;
-  if (data.sessionId && data.bpm) {
-    await run(
-      `UPDATE vital_readings SET heart_rate = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
-      [data.bpm, data.sessionId]
-    );
+  if (data.sessionId && data.bpm != null) {
+    await saveSensorValue(data.sessionId, "heart_rate", data.bpm);
     console.log("💾 Heart rate saved from sensor:", data);
   }
 });
 
 subscribe("risecare/sensors/spo2", async (data) => {
   latestReadings["spo2"] = data;
-  if (data.sessionId && data.value) {
-    await run(
-      `UPDATE vital_readings SET oxygen_saturation = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
-      [data.value, data.sessionId]
-    );
+  if (data.sessionId && data.value != null) {
+    await saveSensorValue(data.sessionId, "oxygen_saturation", data.value);
     console.log("💾 SpO2 saved from sensor:", data);
   }
 });
 
 subscribe("risecare/sensors/temperature", async (data) => {
   latestReadings["temperature"] = data;
-  if (data.sessionId && data.celsius) {
-    await run(
-      `UPDATE vital_readings SET temperature = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
-      [data.celsius, data.sessionId]
-    );
+  if (data.sessionId && data.celsius != null) {
+    await saveSensorValue(data.sessionId, "temperature", data.celsius);
     console.log("💾 Temperature saved from sensor:", data);
   }
 });
 
 subscribe("risecare/sensors/weight", async (data) => {
   latestReadings["weight"] = data;
-  if (data.sessionId && data.kg) {
-    await run(
-      `UPDATE vital_readings SET weight = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
-      [data.kg, data.sessionId]
-    );
+  if (data.sessionId && data.kg != null) {
+    await saveSensorValue(data.sessionId, "weight", data.kg);
     console.log("💾 Weight saved from sensor:", data);
   }
 });
 
 subscribe("risecare/sensors/height", async (data) => {
   latestReadings["height"] = data;
-  if (data.sessionId && data.cm) {
-    await run(
-      `UPDATE vital_readings SET height = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
-      [data.cm, data.sessionId]
-    );
+  if (data.sessionId && data.cm != null) {
+    await saveSensorValue(data.sessionId, "height", data.cm);
     console.log("💾 Height saved from sensor:", data);
   }
 });
 
 subscribe("risecare/sensors/glucose", async (data) => {
   latestReadings["glucose"] = data;
-  if (data.sessionId && data.mmol) {
-    await run(
-      `UPDATE vital_readings SET blood_glucose = ?, recorded_at = CURRENT_TIMESTAMP WHERE session_id = ?`,
-      [data.mmol, data.sessionId]
-    );
+  if (data.sessionId && data.mmol != null) {
+    await saveSensorValue(data.sessionId, "blood_glucose", data.mmol);
     console.log("💾 Glucose saved from sensor:", data);
   }
 });

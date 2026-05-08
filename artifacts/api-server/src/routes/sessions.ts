@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+const VITALS_SELECT = `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, blood_glucose AS bloodGlucose, bmi, notes, recorded_at AS recordedAt FROM vital_readings`;
 
 router.get("/sessions", async (_req, res) => {
   const sessions = await query(
@@ -17,7 +18,7 @@ router.get("/sessions", async (_req, res) => {
   const result = await Promise.all(
     sessions.map(async (s) => {
       const vitals = await query(
-        `SELECT * FROM vital_readings WHERE session_id = ? ORDER BY recorded_at DESC LIMIT 1`,
+        `${VITALS_SELECT} WHERE session_id = ? ORDER BY recorded_at DESC LIMIT 1`,
         [s.id]
       );
       return { ...s, vitals: vitals[0] || null };
@@ -76,7 +77,7 @@ router.post("/sessions/token", async (req, res) => {
   }
 
   const vitals = await query(
-    `SELECT * FROM vital_readings WHERE session_id = ? ORDER BY recorded_at DESC`,
+    `${VITALS_SELECT} WHERE session_id = ? ORDER BY recorded_at DESC`,
     [session.id]
   );
 
@@ -95,7 +96,7 @@ router.get("/sessions/:id", async (req, res) => {
   }
 
   const vitals = await query(
-    `SELECT * FROM vital_readings WHERE session_id = ? ORDER BY recorded_at DESC`,
+    `${VITALS_SELECT} WHERE session_id = ? ORDER BY recorded_at DESC`,
     [id]
   );
 
