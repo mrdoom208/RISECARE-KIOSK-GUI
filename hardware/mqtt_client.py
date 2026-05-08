@@ -87,3 +87,13 @@ def set_command_callback(callback):
 
 def is_connected():
     return client and client.is_connected()
+
+
+def wait_for_connection(timeout=10):
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if is_connected():
+            return True
+        time.sleep(0.2)
+    return False

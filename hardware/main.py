@@ -117,14 +117,16 @@ def main():
     mqtt_client.set_command_callback(handle_command)
     mqtt_client.connect()
 
-    print("\n✅ All systems ready!")
-
-    mqtt_client.publish("risecare/sensors/availability", {
-        "heartrate": heartrateSpo2.sensor is not None,
-        "spo2": heartrateSpo2.sensor is not None,
-        "height": True,
-        "weight": loadcell.sensor_available
-    })
+    if mqtt_client.wait_for_connection():
+        print("✅ MQTT connected, advertising sensors...")
+        mqtt_client.publish("risecare/sensors/availability", {
+            "heartrate": heartrateSpo2.sensor is not None,
+            "spo2": heartrateSpo2.sensor is not None,
+            "height": True,
+            "weight": loadcell.sensor_available
+        })
+    else:
+        print("⚠️ MQTT not connected — sensors will not be advertised")
 
     running = True
     mode = 1
