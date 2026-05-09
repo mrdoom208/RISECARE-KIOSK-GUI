@@ -1,0 +1,89 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: risecare-mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - risecare-net
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: risecare-api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - SERVE_STATIC=true
+      - MQTT_BROKER=mosquitto
+    depends_on:
+      - mosquitto
+    networks:
+      - risecare-net
+
+  hardware:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.hardware
+    container_name: risecare-hardware
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/i2c-1:/dev/i2c-1
+      - /dev/gpiomem:/dev/gpiomem
+    environment:
+      - MQTT_BROKER=mosquitto
+    depends_on:
+      - mosquitto
+    networks:
+      - risecare-net
+
+  kiosk:
+    image: alpine:3.19
+    container_name: risecare-kiosk
+    restart: unless-stopped
+    environment:
+      - DISPLAY=:0
+      - XDG_RUNTIME_DIR=/tmp/runtime-root
+      - CHROME_URL=http://localhost:5000
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev/dri:/dev/dri:ro
+    depends_on:
+      - api
+    networks:
+      - risecare-net
+    command: >
+      sh -c "
+        apk add --no-cache chromium dbus-x11 > /dev/null 2>&1 &&
+        mkdir -p /tmp/runtime-root &&
+        chromium-browser \
+          --kiosk \
+          --no-first-run \
+          --no-default-browser-check \
+          --disable-extensions \
+          --disable-background-networking \
+          --disable-sync \
+          --noerrdialogs \
+          --disable-translate \
+          --disable-features=TranslateUI \
+          --disable-infobars \
+          --disable-notifications \
+          --disable-popup-blocking \
+          --disable-prompt-on-repost \
+          --disable-gpu \
+          --disable-software-rasterizer \
+          --start-maximized \
+          \${CHROME_URL:-http://localhost:5000}
+      "
+
+networks:
+  risecare-net:
+    driver: bridge

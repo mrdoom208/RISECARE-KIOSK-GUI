@@ -1,9 +1,10 @@
 import ultrasonic
-import heartrateSpo2
+from max30102 import MAX30102
 import loadcell
 import time
 import mqtt_client
 
+hr_sensor = None
 running = False
 mode = 1
 current_session_id = None
@@ -34,10 +35,12 @@ def handle_command(sensor, session_id, value, payload):
         if sensor == "heartrate":
             hr_enabled = True
             spo2_enabled = True
-            heartrateSpo2.enable()
+            hr_sensor.clear_buffer()
+            hr_sensor.setup()
         elif sensor == "spo2":
             spo2_enabled = True
-            heartrateSpo2.enable()
+            hr_sensor.clear_buffer()
+            hr_sensor.setup()
         elif sensor == "height":
             height_enabled = True
         elif sensor == "weight":
@@ -94,7 +97,7 @@ def handle_command(sensor, session_id, value, payload):
                 result = {"kg": weight}
                 success = True
         elif sensor == "heartrate":
-            hr, hr_valid, spo2, spo2_valid = heartrateSpo2.get_reading()
+            hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
             if hr_valid:
                 print(f"HeartRate: {hr:.2f} bpm")
                 result = {"bpm": hr}
@@ -102,7 +105,7 @@ def handle_command(sensor, session_id, value, payload):
             else:
                 print("HeartRate: Invalid reading")
         elif sensor == "spo2":
-            hr, hr_valid, spo2, spo2_valid = heartrateSpo2.get_reading()
+            hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
             if spo2_valid:
                 print(f"SpO2: {spo2:.2f}%")
                 result = {"value": spo2}
@@ -127,10 +130,12 @@ def handle_command(sensor, session_id, value, payload):
         if sensor == "heartrate":
             hr_enabled = False
             spo2_enabled = False
-            heartrateSpo2.disable()
+            hr_sensor.shutdown()
+            hr_sensor.clear_buffer()
         elif sensor == "spo2":
             spo2_enabled = False
-            heartrateSpo2.disable()
+            hr_sensor.shutdown()
+            hr_sensor.clear_buffer()
         elif sensor == "height":
             height_enabled = False
         elif sensor == "weight":
@@ -153,7 +158,8 @@ def main():
     loadcell.load_calibration()
 
     print("\nInitializing sensors...")
-    heartrateSpo2.setup()
+    global hr_sensor
+    hr_sensor = MAX30102()
     ultrasonic.setup()
     loadcell.setup()
 
@@ -164,8 +170,8 @@ def main():
     if mqtt_client.wait_for_connection():
         print("✅ MQTT connected, advertising sensors...")
         mqtt_client.publish("risecare/sensors/availability", {
-            "heartrate": heartrateSpo2.sensor is not None,
-            "spo2": heartrateSpo2.sensor is not None,
+            "heartrate": hr_sensor is not None and hr_sensor.handle is not None,
+            "spo2": hr_sensor is not None and hr_sensor.handle is not None,
             "height": True,
             "weight": loadcell.sensor_available
         })
@@ -184,7 +190,7 @@ def main():
                 hr = hr_valid = spo2 = spo2_valid = None
                 if hr_enabled or spo2_enabled:
                     try:
-                        hr, hr_valid, spo2, spo2_valid = heartrateSpo2.get_reading()
+                        hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
                     except Exception:
                         pass
 
