@@ -50,16 +50,18 @@ def disable():
 
 def get_reading():
     if sensor is None:
+        print("[heartrateSpo2] Sensor not initialized.")
         return 0, False, 0, False
 
     red, ir = sensor.read_sequential(samples=50)
 
     if len(red) < 10 or len(ir) < 10:
+        print(f"[heartrateSpo2] Too few samples: red={len(red)}, ir={len(ir)}")
         return 0, False, 0, False
 
     hr, hr_valid, spo2, spo2_valid = hrcalc.calc_hr_and_spo2(ir, red)
-
     return hr, hr_valid, spo2, spo2_valid
+
 
 
 def read_continuous():
