@@ -4,6 +4,25 @@ import { useListSessions } from "@workspace/api-client-react";
 import { KioskHeader } from "@/components/KioskHeader";
 import { Calendar, ChevronRight, User } from "lucide-react";
 
+const readingFields = [
+  "bloodPressureSystolic",
+  "bloodPressureDiastolic",
+  "heartRate",
+  "oxygenSaturation",
+  "temperature",
+  "weight",
+  "height",
+  "bloodGlucose",
+];
+
+function countReadings(vitals: any) {
+  if (!vitals) return 0;
+  const latest = Array.isArray(vitals) ? vitals[0] : vitals;
+  if (!latest) return 0;
+
+  return readingFields.filter((field) => latest[field] != null).length;
+}
+
 export default function History() {
   const { data: sessions, isLoading } = useListSessions();
   const [, setLocation] = useLocation();
@@ -61,7 +80,7 @@ export default function History() {
                       </div>
                     </td>
                     <td className="p-4 text-xl font-medium text-muted-foreground">
-                      {session.vitals?.length || 0} Records
+                      {countReadings(session.vitals)} Records
                     </td>
                     <td className="p-4 text-right">
                       <button className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-secondary text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">

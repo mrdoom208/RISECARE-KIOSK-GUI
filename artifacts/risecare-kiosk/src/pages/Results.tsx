@@ -108,6 +108,20 @@ export default function Results() {
         msg: getGlucoseMessage(status),
       };
     })(),
+    {
+      name: "Weight",
+      val: currentVitals.weight,
+      unit: "kg",
+      status: "normal" as VitalStatus,
+      msg: "Recorded body weight.",
+    },
+    {
+      name: "Height",
+      val: currentVitals.height,
+      unit: "cm",
+      status: "normal" as VitalStatus,
+      msg: "Recorded body height.",
+    },
     (() => {
       const status = getBMIStatus(autoBMI);
       return {

@@ -193,7 +193,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
           status: "fail",
           message: "Calibration timed out",
         });
-        clearFeedbackAfter(sensorId);
+        clearFeedbackAfter(sensorId, 12000);
         continue;
       }
 
@@ -229,7 +229,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
             variant: "destructive",
           });
         }
-        clearFeedbackAfter(sensorId);
+        clearFeedbackAfter(sensorId, 12000);
       }
     }
   }, [calibrationResults, feedback]);
@@ -249,7 +249,9 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     setSensorFeedback(sensorId, {
       type: "calibrate",
       status: "pending",
-      message: sensorId === "weight" ? "Calibrating weight. Place 1 kg on the scale when prompted." : "Calibrating sensor...",
+      message: sensorId === "weight"
+        ? "Clear the scale. The system will tare first, then ask for 1 kg."
+        : "Make sure nothing is under the height sensor.",
     });
     commandMutation.mutate({
       sensor: sensorId,
@@ -327,6 +329,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                   progress?._receivedAt > calTimestamps.current[sensor.id]
                     ? progress.message
                     : null;
+                const feedbackMessage = progressMessage ?? fb?.message;
 
                 return (
                   <div key={sensor.id} className="p-4 rounded-xl bg-secondary">
@@ -389,7 +392,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                                     : "text-red-600"
                               }`}
                             >
-                              {fb.message}
+                              {feedbackMessage}
                             </span>
                           </div>
                           {fb.value && (
@@ -402,11 +405,6 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                             <span className="text-xs text-muted-foreground">timeout 20s</span>
                           )}
                         </div>
-                        {progressMessage && (
-                          <div className="mt-2 text-sm text-muted-foreground">
-                            {progressMessage}
-                          </div>
-                        )}
                       </div>
                     )}
 
