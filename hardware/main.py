@@ -205,15 +205,15 @@ def main():
                 now = time.time()
                 published = False
 
-                if hr_enabled and hr_valid:
-                    mqtt_client.publish("risecare/sensors/heartrate",
-                        {"bpm": hr, "sessionId": current_session_id, "timestamp": now})
-                    published = True
-
-                if spo2_enabled and spo2_valid:
-                    mqtt_client.publish("risecare/sensors/spo2",
-                        {"value": spo2, "sessionId": current_session_id, "timestamp": now})
-                    published = True
+                payload = {"sessionId": current_session_id, "timestamp": now}
+                if hr_enabled or spo2_enabled:
+                    if hr_valid:
+                        payload["bpm"] = hr
+                    if spo2_valid:
+                        payload["spo2"] = spo2
+                    if hr_valid or spo2_valid:
+                        mqtt_client.publish("risecare/sensors/vitals", payload)
+                        published = True
 
                 if height_enabled and height is not None:
                     mqtt_client.publish("risecare/sensors/height",
@@ -226,10 +226,8 @@ def main():
                     published = True
 
                 if published and tick % 5 == 0:
-                    if hr_enabled and hr_valid:
-                        print(f"Heart Rate: {hr:.2f} bpm")
-                    if spo2_enabled and spo2_valid:
-                        print(f"SpO2: {spo2:.2f}%")
+                    if hr_enabled or spo2_enabled:
+                        print(f"HR: {f'{hr:.2f}' if hr_valid else 'N/A'} bpm | SpO2: {f'{spo2:.2f}' if spo2_valid else 'N/A'}%")
                     if height_enabled and height is not None:
                         print(f"Height: {height} cm")
                     if weight_enabled and weight is not None:

@@ -153,7 +153,7 @@ export default function Dashboard() {
       case "hr":
         return reading.bpm ?? null;
       case "spo2":
-        return reading.value ?? null;
+        return reading.spo2 ?? null;
       case "weight":
         return reading.kg ?? null;
       case "height":

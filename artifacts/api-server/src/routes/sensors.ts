@@ -46,19 +46,18 @@ subscribe("risecare/sensors/bp", async (data) => {
   }
 });
 
-subscribe("risecare/sensors/heartrate", async (data) => {
+subscribe("risecare/sensors/vitals", async (data) => {
   latestReadings["heartrate"] = data;
-  if (data.sessionId && data.bpm != null) {
-    await saveSensorValue(data.sessionId, "heart_rate", data.bpm);
-    console.log("💾 Heart rate saved from sensor:", data);
-  }
-});
-
-subscribe("risecare/sensors/spo2", async (data) => {
   latestReadings["spo2"] = data;
-  if (data.sessionId && data.value != null) {
-    await saveSensorValue(data.sessionId, "oxygen_saturation", data.value);
-    console.log("💾 SpO2 saved from sensor:", data);
+  if (data.sessionId) {
+    if (data.bpm != null) {
+      await saveSensorValue(data.sessionId, "heart_rate", data.bpm);
+      console.log("💾 Heart rate saved from combined:", data);
+    }
+    if (data.spo2 != null) {
+      await saveSensorValue(data.sessionId, "oxygen_saturation", data.spo2);
+      console.log("💾 SpO2 saved from combined:", data);
+    }
   }
 });
 
