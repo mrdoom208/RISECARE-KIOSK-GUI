@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 def calc_hr_and_spo2(ir_data, red_data):
     """
@@ -13,11 +14,18 @@ def calc_hr_and_spo2(ir_data, red_data):
     ir_smooth = np.convolve(ir_ac, np.ones(5)/5, mode='same')
     red_smooth = np.convolve(red_ac, np.ones(5)/5, mode='same')
 
-    # 3. Peak Detection
+    # 3. Peak Detection (robust)
+    threshold = np.std(ir_smooth) * 0.5
+    min_distance = 10
     peaks = []
+    last_peak = -min_distance
     for i in range(1, len(ir_smooth) - 1):
-        if ir_smooth[i] > ir_smooth[i-1] and ir_smooth[i] > ir_smooth[i+1] and ir_smooth[i] > 0:
+        if (ir_smooth[i] > ir_smooth[i-1] and
+            ir_smooth[i] > ir_smooth[i+1] and
+            ir_smooth[i] > threshold and
+            i - last_peak >= min_distance):
             peaks.append(i)
+            last_peak = i
 
     # Check if we have enough data
     if len(peaks) < 2:
@@ -44,7 +52,10 @@ def calc_hr_and_spo2(ir_data, red_data):
     spo2 = 110 - 25 * r_ratio
 
     # Determine Validity (Basic heuristic)
-    hr_valid = 40 <= heart_rate <= 200
+    hr_valid = not math.isnan(heart_rate) and 30 <= heart_rate <= 250
     spo2_valid = 70 <= spo2 <= 100
+
+    if not hr_valid and spo2_valid:
+        print(f"[hrcalc] peaks={len(peaks)}, avg_interval={avg_interval:.2f}, hr={heart_rate:.2f}, spo2={spo2:.2f}")
 
     return int(heart_rate), hr_valid, int(min(spo2, 100)), spo2_valid
