@@ -199,18 +199,21 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       if (result && result._receivedAt > started) {
         const sensorName = sensors.find((s) => s.id === sensorId)?.name ?? sensorId;
         if (result.status === "ok") {
-          const value = sensorId === "height"
-            ? `${result.totalHeight?.toFixed(1)} cm`
-            : `factor: ${result.factor?.toFixed(2)}`;
+          const isHeight = sensorId === "height";
+          const value = isHeight
+            ? `${Number(result.totalHeight).toFixed(2)} cm`
+            : `factor=${Number(result.factor).toFixed(2)}`;
+          const message = isHeight
+            ? `Saved height calibration ${value}`
+            : `Saved weight calibration ${value}`;
           setSensorFeedback(sensorId, {
             type: "calibrate",
             status: "success",
-            message: `${sensorName} calibration finished`,
-            value,
+            message,
           });
           toast({
-            title: "Calibration finished",
-            description: `${sensorName}: ${value}`,
+            title: "Calibration saved",
+            description: message,
           });
         } else {
           setSensorFeedback(sensorId, {

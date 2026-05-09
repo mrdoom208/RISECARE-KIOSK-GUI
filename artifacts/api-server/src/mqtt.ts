@@ -1,7 +1,7 @@
 import mqtt from "mqtt";
 
 const MQTT_BROKER = process.env.MQTT_BROKER || "mqtt://localhost:1883";
-const MQTT_TOPIC = process.env.MQTT_TOPIC || "risecare/sensors/#";
+const MQTT_TOPIC = process.env.MQTT_TOPIC || "risecare/#";
 
 let client: mqtt.MqttClient | null = null;
 let messageHandlers: Map<string, (payload: any, topic?: string) => void> = new Map();
