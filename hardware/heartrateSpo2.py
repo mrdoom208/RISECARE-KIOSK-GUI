@@ -53,7 +53,7 @@ def get_reading():
         print("[heartrateSpo2] Sensor not initialized.")
         return 0, False, 0, False
 
-    red, ir = sensor.read_sequential(samples=200)
+    red, ir = sensor.read_sequential(samples=100)
 
     if len(red) < 10 or len(ir) < 10:
         print(f"[heartrateSpo2] Too few samples: red={len(red)}, ir={len(ir)}")
