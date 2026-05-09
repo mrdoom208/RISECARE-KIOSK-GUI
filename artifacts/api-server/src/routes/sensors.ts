@@ -97,6 +97,9 @@ subscribe("risecare/sensors/glucose", async (data) => {
 // In-memory calibration results (last result per sensor)
 let calibrationResults: Record<string, any> = {};
 
+// In-memory calibration progress messages (last progress per sensor)
+let calibrationProgress: Record<string, any> = {};
+
 // In-memory latest sensor readings (for live preview)
 let latestReadings: Record<string, any> = {};
 
@@ -109,6 +112,14 @@ let sensorAvailability: Record<string, boolean> = {};
 subscribe("risecare/sensors/availability", async (data) => {
   sensorAvailability = data;
   console.log("📡 Sensor availability:", data);
+});
+
+subscribe("risecare/calibration/progress/+", async (data, topic) => {
+  const sensor = topic?.split("/").pop();
+  if (sensor) {
+    calibrationProgress[sensor] = { ...data, _receivedAt: Date.now() };
+    console.log(`Calibration progress [${sensor}]:`, data);
+  }
 });
 
 subscribe("risecare/test/+", async (data, topic) => {
@@ -188,6 +199,11 @@ router.get("/sensors/status", async (_req, res) => {
 // Get latest calibration result
 router.get("/sensors/calibration", async (_req, res) => {
   res.json(calibrationResults);
+});
+
+// Get latest calibration progress
+router.get("/sensors/calibration-progress", async (_req, res) => {
+  res.json(calibrationProgress);
 });
 
 // Get latest sensor readings (for live preview)

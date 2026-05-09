@@ -78,7 +78,7 @@ export default function Dashboard() {
   const prevValueRef = useRef<any>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
-  const STABLE_READING_THRESHOLD = 5;
+  const STABLE_READING_THRESHOLD = 3;
   const STABLE_READING_COUNT = 5;
 
   // Load enabled state from localStorage

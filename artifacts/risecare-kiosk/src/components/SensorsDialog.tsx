@@ -75,6 +75,17 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     refetchInterval: hasPending ? 2000 : false,
   });
 
+  const { data: calibrationProgress } = useQuery({
+    queryKey: ["calibration-progress"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/calibration-progress");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: isOpen && hasPending,
+    refetchInterval: hasPending ? 500 : false,
+  });
+
   const { data: testResults } = useQuery({
     queryKey: ["test-results"],
     queryFn: async () => {
@@ -299,6 +310,13 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sensors.map((sensor) => {
                 const fb = feedback[sensor.id];
+                const progress = calibrationProgress?.[sensor.id];
+                const progressMessage =
+                  fb?.type === "calibrate" &&
+                  fb.status === "pending" &&
+                  progress?._receivedAt > calTimestamps.current[sensor.id]
+                    ? progress.message
+                    : null;
 
                 return (
                   <div key={sensor.id} className="p-4 rounded-xl bg-secondary">
@@ -374,6 +392,11 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                             <span className="text-xs text-muted-foreground">timeout 20s</span>
                           )}
                         </div>
+                        {progressMessage && (
+                          <div className="mt-2 text-sm text-muted-foreground">
+                            {progressMessage}
+                          </div>
+                        )}
                       </div>
                     )}
 

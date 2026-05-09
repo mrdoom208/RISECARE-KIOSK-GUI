@@ -13,6 +13,15 @@ height_enabled = False
 weight_enabled = False
 
 
+def publish_calibration_progress(sensor, message):
+    mqtt_client.publish(f"risecare/calibration/progress/{sensor}", {
+        "sensor": sensor,
+        "message": message,
+        "sessionId": current_session_id,
+        "timestamp": time.time()
+    })
+
+
 def handle_command(sensor, session_id, value, payload):
     global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled
 
@@ -36,7 +45,9 @@ def handle_command(sensor, session_id, value, payload):
     elif value == 2:
         print(f"⚙️ Calibrating {sensor}...")
         if sensor == "height":
-            total_height = ultrasonic.calibrate_height()
+            total_height = ultrasonic.calibrate_height(
+                progress_callback=lambda message: publish_calibration_progress("height", message)
+            )
             mqtt_client.publish("risecare/calibration/height", {
                 "status": "ok" if total_height is not None else "failed",
                 "totalHeight": total_height,
@@ -45,7 +56,10 @@ def handle_command(sensor, session_id, value, payload):
             })
         elif sensor == "weight":
             known_weight = payload.get("knownWeightGrams", 1000)
-            factor = loadcell.calibrate_loadcell(known_weight_grams=known_weight)
+            factor = loadcell.calibrate_loadcell(
+                known_weight_grams=known_weight,
+                progress_callback=lambda message: publish_calibration_progress("weight", message)
+            )
             mqtt_client.publish("risecare/calibration/weight", {
                 "status": "ok" if factor is not None else "failed",
                 "factor": factor,
@@ -173,16 +187,18 @@ def main():
                         pass
 
                 height = None
-                try:
-                    height = ultrasonic.get_height()
-                except Exception:
-                    pass
+                if height_enabled:
+                    try:
+                        height = ultrasonic.get_height()
+                    except Exception:
+                        pass
 
                 weight = None
-                try:
-                    weight = loadcell.get_weight()
-                except Exception:
-                    pass
+                if weight_enabled:
+                    try:
+                        weight = loadcell.get_weight()
+                    except Exception:
+                        pass
 
                 now = time.time()
                 published = False

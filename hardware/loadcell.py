@@ -47,32 +47,54 @@ def load_calibration():
         print(" No calibration file found. Please calibrate.")
 
 
-def calibrate_loadcell(known_weight_grams=1000):
+def calibrate_loadcell(known_weight_grams=1000, progress_callback=None):
     global calibration_factor, empty_offset
 
     if not sensor_available:
-        print(" Sensor not available")
+        message = "Load cell sensor not available"
+        print(message)
+        if progress_callback:
+            progress_callback(message)
         return None
 
     known_weight_kg = known_weight_grams / 1000
 
-    print("Calibrating loadcell...")
-    print("Step 1: Clear the scale. Taring...")
+    message = "Calibrating load cell..."
+    print(message)
+    if progress_callback:
+        progress_callback(message)
+
+    message = "Step 1: Clear the scale. Taring..."
+    print(message)
+    if progress_callback:
+        progress_callback(message)
     hx.reset()
     time.sleep(1)
     raw_empty = _raw()
     empty_offset = raw_empty
-    print(f"Empty Raw: {raw_empty}")
+    message = f"Empty raw reading: {raw_empty}"
+    print(message)
+    if progress_callback:
+        progress_callback(message)
 
-    print(f"\nStep 2: Place your {known_weight_grams}g ({known_weight_kg}kg) weight on the scale NOW.")
+    message = f"Step 2: Place your {known_weight_grams}g ({known_weight_kg}kg) weight on the scale now."
+    print(f"\n{message}")
+    if progress_callback:
+        progress_callback(message)
     time.sleep(5)
 
     raw_loaded = _raw()
-    print(f"Loaded Raw: {raw_loaded}")
+    message = f"Loaded raw reading: {raw_loaded}"
+    print(message)
+    if progress_callback:
+        progress_callback(message)
 
     difference = raw_loaded - raw_empty
     if difference <= 0:
-        print(" Error: Loaded reading must be higher than empty reading")
+        message = "Calibration failed: loaded reading must be higher than empty reading"
+        print(message)
+        if progress_callback:
+            progress_callback(message)
         return None
 
     new_factor = difference / known_weight_kg
@@ -92,7 +114,10 @@ def calibrate_loadcell(known_weight_grams=1000):
     with open(CALIBRATION_FILE, "w") as f:
         json.dump(data, f)
 
-    print(f"\nSaved calibration: factor={calibration_factor}, offset={empty_offset}")
+    message = f"Saved weight calibration: factor={calibration_factor:.2f}, offset={empty_offset}"
+    print(f"\n{message}")
+    if progress_callback:
+        progress_callback(message)
     print(f"Formula: ({raw_loaded} - {raw_empty}) / {known_weight_kg}kg = {calibration_factor}")
     return calibration_factor
 

@@ -59,9 +59,12 @@ def _average_readings(readings):
 # ---------------------------
 # 2. Calibration function
 # ---------------------------
-def calibrate_height():
+def calibrate_height(progress_callback=None):
     global TOTAL_HEIGHT
-    print("Calibrating height... Make sure nothing is under the sensor.")
+    message = "Calibrating height... Make sure nothing is under the sensor."
+    print(message)
+    if progress_callback:
+        progress_callback(message)
 
     time.sleep(2)
     readings = []
@@ -70,13 +73,22 @@ def calibrate_height():
         d = measure_distance()
         if _is_valid_distance(d):
             readings.append(d)
-            print(f"Reading: {d} cm")
+            message = f"Reading {len(readings)}/7: {d} cm"
+            print(message)
+            if progress_callback:
+                progress_callback(message)
         else:
-            print(f"Ignored invalid reading: {d} cm")
+            message = f"Ignored invalid reading: {d} cm"
+            print(message)
+            if progress_callback:
+                progress_callback(message)
         time.sleep(0.5)
 
     if len(readings) < 3:
-        print("❌ Calibration failed: no valid readings")
+        message = "Calibration failed: no valid readings"
+        print(message)
+        if progress_callback:
+            progress_callback(message)
         return None
 
     TOTAL_HEIGHT = _average_readings(readings)
@@ -93,7 +105,10 @@ def calibrate_height():
     with open(CALIBRATION_FILE, "w") as f:
         json.dump(data, f)
 
-    print(f"\n✅ Saved Ultrasonic Calibration: {TOTAL_HEIGHT:.2f} cm\n")
+    message = f"Saved height calibration: {TOTAL_HEIGHT:.2f} cm"
+    print(f"\n{message}\n")
+    if progress_callback:
+        progress_callback(message)
 
 
     return TOTAL_HEIGHT
