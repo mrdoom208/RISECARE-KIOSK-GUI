@@ -77,7 +77,8 @@ def calibrate_loadcell(known_weight_grams=1000, progress_callback=None):
     if progress_callback:
         progress_callback(message)
 
-    message = f"Step 2: Place your {known_weight_grams}g ({known_weight_kg}kg) weight on the scale now."
+    display_weight = "1 kg" if known_weight_grams == 1000 else f"{known_weight_grams}g ({known_weight_kg}kg)"
+    message = f"Step 2: Place your {display_weight} weight on the scale now."
     print(f"\n{message}")
     if progress_callback:
         progress_callback(message)
