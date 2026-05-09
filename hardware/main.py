@@ -224,9 +224,14 @@ def main():
                     published = True
 
                 if published and tick % 5 == 0:
-                    print(f"HR: {f'{hr:.2f}' if hr_valid and hr_enabled else 'N/A'} | "
-                          f"SpO2: {f'{spo2:.2f}' if spo2_valid and spo2_enabled else 'N/A'}% | "
-                          f"H: {height} cm | W: {weight} g")
+                    if hr_enabled and hr_valid:
+                        print(f"Heart Rate: {hr:.2f} bpm")
+                    if spo2_enabled and spo2_valid:
+                        print(f"SpO2: {spo2:.2f}%")
+                    if height_enabled and height is not None:
+                        print(f"Height: {height} cm")
+                    if weight_enabled and weight is not None:
+                        print(f"Weight: {weight} g")
 
                 time.sleep(1)
             elif mode == 0:
