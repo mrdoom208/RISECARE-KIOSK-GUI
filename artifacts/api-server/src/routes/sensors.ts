@@ -142,7 +142,7 @@ subscribe("risecare/calibration/weight", async (data) => {
 
 // API endpoint to send sensor command (start=1 / stop=0)
 router.post("/sensors/command", async (req, res) => {
-  const { sessionId, sensor, value } = req.body;
+  const { sessionId, sensor, value, knownWeightGrams } = req.body;
 
   if (!sessionId || !sensor || value === undefined) {
     res.status(400).json({ error: "sessionId, sensor, and value required" });
@@ -153,6 +153,7 @@ router.post("/sensors/command", async (req, res) => {
     sessionId,
     sensor,
     value,
+    knownWeightGrams,
     timestamp: new Date().toISOString(),
   });
 

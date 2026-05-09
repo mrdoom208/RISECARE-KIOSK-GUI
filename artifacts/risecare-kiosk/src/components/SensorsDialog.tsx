@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -11,10 +11,10 @@ interface SensorsDialogProps {
 }
 
 const sensors = [
-  { id: "heartrate", name: "Heart Rate", icon: "❤️", unit: "bpm", key: "bpm", decimals: 0 },
-  { id: "spo2", name: "SpO2", icon: "🫁", unit: "%", key: "value", decimals: 0 },
-  { id: "height", name: "Height", icon: "📏", unit: "cm", key: "cm", decimals: 1 },
-  { id: "weight", name: "Weight", icon: "⚖️", unit: "kg", key: "kg", decimals: 2 },
+  { id: "heartrate", name: "Heart Rate", icon: HeartPulse, unit: "bpm", key: "bpm", decimals: 0, canCalibrate: false },
+  { id: "spo2", name: "SpO2", icon: Wind, unit: "%", key: "value", decimals: 0, canCalibrate: false },
+  { id: "height", name: "Height", icon: Ruler, unit: "cm", key: "cm", decimals: 1, canCalibrate: true },
+  { id: "weight", name: "Weight", icon: Scale, unit: "kg", key: "kg", decimals: 2, canCalibrate: true },
 ];
 
 type Feedback = {
@@ -101,14 +101,16 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     mutationFn: async ({
       sensor,
       value,
+      knownWeightGrams,
     }: {
       sensor: string;
       value: number;
+      knownWeightGrams?: number;
     }) => {
       const res = await fetch("/api/sensors/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, sensor, value }),
+        body: JSON.stringify({ sessionId, sensor, value, knownWeightGrams }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -247,9 +249,13 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     setSensorFeedback(sensorId, {
       type: "calibrate",
       status: "pending",
-      message: "Calibrating sensor...",
+      message: sensorId === "weight" ? "Calibrating weight. Place 1 kg on the scale when prompted." : "Calibrating sensor...",
     });
-    commandMutation.mutate({ sensor: sensorId, value: 2 });
+    commandMutation.mutate({
+      sensor: sensorId,
+      value: 2,
+      knownWeightGrams: sensorId === "weight" ? 1000 : undefined,
+    });
   };
 
   const toggleSensor = (sensorId: string) => {
@@ -313,6 +319,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sensors.map((sensor) => {
                 const fb = feedback[sensor.id];
+                const SensorIcon = sensor.icon;
                 const progress = calibrationProgress?.[sensor.id];
                 const progressMessage =
                   fb?.type === "calibrate" &&
@@ -325,7 +332,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                   <div key={sensor.id} className="p-4 rounded-xl bg-secondary">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{sensor.icon}</span>
+                        <SensorIcon className="w-6 h-6 text-primary" />
                         <h3 className="font-semibold">{sensor.name}</h3>
                       </div>
                       <div className="flex items-center gap-2">
@@ -404,18 +411,20 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                     )}
 
                     <div className="flex gap-2 flex-wrap">
-                      <Button
-                        onClick={() => handleCalibrate(sensor.id)}
-                        disabled={
-                          commandMutation.isPending ||
-                          !enabledSensors[sensor.id] ||
-                          fb?.status === "pending"
-                        }
-                        variant="outline"
-                        size="sm"
-                      >
-                        Calibrate
-                      </Button>
+                      {sensor.canCalibrate && (
+                        <Button
+                          onClick={() => handleCalibrate(sensor.id)}
+                          disabled={
+                            commandMutation.isPending ||
+                            !enabledSensors[sensor.id] ||
+                            fb?.status === "pending"
+                          }
+                          variant="outline"
+                          size="sm"
+                        >
+                          Calibrate
+                        </Button>
+                      )}
                       <Button
                         onClick={() => handleTest(sensor.id)}
                         disabled={
