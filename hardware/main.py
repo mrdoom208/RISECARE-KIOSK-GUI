@@ -33,6 +33,7 @@ def handle_command(sensor, session_id, value, payload):
         running = True
         if sensor == "heartrate":
             hr_enabled = True
+            spo2_enabled = True
             heartrateSpo2.enable()
         elif sensor == "spo2":
             spo2_enabled = True
@@ -125,6 +126,7 @@ def handle_command(sensor, session_id, value, payload):
     elif value == 0:
         if sensor == "heartrate":
             hr_enabled = False
+            spo2_enabled = False
             heartrateSpo2.disable()
         elif sensor == "spo2":
             spo2_enabled = False

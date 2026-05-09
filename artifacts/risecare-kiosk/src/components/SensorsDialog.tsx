@@ -11,8 +11,7 @@ interface SensorsDialogProps {
 }
 
 const sensors = [
-  { id: "heartrate", name: "Heart Rate", icon: HeartPulse, unit: "bpm", key: "bpm", decimals: 0, canCalibrate: false },
-  { id: "spo2", name: "SpO2", icon: Wind, unit: "%", key: "value", decimals: 0, canCalibrate: false },
+  { id: "heartrate", name: "Heart Rate & SpO2", icon: HeartPulse, unit: "bpm", key: "bpm", decimals: 0, canCalibrate: false },
   { id: "height", name: "Height", icon: Ruler, unit: "cm", key: "cm", decimals: 1, canCalibrate: true },
   { id: "weight", name: "Weight", icon: Scale, unit: "kg", key: "kg", decimals: 2, canCalibrate: true },
 ];
@@ -262,7 +261,13 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
 
   const toggleSensor = (sensorId: string) => {
     const newState = { ...enabledSensors };
-    newState[sensorId] = !newState[sensorId];
+    const enable = !newState[sensorId];
+    if (sensorId === "heartrate") {
+      newState["heartrate"] = enable;
+      newState["spo2"] = enable;
+    } else {
+      newState[sensorId] = enable;
+    }
     saveEnabledState(newState);
   };
 

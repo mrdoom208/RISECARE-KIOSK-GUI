@@ -12,6 +12,7 @@ import {
   Scale,
   Ruler,
   Wind,
+  Plus,
   CheckCircle2,
   Lock,
 } from "lucide-react";
@@ -421,41 +422,56 @@ const handleStopReading = async () => {
             isDouble
           />
 
-           {/* Heart Rate */}
-           <VitalCard
-             title="Heart Rate"
-             value={currentVitals.heartRate}
-             unit="bpm"
-             icon={<Activity className="w-5 h-5" />}
-             status={getHRStatus(currentVitals.heartRate)}
+           {/* Heart Rate & SpO2 (combined) */}
+           <div
              onClick={() => {
-               if (!isVitalEnabled("hr")) return;
+               if (!isVitalEnabled("hr") && !isVitalEnabled("spo2")) return;
                setActiveKeypad("hr");
                setActiveSensor(
                  sensorGuides.find((s) => s.name === "Pulse Oximeter Sensor") ||
                    null,
                );
              }}
-             disabled={!isVitalEnabled("hr")}
-           />
+             className={`
+               relative overflow-hidden group
+               bg-card rounded-xl p-3 border-2
+               transition-all duration-200
+               cursor-pointer active:scale-[0.98] shadow-sm hover:shadow-md border-border/50 hover:border-primary/50
+             `}
+           >
+             <div className="flex justify-between items-start mb-3">
+               <div className="flex items-center gap-2">
+                 <div className="p-2 rounded-xl bg-secondary text-primary">
+                   <Activity className="w-5 h-5" />
+                 </div>
+                 <h3 className="text-xl font-bold text-foreground">Heart Rate & SpO2</h3>
+               </div>
+               <div className="flex items-center gap-1.5 text-sm text-muted-foreground/60 py-1">
+                 <Plus className="w-4 h-4" />
+                 <span>Tap to record</span>
+               </div>
+             </div>
 
-           {/* SpO2 */}
-           <VitalCard
-             title="SpO2"
-             value={currentVitals.oxygenSaturation}
-             unit="%"
-             icon={<Wind className="w-5 h-5" />}
-             status={getSpO2Status(currentVitals.oxygenSaturation)}
-             onClick={() => {
-               if (!isVitalEnabled("spo2")) return;
-               setActiveKeypad("spo2");
-               setActiveSensor(
-                 sensorGuides.find((s) => s.name === "Pulse Oximeter Sensor") ||
-                   null,
-               );
-             }}
-             disabled={!isVitalEnabled("spo2")}
-           />
+             <div className="mt-2 flex items-baseline gap-4">
+               <div className="flex items-baseline gap-1">
+                 <span className="text-3xl font-display font-bold text-foreground tracking-tight">
+                   {currentVitals.heartRate ?? "--"}
+                 </span>
+                 <span className="text-xl font-medium text-muted-foreground ml-0.5">
+                   bpm
+                 </span>
+               </div>
+               <span className="text-2xl text-muted-foreground font-light">|</span>
+               <div className="flex items-baseline gap-1">
+                 <span className="text-3xl font-display font-bold text-foreground tracking-tight">
+                   {currentVitals.oxygenSaturation ?? "--"}
+                 </span>
+                 <span className="text-xl font-medium text-muted-foreground ml-0.5">
+                   %
+                 </span>
+               </div>
+             </div>
+           </div>
 
             {/* Blood Glucose */}
            <VitalCard
@@ -605,9 +621,48 @@ const handleStopReading = async () => {
             >
               {(() => {
                 const display = getReadingDisplay(readingVital);
+                const isHrSpo2 = readingVital === "hr";
+                const hrDisplay = isHrSpo2 ? getReadingDisplay("hr") : null;
+                const spo2Display = isHrSpo2 ? (() => {
+                  const spo2Value = getLiveReadingValue("spo2") ?? currentVitals.oxygenSaturation;
+                  return {
+                    title: "SpO2",
+                    value: spo2Value != null ? Number(spo2Value).toFixed(0) : "Reading...",
+                    unit: "%",
+                    hasValue: spo2Value != null,
+                  };
+                })() : null;
 
                 return (
                   <>
+              {isHrSpo2 ? (
+                <>
+                  <h2 className="text-2xl font-bold mb-6 text-center">Heart Rate & SpO2</h2>
+                  <div className="flex items-center justify-center gap-6 mb-6">
+                    <div className="text-center">
+                      <div className={`font-bold font-display text-primary mb-1 ${hrDisplay?.hasValue ? "text-5xl" : "text-3xl"}`}>
+                        {hrDisplay?.value}
+                      </div>
+                      <div className="text-base text-muted-foreground">{hrDisplay?.unit}</div>
+                      <div className="text-sm text-muted-foreground/70 mt-1">Heart Rate</div>
+                    </div>
+                    <div className="text-4xl text-muted-foreground/30 font-light">|</div>
+                    <div className="text-center">
+                      <div className={`font-bold font-display text-primary mb-1 ${spo2Display?.hasValue ? "text-5xl" : "text-3xl"}`}>
+                        {spo2Display?.value}
+                      </div>
+                      <div className="text-base text-muted-foreground">{spo2Display?.unit}</div>
+                      <div className="text-sm text-muted-foreground/70 mt-1">SpO2</div>
+                    </div>
+                  </div>
+                  <p className="text-center text-muted-foreground mb-6">
+                    {hrDisplay?.hasValue && spo2Display?.hasValue
+                      ? "Reading from sensor..."
+                      : "Waiting for sensor data..."}
+                  </p>
+                </>
+              ) : (
+                <>
               <h2 className="text-2xl font-bold mb-6 text-center">
                 {display.title}
               </h2>
@@ -624,6 +679,8 @@ const handleStopReading = async () => {
               <p className="text-center text-muted-foreground mb-6">
                 {display.hasValue ? "Reading from sensor..." : "Waiting for sensor data..."}
               </p>
+                </>
+              )}
                   </>
                 );
               })()}
