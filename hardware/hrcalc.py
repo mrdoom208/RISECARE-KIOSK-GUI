@@ -10,13 +10,15 @@ def calc_hr_and_spo2(ir_data, red_data):
     ir_ac = ir_data - np.mean(ir_data)
     red_ac = red_data - np.mean(red_data)
 
-    # 2. Filter Noise (Moving average)
-    ir_smooth = np.convolve(ir_ac, np.ones(5)/5, mode='same')
-    red_smooth = np.convolve(red_ac, np.ones(5)/5, mode='same')
+    # 2. Filter Noise (Bandpass: lowpass ~4Hz via moving average window=25)
+    window = 25
+    ir_smooth = np.convolve(ir_ac, np.ones(window)/window, mode='same')
+    red_smooth = np.convolve(red_ac, np.ones(window)/window, mode='same')
 
-    # 3. Peak Detection (robust)
-    threshold = np.std(ir_smooth) * 0.5
-    min_distance = 10
+    # 3. Peak Detection
+    ir_std = np.std(ir_smooth)
+    threshold = ir_std * 0.8
+    min_distance = 30
     peaks = []
     last_peak = -min_distance
     for i in range(1, len(ir_smooth) - 1):

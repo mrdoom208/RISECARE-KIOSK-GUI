@@ -233,7 +233,8 @@ def main():
                     if weight_enabled and weight is not None:
                         print(f"Weight: {weight} g")
 
-                time.sleep(1)
+                if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled:
+                    time.sleep(1)
             elif mode == 0:
                 time.sleep(1)
             else:
