@@ -7,6 +7,8 @@ import time
 import mqtt_client
 import printer
 
+READ_INTERVAL = 1.0
+
 hr_sensor = None
 temp_sensor = None
 running = False
@@ -17,9 +19,12 @@ spo2_enabled = False
 height_enabled = False
 weight_enabled = False
 temp_enabled = False
-temp_last_read = 0
-TEMP_READ_INTERVAL = 1.0
 weight_calibrating = False
+
+hr_last_read = 0.0
+height_last_read = 0.0
+weight_last_read = 0.0
+temp_last_read = 0.0
 
 
 def publish_calibration_progress(sensor, message):
@@ -32,7 +37,7 @@ def publish_calibration_progress(sensor, message):
 
 
 def handle_command(sensor, session_id, value, payload):
-    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, weight_calibrating
+    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, weight_calibrating, weight_cal_buffer, hr_last_read, height_last_read, weight_last_read, temp_last_read
 
     if session_id:
         current_session_id = session_id
@@ -84,6 +89,7 @@ def handle_command(sensor, session_id, value, payload):
                 progress_callback=lambda message: publish_calibration_progress("weight", message)
             )
             if success:
+                weight_cal_buffer = []
                 publish_calibration_progress("weight", "Step 2: Place your 1 kg weight on the scale now.")
                 weight_calibrating = True
             else:
@@ -198,6 +204,7 @@ def handle_command(sensor, session_id, value, payload):
             weight_enabled = False
             if weight_calibrating:
                 weight_calibrating = False
+                weight_cal_buffer = []
                 mqtt_client.publish("risecare/calibration/weight", {
                     "status": "failed",
                     "sessionId": current_session_id,
@@ -215,7 +222,7 @@ def handle_command(sensor, session_id, value, payload):
 
 
 def main():
-    global running, mode, temp_last_read
+    global running, mode, hr_last_read, height_last_read, weight_last_read, temp_last_read
 
     print("Starting RiseCare Health Kiosk...")
 
@@ -259,46 +266,54 @@ def main():
         while True:
             if mode == 1 and running:
                 tick += 1
+                now = time.time()
 
                 hr = hr_valid = spo2 = spo2_valid = None
-                if hr_enabled or spo2_enabled:
+                if (hr_enabled or spo2_enabled) and now - hr_last_read >= READ_INTERVAL:
                     try:
                         hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
+                        hr_last_read = time.time()
                     except Exception:
                         pass
 
                 height = None
-                if height_enabled:
+                if height_enabled and now - height_last_read >= READ_INTERVAL:
                     try:
                         height = ultrasonic.get_height()
+                        height_last_read = time.time()
                     except Exception:
                         pass
 
                 weight = None
-                if weight_enabled:
+                if weight_enabled and now - weight_last_read >= READ_INTERVAL:
                     try:
                         weight = loadcell.get_weight()
+                        weight_last_read = time.time()
                     except Exception:
                         pass
-                elif weight_calibrating:
+                elif weight_calibrating and now - weight_last_read >= READ_INTERVAL:
                     try:
                         cal_weight = loadcell.get_weight()
                         if cal_weight is not None:
-                            publish_calibration_progress("weight", f"Reading: {cal_weight:.2f} kg")
+                            weight_last_read = time.time()
+                            weight_cal_buffer.append(cal_weight)
+                            if len(weight_cal_buffer) > 5:
+                                weight_cal_buffer.pop(0)
+                            smoothed = round(sum(weight_cal_buffer) / len(weight_cal_buffer), 2)
+                            publish_calibration_progress("weight", f"Reading: {smoothed:.2f} kg")
                             mqtt_client.publish("risecare/sensors/weight",
-                                {"kg": cal_weight, "sessionId": current_session_id, "timestamp": now, "_calibrating": True})
+                                {"kg": smoothed, "sessionId": current_session_id, "timestamp": now, "_calibrating": True})
                     except Exception:
                         pass
 
                 temperature = None
-                if temp_enabled and time.time() - temp_last_read >= TEMP_READ_INTERVAL:
+                if temp_enabled and now - temp_last_read >= READ_INTERVAL:
                     try:
                         temperature = temp_sensor.get_temperature()
                         temp_last_read = time.time()
                     except Exception:
                         pass
 
-                now = time.time()
                 published = False
 
                 payload = {"sessionId": current_session_id, "timestamp": now}
@@ -336,10 +351,7 @@ def main():
                     if temp_enabled and temperature is not None:
                         print(f"Temperature: {temperature} C")
 
-                if weight_calibrating:
-                    time.sleep(0.3)
-                if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled and not temp_enabled:
-                    time.sleep(1)
+                time.sleep(0.1)
             elif mode == 0:
                 time.sleep(1)
             else:

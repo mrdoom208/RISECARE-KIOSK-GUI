@@ -106,7 +106,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const [weightCalStableCount, setWeightCalStableCount] = useState(0);
   const weightCalPrevRef = useRef<number | null>(null);
   const WEIGHT_CAL_STABLE_THRESHOLD = 0.05;
-  const WEIGHT_CAL_STABLE_COUNT = 10;
+  const WEIGHT_CAL_STABLE_COUNT = 5;
 
   useEffect(() => {
     if (!isWeightCalReading || weightCalValue == null) {
