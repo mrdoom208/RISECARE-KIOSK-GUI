@@ -47,22 +47,15 @@ def load_calibration():
         print(" No calibration file found. Please calibrate.")
 
 
-def calibrate_loadcell(known_weight_grams=1000, progress_callback=None):
-    global calibration_factor, empty_offset
+def calibrate_tare(progress_callback=None):
+    global empty_offset
 
     if not sensor_available:
         message = "Load cell sensor not available"
         print(message)
         if progress_callback:
             progress_callback(message)
-        return None
-
-    known_weight_kg = known_weight_grams / 1000
-
-    message = "Calibrating load cell..."
-    print(message)
-    if progress_callback:
-        progress_callback(message)
+        return False
 
     message = "Step 1: Clear the scale. Taring..."
     print(message)
@@ -72,17 +65,30 @@ def calibrate_loadcell(known_weight_grams=1000, progress_callback=None):
     time.sleep(1)
     raw_empty = _raw()
     empty_offset = raw_empty
-    message = f"Empty raw reading: {raw_empty}"
+    message = f"Tare done. Empty reading: {raw_empty}"
     print(message)
     if progress_callback:
         progress_callback(message)
+    return True
+
+
+def calibrate_finalize(known_weight_grams=1000, progress_callback=None):
+    global calibration_factor, empty_offset
+
+    if not sensor_available or empty_offset is None:
+        message = "Calibration not started or sensor unavailable"
+        print(message)
+        if progress_callback:
+            progress_callback(message)
+        return None
+
+    known_weight_kg = known_weight_grams / 1000
 
     display_weight = "1 kg" if known_weight_grams == 1000 else f"{known_weight_grams}g ({known_weight_kg}kg)"
-    message = f"Step 2: Place your {display_weight} weight on the scale now."
-    print(f"\n{message}")
+    message = f"Finalizing calibration with {display_weight}..."
+    print(message)
     if progress_callback:
         progress_callback(message)
-    time.sleep(5)
 
     raw_loaded = _raw()
     message = f"Loaded raw reading: {raw_loaded}"
@@ -90,7 +96,7 @@ def calibrate_loadcell(known_weight_grams=1000, progress_callback=None):
     if progress_callback:
         progress_callback(message)
 
-    difference = raw_loaded - raw_empty
+    difference = raw_loaded - empty_offset
     if difference <= 0:
         message = "Calibration failed: loaded reading must be higher than empty reading"
         print(message)
@@ -119,7 +125,7 @@ def calibrate_loadcell(known_weight_grams=1000, progress_callback=None):
     print(f"\n{message}")
     if progress_callback:
         progress_callback(message)
-    print(f"Formula: ({raw_loaded} - {raw_empty}) / {known_weight_kg}kg = {calibration_factor}")
+    print(f"Formula: ({raw_loaded} - {empty_offset}) / {known_weight_kg}kg = {calibration_factor}")
     return calibration_factor
 
 

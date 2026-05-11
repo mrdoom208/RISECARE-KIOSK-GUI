@@ -19,6 +19,7 @@ weight_enabled = False
 temp_enabled = False
 temp_last_read = 0
 TEMP_READ_INTERVAL = 1.0
+weight_calibrating = False
 
 
 def publish_calibration_progress(sensor, message):
@@ -31,7 +32,7 @@ def publish_calibration_progress(sensor, message):
 
 
 def handle_command(sensor, session_id, value, payload):
-    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled
+    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, weight_calibrating
 
     if session_id:
         current_session_id = session_id
@@ -78,7 +79,37 @@ def handle_command(sensor, session_id, value, payload):
             })
         elif sensor == "weight":
             known_weight = payload.get("knownWeightGrams", 1000)
-            factor = loadcell.calibrate_loadcell(
+            publish_calibration_progress("weight", "Step 1: Clear the scale. Taring...")
+            success = loadcell.calibrate_tare(
+                progress_callback=lambda message: publish_calibration_progress("weight", message)
+            )
+            if success:
+                publish_calibration_progress("weight", "Step 2: Place your 1 kg weight on the scale now.")
+                weight_calibrating = True
+            else:
+                mqtt_client.publish("risecare/calibration/weight", {
+                    "status": "failed",
+                    "sessionId": current_session_id,
+                    "timestamp": time.time()
+                })
+                mode = 1
+                running = True
+        elif sensor == "heartrate" or sensor == "spo2":
+            print("⚠️ Calibration not implemented for heartrate/spo2")
+        else:
+            print(f"⚠️ Unknown sensor for calibration: {sensor}")
+        mode = 1
+        running = True
+
+    elif value == 12:
+        if sensor == "weight":
+            if not weight_calibrating:
+                print("⚠️ No weight calibration in progress")
+                return
+            weight_calibrating = False
+            known_weight = payload.get("knownWeightGrams", 1000)
+            publish_calibration_progress("weight", "Finalizing calibration...")
+            factor = loadcell.calibrate_finalize(
                 known_weight_grams=known_weight,
                 progress_callback=lambda message: publish_calibration_progress("weight", message)
             )
@@ -89,12 +120,8 @@ def handle_command(sensor, session_id, value, payload):
                 "sessionId": current_session_id,
                 "timestamp": time.time()
             })
-        elif sensor == "heartrate" or sensor == "spo2":
-            print("⚠️ Calibration not implemented for heartrate/spo2")
         else:
-            print(f"⚠️ Unknown sensor for calibration: {sensor}")
-        mode = 1
-        running = True
+            print(f"⚠️ Unknown sensor for calibrate finalize: {sensor}")
 
     elif value == 3:
         print(f"🧪 Testing {sensor}...")
@@ -245,6 +272,15 @@ def main():
                         weight = loadcell.get_weight()
                     except Exception:
                         pass
+                elif weight_calibrating:
+                    try:
+                        cal_weight = loadcell.get_weight()
+                        if cal_weight is not None:
+                            publish_calibration_progress("weight", f"Reading: {cal_weight:.2f} kg")
+                            mqtt_client.publish("risecare/sensors/weight",
+                                {"kg": cal_weight, "sessionId": current_session_id, "timestamp": now, "_calibrating": True})
+                    except Exception:
+                        pass
 
                 temperature = None
                 if temp_enabled and time.time() - temp_last_read >= TEMP_READ_INTERVAL:
@@ -292,6 +328,8 @@ def main():
                     if temp_enabled and temperature is not None:
                         print(f"Temperature: {temperature} C")
 
+                if weight_calibrating:
+                    time.sleep(0.3)
                 if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled and not temp_enabled:
                     time.sleep(1)
             elif mode == 0:

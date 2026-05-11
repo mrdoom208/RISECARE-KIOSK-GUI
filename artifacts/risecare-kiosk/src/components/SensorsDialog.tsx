@@ -86,6 +86,12 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     refetchInterval: hasPending ? 500 : false,
   });
 
+  const weightCalFb = feedback["weight"];
+  const isWeightCalReading = weightCalFb?.type === "calibrate" && weightCalFb?.status === "pending" && calibrationProgress?.weight?.message?.startsWith("Reading:");
+  const weightCalValue = isWeightCalReading && calibrationProgress?.weight?.message
+    ? parseFloat(calibrationProgress.weight.message.replace("Reading: ", "").replace(" kg", ""))
+    : null;
+
   const { data: testResults } = useQuery({
     queryKey: ["test-results"],
     queryFn: async () => {
@@ -96,6 +102,31 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     enabled: isOpen && hasPending,
     refetchInterval: hasPending ? 1000 : false,
   });
+
+  const [weightCalStableCount, setWeightCalStableCount] = useState(0);
+  const weightCalPrevRef = useRef<number | null>(null);
+  const WEIGHT_CAL_STABLE_THRESHOLD = 0.05;
+  const WEIGHT_CAL_STABLE_COUNT = 10;
+
+  useEffect(() => {
+    if (!isWeightCalReading || weightCalValue == null) {
+      setWeightCalStableCount(0);
+      weightCalPrevRef.current = null;
+      return;
+    }
+    const prev = weightCalPrevRef.current;
+    if (prev !== null) {
+      const diff = Math.abs(weightCalValue - prev);
+      if (diff <= WEIGHT_CAL_STABLE_THRESHOLD) {
+        setWeightCalStableCount((c) => Math.min(c + 1, WEIGHT_CAL_STABLE_COUNT));
+      } else {
+        setWeightCalStableCount(1);
+      }
+    } else {
+      setWeightCalStableCount(1);
+    }
+    weightCalPrevRef.current = weightCalValue;
+  }, [isWeightCalReading, weightCalValue]);
 
   const commandMutation = useMutation({
     mutationFn: async ({
@@ -453,6 +484,67 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
           </motion.div>
         </motion.div>
       )}
+
+      {/* Weight calibration reading overlay */}
+      <AnimatePresence>
+        {isWeightCalReading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+            >
+              <h2 className="text-2xl font-bold mb-2 text-center">Weight Calibration</h2>
+              <p className="text-center text-muted-foreground mb-6">
+                Place your 1 kg weight on the scale and wait for stable readings.
+              </p>
+
+              <div className="text-center mb-8">
+                <div className="text-6xl font-bold font-display text-primary mb-2">
+                  {weightCalValue != null ? weightCalValue.toFixed(2) : "---"}
+                </div>
+                <div className="text-xl text-muted-foreground">kg</div>
+              </div>
+
+              <p className="text-center text-muted-foreground mb-6">
+                {weightCalValue != null ? "Reading from sensor..." : "Waiting for sensor data..."}
+              </p>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setWeightCalStableCount(0);
+                    weightCalPrevRef.current = null;
+                    handleCalibrate("weight");
+                  }}
+                  className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 transition font-semibold text-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setWeightCalStableCount(0);
+                    weightCalPrevRef.current = null;
+                    commandMutation.mutate({ sensor: "weight", value: 12, knownWeightGrams: 1000 });
+                  }}
+                  disabled={weightCalStableCount < WEIGHT_CAL_STABLE_COUNT}
+                  className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Done {weightCalStableCount < WEIGHT_CAL_STABLE_COUNT && `(${weightCalStableCount}/${WEIGHT_CAL_STABLE_COUNT})`}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 }
