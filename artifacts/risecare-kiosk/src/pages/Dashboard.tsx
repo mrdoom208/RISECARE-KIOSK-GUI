@@ -15,6 +15,7 @@ import {
   Plus,
   CheckCircle2,
   Lock,
+  Thermometer,
 } from "lucide-react";
 import { getStatusColor, getStatusText } from "@/lib/vitals-utils";
 import { KioskHeader } from "@/components/KioskHeader";
@@ -41,6 +42,7 @@ import {
   getBPStatus,
   getHRStatus,
   getSpO2Status,
+  getTempStatus,
   getGlucoseStatus,
   getBMIStatus,
   calculateBMI,
@@ -52,7 +54,8 @@ type VitalType =
   | "spo2"
   | "weight"
   | "height"
-  | "glucose";
+  | "glucose"
+  | "temperature";
 
 // Map vital types to sensor IDs
 const vitalToSensorId: Record<VitalType, string> = {
@@ -62,6 +65,7 @@ const vitalToSensorId: Record<VitalType, string> = {
   weight: "weight",
   height: "height",
   glucose: "glucose",
+  temperature: "temperature",
 };
 
 export default function Dashboard() {
@@ -160,6 +164,8 @@ export default function Dashboard() {
         return reading.cm ?? null;
       case "glucose":
         return reading.mmol ?? null;
+      case "temperature":
+        return reading.celsius ?? null;
     }
   };
 
@@ -194,6 +200,9 @@ export default function Dashboard() {
         break;
       case "glucose":
         currentValue = getLiveReadingValue("glucose") ?? currentVitals.bloodGlucose;
+        break;
+      case "temperature":
+        currentValue = getLiveReadingValue("temperature") ?? currentVitals.temperature;
         break;
     }
 
@@ -242,6 +251,7 @@ export default function Dashboard() {
     else if (activeKeypad === "weight") payload.weight = num1;
     else if (activeKeypad === "height") payload.height = num1;
     else if (activeKeypad === "glucose") payload.bloodGlucose = num1;
+    else if (activeKeypad === "temperature") payload.temperature = num1;
 
     saveVitalsMutation.mutate(
       { id: Number(sessionToken), data: payload },
@@ -263,6 +273,7 @@ export default function Dashboard() {
     weight: "weight",
     height: "height",
     glucose: "glucose",
+    temperature: "temperature",
   };
 
 const handleStartReading = async () => {
@@ -362,6 +373,15 @@ const handleStopReading = async () => {
           title: "Blood Glucose",
           value: value != null ? Number(value).toFixed(1) : "Reading...",
           unit: "mmol/L",
+          hasValue: value != null,
+        };
+      }
+      case "temperature": {
+        const value = getLiveReadingValue("temperature") ?? currentVitals.temperature;
+        return {
+          title: "Temperature",
+          value: value != null ? Number(value).toFixed(1) : "Reading...",
+          unit: "°C",
           hasValue: value != null,
         };
       }
@@ -489,6 +509,23 @@ const handleStopReading = async () => {
                );
              }}
              disabled={!isVitalEnabled("glucose")}
+           />
+
+           {/* Temperature */}
+           <VitalCard
+             title="Temperature"
+             value={currentVitals.temperature}
+             unit="°C"
+             icon={<Thermometer className="w-5 h-5" />}
+             status={getTempStatus(currentVitals.temperature)}
+             onClick={() => {
+               if (!isVitalEnabled("temperature")) return;
+               setActiveKeypad("temperature");
+               setActiveSensor(
+                 sensorGuides.find((s) => s.name === "Thermometer") || null,
+               );
+             }}
+             disabled={!isVitalEnabled("temperature")}
            />
 
            {/* Weight */}

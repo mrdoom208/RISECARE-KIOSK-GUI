@@ -20,9 +20,15 @@ export const sensorGuides: SensorGuide[] = [
   },
   {
     name: "Thermometer",
-    instruction: `Place the thermometer under your tongue or on your forehead as instructed. Stay still until the measurement is complete.`,
-    avoid: `❌ Do not move the thermometer during measurement.<br/>❌ Do not measure immediately after eating or drinking hot/cold liquids.`,
-    image: "/images/thermometer.png",
+    instruction: `1️⃣ Position your forehead directly in front of the sensor, about 2–5 cm away.<br/>
+2️⃣ Make sure your forehead is clean and free of hair, sweat, or makeup.<br/>
+3️⃣ Stay still and look straight ahead while the measurement is taking place.<br/>
+4️⃣ Wait a few seconds for the temperature reading to appear on the screen.`,
+    avoid: `❌ Do not position yourself too far or too close to the sensor.<br/>
+❌ Avoid having hair, hats, or headbands covering your forehead.<br/>
+❌ Do not measure immediately after physical activity, eating, or drinking.<br/>
+❌ Remove glasses or face shields if they cover the forehead area.`,
+    image: "/instructions/mlx90614.png",
   },
   {
     name: "Body Weight Scale",

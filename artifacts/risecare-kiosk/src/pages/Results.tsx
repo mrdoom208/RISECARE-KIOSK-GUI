@@ -8,7 +8,6 @@ import {
   AlertCircle,
   Check,
 } from "lucide-react";
-import { useState } from "react";
 import {
   getBPStatus,
   getHRStatus,
@@ -21,8 +20,9 @@ import {
   VitalStatus,
 } from "@/lib/vitals-utils";
 import type { Vitals } from "@/types/vitals";
-import { useMemo, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 export default function Results() {
@@ -30,7 +30,26 @@ export default function Results() {
   const [, setLocation] = useLocation();
   const sessionToken = params?.token || "";
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [countdown, setCountdown] = useState(20);
+
+  const printMutation = useMutation({
+    mutationFn: async (data: { sessionId: number; recommendation: string }) => {
+      const res = await fetch("/api/print/receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Print failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Receipt sent", description: "Report sent to thermal printer" });
+    },
+    onError: () => {
+      toast({ title: "Print failed", description: "Could not connect to printer", variant: "destructive" });
+    },
+  });
 
   const { data: session, isLoading } = useQuery<Session>({
     queryKey: ["session", sessionToken],
@@ -478,7 +497,7 @@ export default function Results() {
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10">
         <div className="max-w-3xl mx-auto flex gap-3">
           <button
-            onClick={() => alert("Print functionality simulated.")}
+            onClick={() => printMutation.mutate({ sessionId: session?.id, recommendation: overallRecommendation?.message ?? "" })}
             className="flex-1 h-12 bg-secondary text-secondary-foreground text-xl font-display font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             <Printer className="w-5 h-5" />

@@ -20,7 +20,7 @@ class MAX30102:
     REG_LED1_PA = 0x0C
     REG_LED2_PA = 0x0D
 
-    def __init__(self, bus=1, address=0x57):
+    def __init__(self, bus=1, address=0x57, i2c_bus=None):
         self.address = address
         self.handle = None
         self.bus = None
@@ -32,7 +32,7 @@ class MAX30102:
             return
 
         try:
-            self.bus = SMBus(bus)
+            self.bus = i2c_bus if i2c_bus is not None else SMBus(bus)
             self.handle = bus
             self.read_reg(self.REG_INTR_STATUS_1)
         except Exception as e:

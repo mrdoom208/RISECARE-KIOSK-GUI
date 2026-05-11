@@ -1,10 +1,14 @@
 import ultrasonic
 from max30102 import MAX30102
+from mlx90614 import MLX90614
+import i2c_bus
 import loadcell
 import time
 import mqtt_client
+import printer
 
 hr_sensor = None
+temp_sensor = None
 running = False
 mode = 1
 current_session_id = None
@@ -12,6 +16,7 @@ hr_enabled = False
 spo2_enabled = False
 height_enabled = False
 weight_enabled = False
+temp_enabled = False
 
 
 def publish_calibration_progress(sensor, message):
@@ -24,7 +29,7 @@ def publish_calibration_progress(sensor, message):
 
 
 def handle_command(sensor, session_id, value, payload):
-    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled
+    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled
 
     if session_id:
         current_session_id = session_id
@@ -45,6 +50,17 @@ def handle_command(sensor, session_id, value, payload):
             height_enabled = True
         elif sensor == "weight":
             weight_enabled = True
+        elif sensor == "temperature":
+            temp_enabled = True
+        elif sensor == "printer":
+            vitals = payload.get("vitals", {})
+            patient_name = payload.get("patientName", "Patient")
+            recommendation = payload.get("recommendation", "")
+            printer.print_receipt({
+                "patientName": patient_name,
+                "vitals": vitals,
+                "recommendation": recommendation
+            })
 
     elif value == 2:
         print(f"⚙️ Calibrating {sensor}...")
@@ -112,6 +128,17 @@ def handle_command(sensor, session_id, value, payload):
                 success = True
             else:
                 print("SpO2: Invalid reading")
+        elif sensor == "temperature":
+            celsius = temp_sensor.get_temperature()
+            if celsius is not None:
+                print(f"Temperature: {celsius:.2f} C")
+                result = {"celsius": celsius}
+                success = True
+            else:
+                print("Temperature: Invalid reading")
+        elif sensor == "printer":
+            success = printer.test_print()
+            result = {"status": "success" if success else "failed"}
         else:
             print(f"⚠️ Unknown sensor for test: {sensor}")
         payload = {
@@ -140,7 +167,9 @@ def handle_command(sensor, session_id, value, payload):
             height_enabled = False
         elif sensor == "weight":
             weight_enabled = False
-        if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled:
+        elif sensor == "temperature":
+            temp_enabled = False
+        if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled and not temp_enabled:
             running = False
             mode = 0
 
@@ -157,9 +186,14 @@ def main():
     ultrasonic.load_calibration()
     loadcell.load_calibration()
 
+    print("\nInitializing shared I2C bus...")
+    i2c_bus.init_bus(1)
+    shared_bus = i2c_bus.get_bus()
+
     print("\nInitializing sensors...")
-    global hr_sensor
-    hr_sensor = MAX30102()
+    global hr_sensor, temp_sensor
+    hr_sensor = MAX30102(i2c_bus=shared_bus)
+    temp_sensor = MLX90614(i2c_bus=shared_bus)
     ultrasonic.setup()
     loadcell.setup()
 
@@ -173,7 +207,8 @@ def main():
             "heartrate": hr_sensor is not None and hr_sensor.handle is not None,
             "spo2": hr_sensor is not None and hr_sensor.handle is not None,
             "height": True,
-            "weight": loadcell.sensor_available
+            "weight": loadcell.sensor_available,
+            "temperature": temp_sensor is not None and temp_sensor.handle is not None
         })
     else:
         print("⚠️ MQTT not connected — sensors will not be advertised")
@@ -208,6 +243,13 @@ def main():
                     except Exception:
                         pass
 
+                temperature = None
+                if temp_enabled:
+                    try:
+                        temperature = temp_sensor.get_temperature()
+                    except Exception:
+                        pass
+
                 now = time.time()
                 published = False
 
@@ -231,6 +273,11 @@ def main():
                         {"kg": weight, "sessionId": current_session_id, "timestamp": now})
                     published = True
 
+                if temp_enabled and temperature is not None:
+                    mqtt_client.publish("risecare/sensors/temperature",
+                        {"celsius": temperature, "sessionId": current_session_id, "timestamp": now})
+                    published = True
+
                 if published and tick % 5 == 0:
                     if hr_enabled or spo2_enabled:
                         print(f"HR: {f'{hr:.2f}' if hr_valid else 'N/A'} bpm | SpO2: {f'{spo2:.2f}' if spo2_valid else 'N/A'}%")
@@ -238,8 +285,10 @@ def main():
                         print(f"Height: {height} cm")
                     if weight_enabled and weight is not None:
                         print(f"Weight: {weight} g")
+                    if temp_enabled and temperature is not None:
+                        print(f"Temperature: {temperature} C")
 
-                if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled:
+                if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled and not temp_enabled:
                     time.sleep(1)
             elif mode == 0:
                 time.sleep(1)
@@ -249,6 +298,7 @@ def main():
     except KeyboardInterrupt:
         print("\nShutting down...")
         mqtt_client.disconnect()
+        i2c_bus.close_bus()
         ultrasonic.GPIO.cleanup()
 
 

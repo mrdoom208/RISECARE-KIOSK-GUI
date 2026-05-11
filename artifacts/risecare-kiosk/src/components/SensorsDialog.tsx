@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale } from "lucide-react";
+import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale, Thermometer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,7 @@ const sensors = [
   { id: "heartrate", name: "Heart Rate & SpO2", icon: HeartPulse, unit: "bpm", key: "bpm", decimals: 0, canCalibrate: false },
   { id: "height", name: "Height", icon: Ruler, unit: "cm", key: "cm", decimals: 1, canCalibrate: true },
   { id: "weight", name: "Weight", icon: Scale, unit: "kg", key: "kg", decimals: 2, canCalibrate: true },
+  { id: "temperature", name: "Temperature", icon: Thermometer, unit: "°C", key: "celsius", decimals: 1, canCalibrate: false },
 ];
 
 type Feedback = {

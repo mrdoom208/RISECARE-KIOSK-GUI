@@ -4,6 +4,7 @@ import sessionsRouter from "./sessions";
 import vitalsRouter from "./vitals";
 import sensorsRouter from "./sensors";
 import settingsRouter from "./settings";
+import printRouter from "./print";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(sessionsRouter);
 router.use(vitalsRouter);
 router.use(sensorsRouter);
 router.use("/settings", settingsRouter);
+router.use(printRouter);
 
 export default router;
