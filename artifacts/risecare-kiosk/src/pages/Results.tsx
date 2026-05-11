@@ -31,7 +31,7 @@ export default function Results() {
   const sessionToken = params?.token || "";
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [countdown, setCountdown] = useState(20);
+  const [countdown, setCountdown] = useState(60);
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);

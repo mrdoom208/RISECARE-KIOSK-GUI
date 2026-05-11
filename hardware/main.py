@@ -61,14 +61,7 @@ def handle_command(sensor, session_id, value, payload):
         elif sensor == "temperature":
             temp_enabled = True
         elif sensor == "printer":
-            vitals = payload.get("vitals", {})
-            patient_name = payload.get("patientName", "Patient")
-            recommendation = payload.get("recommendation", "")
-            printer.print_receipt({
-                "patientName": patient_name,
-                "vitals": vitals,
-                "recommendation": recommendation
-            })
+            printer.print_receipt(payload)
 
     elif value == 2:
         print(f"⚙️ Calibrating {sensor}...")
