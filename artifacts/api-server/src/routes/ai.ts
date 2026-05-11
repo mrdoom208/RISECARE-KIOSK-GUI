@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
+import print from "./print";
 
 const router: IRouter = Router();
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2";
+console.log(`Using Ollama at ${OLLAMA_HOST} with model ${OLLAMA_MODEL}`);
 
 router.post("/ai/recommendation", async (req, res) => {
   const { vitals } = req.body;
@@ -39,7 +41,7 @@ Assessment:`;
       throw new Error(`Ollama returned ${response.status}`);
     }
 
-    const data = await response.json() as { response: string };
+    const data = (await response.json()) as { response: string };
     res.json({ recommendation: data.response.trim() });
   } catch (e) {
     console.error("Ollama error:", e);
