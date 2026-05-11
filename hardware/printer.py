@@ -9,8 +9,8 @@ except ImportError:
     print("Warning: python-escpos not installed. Install with: pip install python-escpos")
     printer_available = False
 
-USB_VENDOR_ID = 0x0FE6
-USB_PRODUCT_ID = 0x811E
+USB_VENDOR_ID = 0x0416 
+USB_PRODUCT_ID = 0x5011
 
 _printer = None
 

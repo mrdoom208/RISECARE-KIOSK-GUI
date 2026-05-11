@@ -180,7 +180,7 @@ def handle_command(sensor, session_id, value, payload):
 
 
 def main():
-    global running, mode
+    global running, mode, temp_last_read
 
     print("Starting RiseCare Health Kiosk...")
 
@@ -195,6 +195,7 @@ def main():
     print("\nInitializing sensors...")
     global hr_sensor, temp_sensor
     hr_sensor = MAX30102(i2c_bus=shared_bus)
+    hr_sensor.shutdown()
     temp_sensor = MLX90614(i2c_bus=shared_bus)
     ultrasonic.setup()
     loadcell.setup()
