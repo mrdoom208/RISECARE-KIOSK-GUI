@@ -7,6 +7,9 @@ import {
   Activity,
   AlertCircle,
   Check,
+  Bug,
+  BugOff,
+  RefreshCw,
 } from "lucide-react";
 import {
   getBPStatus,
@@ -36,6 +39,10 @@ export default function Results() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
+  const [showAiDebug, setShowAiDebug] = useState(false);
+  const [aiDebugPrompt, setAiDebugPrompt] = useState("");
+  const [aiDebugResponse, setAiDebugResponse] = useState("");
+  const [aiDebugError, setAiDebugError] = useState("");
   const aiTextRef = useRef("");
   const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -361,28 +368,51 @@ export default function Results() {
     };
   }, [resultsList, currentVitals]);
 
-  // Fetch AI recommendation from Ollama
-  useEffect(() => {
-    if (!session?.vitals || aiRecommendation) return;
+  const fetchAiRecommendation = useCallback(() => {
+    if (!session?.vitals) return;
     setAiLoading(true);
     setAiError(false);
+    setAiDebugResponse("");
+    setAiDebugError("");
+    const prompt = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 3-4 sentences. Keep it clear and actionable.
+
+Patient Vitals:
+${Object.entries(currentVitals)
+  .filter(([, v]) => v != null)
+  .map(([key, val]) => `- ${key}: ${val}`)
+  .join("\n")}
+
+Assessment:`;
+    setAiDebugPrompt(prompt);
     fetch("/api/ai/recommendation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ vitals: currentVitals }),
     })
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const text = await r.text();
+        setAiDebugResponse(text);
+        let data;
+        try { data = JSON.parse(text); } catch { data = {}; }
         if (data.recommendation) {
           setAiRecommendation(data.recommendation);
           startTyping(data.recommendation);
         } else {
           setAiError(true);
+          setAiDebugError(data.error || `HTTP ${r.status}`);
         }
       })
-      .catch(() => setAiError(true))
+      .catch((e) => {
+        setAiError(true);
+        setAiDebugError(String(e));
+      })
       .finally(() => setAiLoading(false));
-  }, [session, currentVitals, aiRecommendation, startTyping]);
+  }, [session, currentVitals, startTyping]);
+
+  useEffect(() => {
+    if (!session?.vitals || aiRecommendation) return;
+    fetchAiRecommendation();
+  }, [session?.vitals, aiRecommendation, fetchAiRecommendation]);
 
   // Cleanup typing interval on unmount
   useEffect(() => {
@@ -521,6 +551,49 @@ export default function Results() {
               </>
             )}
           </div>
+        </div>
+
+        {/* AI Debugger */}
+        <div className="mb-6">
+          <button
+            onClick={() => setShowAiDebug(!showAiDebug)}
+            className="w-full flex items-center justify-between px-4 py-2 bg-muted/50 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              {showAiDebug ? <BugOff className="w-4 h-4" /> : <Bug className="w-4 h-4" />}
+              AI Debug
+            </span>
+            {showAiDebug ? "Hide" : "Show"}
+          </button>
+          {showAiDebug && (
+            <div className="mt-2 p-4 bg-card rounded-xl border border-border shadow-inner space-y-3 text-xs font-mono">
+              {aiDebugError && (
+                <div className="p-2 bg-destructive/10 rounded-lg border border-destructive/20 text-destructive">
+                  <strong>Error:</strong> {aiDebugError}
+                </div>
+              )}
+              <div>
+                <div className="text-muted-foreground mb-1 font-semibold">Vitals Sent</div>
+                <pre className="p-2 bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap">{JSON.stringify(currentVitals, null, 2)}</pre>
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-1 font-semibold">Prompt</div>
+                <pre className="p-2 bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">{aiDebugPrompt}</pre>
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-1 font-semibold">Raw Response</div>
+                <pre className="p-2 bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">{aiDebugResponse || "(empty)"}</pre>
+              </div>
+              <button
+                onClick={fetchAiRecommendation}
+                disabled={aiLoading}
+                className="w-full flex items-center justify-center gap-2 p-2 bg-primary/10 rounded-lg text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />
+                Retry AI
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
