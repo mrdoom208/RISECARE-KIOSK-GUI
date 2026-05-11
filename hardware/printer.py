@@ -9,9 +9,8 @@ except ImportError:
     print("Warning: python-escpos not installed. Install with: pip install python-escpos")
     printer_available = False
 
-USB_VENDOR_ID = 0x0416
-USB_PRODUCT_ID = 0x5011
-PROFILE = {"PROFILE": "default"}
+USB_VENDOR_ID = 0x0FE6
+USB_PRODUCT_ID = 0x811E
 
 _printer = None
 
@@ -24,7 +23,7 @@ def find_printer():
     if _printer is not None:
         return _printer
     try:
-        _printer = Usb(USB_VENDOR_ID, USB_PRODUCT_ID, profile=PROFILE)
+        _printer = Usb(USB_VENDOR_ID, USB_PRODUCT_ID)
         _printer.flush()
         print("✅ Thermal printer connected via USB")
         return _printer
