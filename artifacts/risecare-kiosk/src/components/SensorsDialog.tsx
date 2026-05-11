@@ -523,7 +523,13 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                   onClick={() => {
                     setWeightCalStableCount(0);
                     weightCalPrevRef.current = null;
-                    handleCalibrate("weight");
+                    setSensorFeedback("weight", {
+                      type: "calibrate",
+                      status: "fail",
+                      message: "Calibration cancelled",
+                    });
+                    clearFeedbackAfter("weight", 5000);
+                    commandMutation.mutate({ sensor: "weight", value: 0 });
                   }}
                   className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 transition font-semibold text-lg"
                 >

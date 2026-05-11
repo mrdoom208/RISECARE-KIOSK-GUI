@@ -196,6 +196,14 @@ def handle_command(sensor, session_id, value, payload):
             height_enabled = False
         elif sensor == "weight":
             weight_enabled = False
+            if weight_calibrating:
+                weight_calibrating = False
+                mqtt_client.publish("risecare/calibration/weight", {
+                    "status": "failed",
+                    "sessionId": current_session_id,
+                    "timestamp": time.time()
+                })
+                print("⚠️ Weight calibration cancelled")
         elif sensor == "temperature":
             temp_enabled = False
         if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled and not temp_enabled:

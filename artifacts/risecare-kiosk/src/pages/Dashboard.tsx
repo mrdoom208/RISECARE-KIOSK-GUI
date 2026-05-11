@@ -297,9 +297,8 @@ const handleStartReading = async () => {
   setActiveSensor(null);
 };
 
-const handleStopReading = async () => {
+const stopSensor = async () => {
   if (!readingVital || !session?.id) return;
-
   try {
     await fetch("/api/sensors/command", {
       method: "POST",
@@ -313,9 +312,46 @@ const handleStopReading = async () => {
   } catch (err) {
     console.error("Failed to send stop command:", err);
   }
-
   setReadingVital(null);
   setStableCount(0);
+};
+
+const handleDoneReading = async () => {
+  await stopSensor();
+};
+
+const handleCancelReading = async () => {
+  if (!session?.id) return;
+  const vital = readingVital;
+  await stopSensor();
+
+  const clearPayload: Record<string, null> = {};
+  if (vital === "hr") {
+    clearPayload.heartRate = null;
+    clearPayload.oxygenSaturation = null;
+  } else if (vital === "spo2") {
+    clearPayload.oxygenSaturation = null;
+  } else if (vital === "bp") {
+    clearPayload.bloodPressureSystolic = null;
+    clearPayload.bloodPressureDiastolic = null;
+  } else if (vital === "weight") {
+    clearPayload.weight = null;
+  } else if (vital === "height") {
+    clearPayload.height = null;
+  } else if (vital === "glucose") {
+    clearPayload.bloodGlucose = null;
+  } else if (vital === "temperature") {
+    clearPayload.temperature = null;
+  }
+
+  saveVitalsMutation.mutate(
+    { id: Number(sessionToken), data: clearPayload },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: [`/api/sessions/token`] });
+      },
+    },
+  );
 };
 
   const getReadingDisplay = (vital: VitalType) => {
@@ -724,13 +760,13 @@ const handleStopReading = async () => {
 
               <div className="flex gap-4">
                 <button
-                  onClick={handleStopReading}
+                  onClick={handleCancelReading}
                   className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 transition font-semibold text-lg"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleStopReading}
+                  onClick={handleDoneReading}
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
