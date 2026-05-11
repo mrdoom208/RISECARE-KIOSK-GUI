@@ -14,7 +14,7 @@ router.post("/print/receipt", async (req, res) => {
 
   try {
     const sessions = await query(
-      `SELECT id, token, patient_name AS patientName FROM sessions WHERE id = ?`,
+      `SELECT id, token, patient_name AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender FROM sessions WHERE id = ?`,
       [sessionId]
     );
 
@@ -32,9 +32,13 @@ router.post("/print/receipt", async (req, res) => {
 
     const payload = {
       sessionId: session.id,
+      token: session.token,
       sensor: "printer",
       value: 1,
       patientName: session.patientName,
+      patientPhone: session.patientPhone,
+      patientAge: session.patientAge,
+      patientGender: session.patientGender,
       vitals: vitals[0] || {},
       recommendation: req.body.recommendation || "",
       timestamp: new Date().toISOString(),

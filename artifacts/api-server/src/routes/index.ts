@@ -5,6 +5,7 @@ import vitalsRouter from "./vitals";
 import sensorsRouter from "./sensors";
 import settingsRouter from "./settings";
 import printRouter from "./print";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(vitalsRouter);
 router.use(sensorsRouter);
 router.use("/settings", settingsRouter);
 router.use(printRouter);
+router.use(aiRouter);
 
 export default router;

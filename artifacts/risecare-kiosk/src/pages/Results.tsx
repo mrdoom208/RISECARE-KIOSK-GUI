@@ -20,7 +20,7 @@ import {
   VitalStatus,
 } from "@/lib/vitals-utils";
 import type { Vitals } from "@/types/vitals";
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 // @ts-ignore - Session type from @workspace/api-zod
@@ -32,6 +32,27 @@ export default function Results() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [countdown, setCountdown] = useState(20);
+  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(false);
+  const [displayedText, setDisplayedText] = useState("");
+  const aiTextRef = useRef("");
+  const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startTyping = useCallback((text: string) => {
+    aiTextRef.current = text;
+    setDisplayedText("");
+    if (typingRef.current) clearInterval(typingRef.current);
+    let i = 0;
+    typingRef.current = setInterval(() => {
+      i++;
+      setDisplayedText(text.slice(0, i));
+      if (i >= text.length) {
+        if (typingRef.current) clearInterval(typingRef.current);
+        typingRef.current = null;
+      }
+    }, 20);
+  }, []);
 
   const printMutation = useMutation({
     mutationFn: async (data: { sessionId: number; recommendation: string }) => {
@@ -340,6 +361,36 @@ export default function Results() {
     };
   }, [resultsList, currentVitals]);
 
+  // Fetch AI recommendation from Ollama
+  useEffect(() => {
+    if (!session?.vitals || aiRecommendation) return;
+    setAiLoading(true);
+    setAiError(false);
+    fetch("/api/ai/recommendation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vitals: currentVitals }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.recommendation) {
+          setAiRecommendation(data.recommendation);
+          startTyping(data.recommendation);
+        } else {
+          setAiError(true);
+        }
+      })
+      .catch(() => setAiError(true))
+      .finally(() => setAiLoading(false));
+  }, [session, currentVitals, aiRecommendation, startTyping]);
+
+  // Cleanup typing interval on unmount
+  useEffect(() => {
+    return () => {
+      if (typingRef.current) clearInterval(typingRef.current);
+    };
+  }, []);
+
   // Auto-reset the session after showing results (kiosk mode)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -403,45 +454,72 @@ export default function Results() {
         <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div
             className={`p-4 border-b border-border ${
-              overallRecommendation.status === "critical"
-                ? "bg-destructive/10"
-                : overallRecommendation.status === "warning"
-                  ? "bg-yellow-500/10"
-                  : "bg-primary/5"
+              aiLoading
+                ? "bg-primary/5"
+                : overallRecommendation.status === "critical"
+                  ? "bg-destructive/10"
+                  : overallRecommendation.status === "warning"
+                    ? "bg-yellow-500/10"
+                    : "bg-primary/5"
             }`}
           >
             <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              {overallRecommendation.title}
+              {aiLoading ? "AI Analyzing..." : aiRecommendation ? "AI Health Assessment" : overallRecommendation.title}
             </h3>
           </div>
           <div className="p-6">
-            <p className="text-lg text-foreground mb-4">
-              {overallRecommendation.message}
-            </p>
-            <div
-              className={`p-4 rounded-xl ${
-                overallRecommendation.status === "critical"
-                  ? "bg-destructive/5 border border-destructive/20"
-                  : overallRecommendation.status === "warning"
-                    ? "bg-yellow-500/5 border border-yellow-500/20"
-                    : "bg-primary/5 border border-primary/20"
-              }`}
-            >
-              <p className="text-base font-semibold text-foreground mb-1">
-                Recommended Action:
-              </p>
-              <p className="text-base text-muted-foreground">
-                {overallRecommendation.action}
-              </p>
-            </div>
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-base text-muted-foreground italic">
-                Note: This is an automated assessment based on your recorded
-                vitals. Please consult a healthcare professional for proper
-                medical advice.
-              </p>
-            </div>
+            {aiLoading ? (
+              <div className="flex items-center gap-3 py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+                <span className="text-lg text-muted-foreground">Generating personalized recommendation...</span>
+              </div>
+            ) : aiRecommendation ? (
+              <>
+                <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap">
+                  {displayedText}
+                  {displayedText.length < (aiRecommendation?.length ?? 0) && (
+                    <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
+                  )}
+                </p>
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="text-base text-muted-foreground italic">
+                    Note: This is an automated assessment based on your recorded
+                    vitals. Please consult a healthcare professional for proper
+                    medical advice.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-lg text-foreground mb-4">
+                  {overallRecommendation.message}
+                </p>
+                <div
+                  className={`p-4 rounded-xl ${
+                    overallRecommendation.status === "critical"
+                      ? "bg-destructive/5 border border-destructive/20"
+                      : overallRecommendation.status === "warning"
+                        ? "bg-yellow-500/5 border border-yellow-500/20"
+                        : "bg-primary/5 border border-primary/20"
+                  }`}
+                >
+                  <p className="text-base font-semibold text-foreground mb-1">
+                    Recommended Action:
+                  </p>
+                  <p className="text-base text-muted-foreground">
+                    {overallRecommendation.action}
+                  </p>
+                </div>
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="text-base text-muted-foreground italic">
+                    Note: This is an automated assessment based on your recorded
+                    vitals. Please consult a healthcare professional for proper
+                    medical advice.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

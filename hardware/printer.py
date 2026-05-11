@@ -52,6 +52,10 @@ def print_receipt(data):
 
     try:
         patient_name = data.get("patientName", "Patient")
+        patient_phone = data.get("patientPhone")
+        patient_age = data.get("patientAge")
+        patient_gender = data.get("patientGender")
+        session_token = data.get("token", "")
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
         vitals = data.get("vitals", {})
         recommendation = data.get("recommendation", "")
@@ -63,8 +67,17 @@ def print_receipt(data):
         p.text("=" * 32 + "\n")
 
         p.set(align="left", width=1, height=1, font="a")
-        p.text(f"Patient: {patient_name}\n")
-        p.text(f"Date:    {date_str}\n")
+        p.text(f"Name:  {patient_name}\n")
+        if patient_phone:
+            p.text(f"Phone: {patient_phone}\n")
+        if patient_age:
+            p.text(f"Age:   {patient_age}\n")
+        if patient_gender:
+            label = patient_gender.replace("_", " ").title() if isinstance(patient_gender, str) else str(patient_gender)
+            p.text(f"Sex:   {label}\n")
+        if session_token:
+            p.text(f"Token: {session_token}\n")
+        p.text(f"Date:  {date_str}\n")
         p.text("-" * 32 + "\n")
 
         p.set(align="center", width=1, height=1, font="b")
@@ -107,12 +120,19 @@ def print_receipt(data):
         p.text("-" * 32 + "\n")
 
         if recommendation:
+            max_len = min(len(recommendation), 160)
+            short = recommendation[:max_len]
             p.set(align="center", width=1, height=1, font="b")
             p.text("ASSESSMENT\n")
             p.set(align="left", width=1, height=1, font="a")
-            p.text(f"{recommendation}\n")
+            p.text(f"{short}\n")
 
         p.text("=" * 32 + "\n")
+        p.set(align="center", width=1, height=1, font="b")
+        p.text("DISCLAIMER\n")
+        p.set(align="left", width=1, height=1, font="a")
+        p.text("This report is an automated assessment based on recorded vitals and is for informational purposes only. It does not replace professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider for medical concerns.\n")
+        p.text("-" * 32 + "\n")
         p.set(align="center", width=1, height=1, font="a")
         p.text("Thank you for using RiseCare!\n")
         p.text(f"{date_str}\n")
@@ -130,6 +150,10 @@ def print_receipt(data):
 def test_print():
     test_data = {
         "patientName": "Test Patient",
+        "patientPhone": "639123456789",
+        "patientAge": 30,
+        "patientGender": "male",
+        "token": "ABC123",
         "vitals": {
             "heartRate": 72,
             "bloodPressureSystolic": 120,
