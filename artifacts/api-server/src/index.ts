@@ -1,4 +1,7 @@
 import "dotenv/config";
+import dotenv from "dotenv";
+import { resolve } from "path";
+dotenv.config({ path: resolve("../../.env") });
 import app from "./app";
 import { connectMQTT, disconnectMQTT } from "./mqtt";
 
