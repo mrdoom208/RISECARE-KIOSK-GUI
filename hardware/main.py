@@ -17,6 +17,8 @@ spo2_enabled = False
 height_enabled = False
 weight_enabled = False
 temp_enabled = False
+temp_last_read = 0
+TEMP_READ_INTERVAL = 1.0
 
 
 def publish_calibration_progress(sensor, message):
@@ -244,9 +246,10 @@ def main():
                         pass
 
                 temperature = None
-                if temp_enabled:
+                if temp_enabled and time.time() - temp_last_read >= TEMP_READ_INTERVAL:
                     try:
                         temperature = temp_sensor.get_temperature()
+                        temp_last_read = time.time()
                     except Exception:
                         pass
 

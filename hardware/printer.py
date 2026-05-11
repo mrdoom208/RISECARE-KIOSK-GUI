@@ -24,7 +24,6 @@ def find_printer():
         return _printer
     try:
         _printer = Usb(USB_VENDOR_ID, USB_PRODUCT_ID)
-        _printer.flush()
         print("✅ Thermal printer connected via USB")
         return _printer
     except DeviceNotFoundError:
