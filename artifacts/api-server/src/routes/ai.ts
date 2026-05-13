@@ -33,7 +33,7 @@ Assessment:`;
         model: OLLAMA_MODEL,
         prompt,
         stream: false,
-        options: { temperature: 0.3, num_predict: 300 },
+        options: { temperature: 0.3, num_predict: 100 },
       }),
     });
 
