@@ -5,11 +5,6 @@ import {
   Home,
   CheckCircle,
   Activity,
-  AlertCircle,
-  Check,
-  Bug,
-  BugOff,
-  RefreshCw,
 } from "lucide-react";
 import {
   getBPStatus,
@@ -25,7 +20,6 @@ import {
 import type { Vitals } from "@/types/vitals";
 import { useMemo, useEffect, useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 export default function Results() {
@@ -33,16 +27,11 @@ export default function Results() {
   const [, setLocation] = useLocation();
   const sessionToken = params?.token || "";
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [countdown, setCountdown] = useState(60);
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
-  const [showAiDebug, setShowAiDebug] = useState(false);
-  const [aiDebugPrompt, setAiDebugPrompt] = useState("");
-  const [aiDebugResponse, setAiDebugResponse] = useState("");
-  const [aiDebugError, setAiDebugError] = useState("");
   const aiTextRef = useRef("");
   const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -72,10 +61,10 @@ export default function Results() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Receipt sent", description: "Report sent to thermal printer" });
+      console.log("Receipt sent: Report sent to thermal printer");
     },
     onError: () => {
-      toast({ title: "Print failed", description: "Could not connect to printer", variant: "destructive" });
+      console.error("Print failed: Could not connect to printer");
     },
   });
 
@@ -372,18 +361,6 @@ export default function Results() {
     if (!session?.vitals) return;
     setAiLoading(true);
     setAiError(false);
-    setAiDebugResponse("");
-    setAiDebugError("");
-    const prompt = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 3-4 sentences. Keep it clear and actionable.
-
-Patient Vitals:
-${Object.entries(currentVitals)
-  .filter(([, v]) => v != null)
-  .map(([key, val]) => `- ${key}: ${val}`)
-  .join("\n")}
-
-Assessment:`;
-    setAiDebugPrompt(prompt);
     fetch("/api/ai/recommendation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -391,7 +368,7 @@ Assessment:`;
     })
       .then(async (r) => {
         const text = await r.text();
-        setAiDebugResponse(text);
+        console.debug("AI raw response:", text);
         let data;
         try { data = JSON.parse(text); } catch { data = {}; }
         if (data.recommendation) {
@@ -399,12 +376,12 @@ Assessment:`;
           startTyping(data.recommendation);
         } else {
           setAiError(true);
-          setAiDebugError(data.error || `HTTP ${r.status}`);
+          console.error("AI error:", data.error || `HTTP ${r.status}`);
         }
       })
       .catch((e) => {
         setAiError(true);
-        setAiDebugError(String(e));
+        console.error("AI fetch error:", e);
       })
       .finally(() => setAiLoading(false));
   }, [session, currentVitals, startTyping]);
@@ -553,48 +530,7 @@ Assessment:`;
           </div>
         </div>
 
-        {/* AI Debugger */}
-        <div className="mb-6">
-          <button
-            onClick={() => setShowAiDebug(!showAiDebug)}
-            className="w-full flex items-center justify-between px-4 py-2 bg-muted/50 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              {showAiDebug ? <BugOff className="w-4 h-4" /> : <Bug className="w-4 h-4" />}
-              AI Debug
-            </span>
-            {showAiDebug ? "Hide" : "Show"}
-          </button>
-          {showAiDebug && (
-            <div className="mt-2 p-4 bg-card rounded-xl border border-border shadow-inner space-y-3 text-xs font-mono">
-              {aiDebugError && (
-                <div className="p-2 bg-destructive/10 rounded-lg border border-destructive/20 text-destructive">
-                  <strong>Error:</strong> {aiDebugError}
-                </div>
-              )}
-              <div>
-                <div className="text-muted-foreground mb-1 font-semibold">Vitals Sent</div>
-                <pre className="p-2 bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap">{JSON.stringify(currentVitals, null, 2)}</pre>
-              </div>
-              <div>
-                <div className="text-muted-foreground mb-1 font-semibold">Prompt</div>
-                <pre className="p-2 bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">{aiDebugPrompt}</pre>
-              </div>
-              <div>
-                <div className="text-muted-foreground mb-1 font-semibold">Raw Response</div>
-                <pre className="p-2 bg-muted/50 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">{aiDebugResponse || "(empty)"}</pre>
-              </div>
-              <button
-                onClick={fetchAiRecommendation}
-                disabled={aiLoading}
-                className="w-full flex items-center justify-center gap-2 p-2 bg-primary/10 rounded-lg text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${aiLoading ? "animate-spin" : ""}`} />
-                Retry AI
-              </button>
-            </div>
-          )}
-        </div>
+
 
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div className="divide-y divide-border/50">

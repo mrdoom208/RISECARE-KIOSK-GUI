@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale, Thermometer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 
 interface SensorsDialogProps {
   isOpen: boolean;
@@ -28,7 +27,6 @@ const TEST_TIMEOUT = 12000;
 const CAL_TIMEOUT = 20000;
 
 export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
-  const { toast } = useToast();
   const [sessionId] = useState(() => `session-${Date.now()}`);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
   const [feedback, setFeedback] = useState<Record<string, Feedback | null>>({});
@@ -147,11 +145,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       return res.json();
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to send command",
-        variant: "destructive",
-      });
+      console.error("Error: Failed to send command");
     },
   });
 
@@ -244,21 +238,14 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
             status: "success",
             message,
           });
-          toast({
-            title: "Calibration saved",
-            description: message,
-          });
+          console.log("Calibration saved:", message);
         } else {
           setSensorFeedback(sensorId, {
             type: "calibrate",
             status: "fail",
             message: "Calibration failed",
           });
-          toast({
-            title: "Calibration failed",
-            description: `${sensorName} did not finish calibration.`,
-            variant: "destructive",
-          });
+          console.error("Calibration failed:", `${sensorName} did not finish calibration.`);
         }
         clearFeedbackAfter(sensorId, 12000);
       }
