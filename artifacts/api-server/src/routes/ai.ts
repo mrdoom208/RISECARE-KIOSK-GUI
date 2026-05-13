@@ -4,7 +4,7 @@ import print from "./print";
 const router: IRouter = Router();
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2:3b";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "tinyllama";
 console.log(`Using Ollama at ${OLLAMA_HOST} with model ${OLLAMA_MODEL}`);
 
 router.post("/ai/recommendation", async (req, res) => {
