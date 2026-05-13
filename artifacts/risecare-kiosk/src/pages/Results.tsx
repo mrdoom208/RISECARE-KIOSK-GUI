@@ -5,6 +5,8 @@ import {
   Home,
   CheckCircle,
   Activity,
+  AlertCircle,
+  Check,
 } from "lucide-react";
 import {
   getBPStatus,
@@ -20,6 +22,7 @@ import {
 import type { Vitals } from "@/types/vitals";
 import { useMemo, useEffect, useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 export default function Results() {
@@ -27,6 +30,7 @@ export default function Results() {
   const [, setLocation] = useLocation();
   const sessionToken = params?.token || "";
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [countdown, setCountdown] = useState(60);
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -61,10 +65,10 @@ export default function Results() {
       return res.json();
     },
     onSuccess: () => {
-      console.log("Receipt sent: Report sent to thermal printer");
+      toast({ title: "Receipt sent", description: "Report sent to thermal printer" });
     },
     onError: () => {
-      console.error("Print failed: Could not connect to printer");
+      toast({ title: "Print failed", description: "Could not connect to printer", variant: "destructive" });
     },
   });
 
@@ -361,6 +365,16 @@ export default function Results() {
     if (!session?.vitals) return;
     setAiLoading(true);
     setAiError(false);
+    const prompt = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 3-4 sentences. Keep it clear and actionable.
+
+Patient Vitals:
+${Object.entries(currentVitals)
+  .filter(([, v]) => v != null)
+  .map(([key, val]) => `- ${key}: ${val}`)
+  .join("\n")}
+
+Assessment:`;
+    console.log("[AI Debug] Prompt:", prompt);
     fetch("/api/ai/recommendation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -368,7 +382,7 @@ export default function Results() {
     })
       .then(async (r) => {
         const text = await r.text();
-        console.debug("AI raw response:", text);
+        console.log("[AI Debug] Raw response:", text);
         let data;
         try { data = JSON.parse(text); } catch { data = {}; }
         if (data.recommendation) {
@@ -376,12 +390,12 @@ export default function Results() {
           startTyping(data.recommendation);
         } else {
           setAiError(true);
-          console.error("AI error:", data.error || `HTTP ${r.status}`);
+          console.error("[AI Debug] Error:", data.error || `HTTP ${r.status}`);
         }
       })
       .catch((e) => {
         setAiError(true);
-        console.error("AI fetch error:", e);
+        console.error("[AI Debug] Error:", e);
       })
       .finally(() => setAiLoading(false));
   }, [session, currentVitals, startTyping]);

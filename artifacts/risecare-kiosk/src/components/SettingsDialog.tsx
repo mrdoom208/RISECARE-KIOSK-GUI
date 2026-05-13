@@ -133,9 +133,9 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       });
 
       if (res.ok) {
-        console.log("Database imported successfully");
+        alert("Database imported successfully");
       } else {
-        console.error("Failed to import database");
+        alert("Failed to import database");
       }
     };
     input.click();
@@ -153,8 +153,8 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
         url.searchParams.set("accountName", account.name);
       }
       fetch(url.toString(), { method: "POST" }).then((res) => {
-        if (res.ok) console.log("Database deleted");
-        else console.error("Failed to delete database");
+        if (res.ok) alert("Database deleted");
+        else alert("Failed to delete database");
       });
     }
   };
