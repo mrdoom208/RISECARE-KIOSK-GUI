@@ -38,6 +38,7 @@ export default function Results() {
   const [displayedText, setDisplayedText] = useState("");
   const aiTextRef = useRef("");
   const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const aiFetchedRef = useRef(false);
 
   const startTyping = useCallback((text: string) => {
     aiTextRef.current = text;
@@ -365,7 +366,7 @@ export default function Results() {
     if (!session?.vitals) return;
     setAiLoading(true);
     setAiError(false);
-    const prompt = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 3-4 sentences. Keep it clear and actionable.
+    const prompt = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 2 sentences. Keep it clear and actionable.
 
 Patient Vitals:
 ${Object.entries(currentVitals)
@@ -401,7 +402,8 @@ Assessment:`;
   }, [session, currentVitals, startTyping]);
 
   useEffect(() => {
-    if (!session?.vitals || aiRecommendation) return;
+    if (!session?.vitals || aiRecommendation || aiFetchedRef.current) return;
+    aiFetchedRef.current = true;
     fetchAiRecommendation();
   }, [session?.vitals, aiRecommendation, fetchAiRecommendation]);
 
