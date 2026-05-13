@@ -402,10 +402,12 @@ Assessment:`;
   }, [session, currentVitals, startTyping]);
 
   useEffect(() => {
-    if (!session?.vitals || aiRecommendation || aiFetchedRef.current) return;
+    const hasVitals = Object.keys(currentVitals).length > 0;
+    if (!hasVitals) { aiFetchedRef.current = false; return; }
+    if (aiRecommendation || aiFetchedRef.current) return;
     aiFetchedRef.current = true;
     fetchAiRecommendation();
-  }, [session?.vitals, aiRecommendation, fetchAiRecommendation]);
+  }, [currentVitals, aiRecommendation]);
 
   // Cleanup typing interval on unmount
   useEffect(() => {
