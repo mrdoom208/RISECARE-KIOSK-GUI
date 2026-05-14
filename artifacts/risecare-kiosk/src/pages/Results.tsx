@@ -388,12 +388,11 @@ export default function Results() {
     setDisplayedText("");
 
     try {
-      console.log("[AI Debug] Sending request");
+      console.log("[AI Debug] Sending vitals:", JSON.stringify(currentVitals));
       const r = await fetch("/api/ai/recommendation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vitals: currentVitals }),
-        signal,
       });
 
       console.log("[AI Debug] Response status:", r.status, "content-type:", r.headers.get("content-type"));
