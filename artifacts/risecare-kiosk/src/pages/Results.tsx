@@ -387,12 +387,14 @@ export default function Results() {
     setDisplayedText(""); // Clear previous text
 
     try {
+      console.log("[AI Debug] Sending request");
       const r = await fetch("/api/ai/recommendation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vitals: currentVitals }),
       });
 
+      console.log("[AI Debug] Response status:", r.status, "content-type:", r.headers.get("content-type"));
       if (r.headers.get("content-type")?.includes("text/event-stream")) {
         const reader = r.body?.getReader();
         if (!reader) throw new Error("No response stream");
@@ -400,7 +402,10 @@ export default function Results() {
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            console.log("[AI Debug] Stream done");
+            break;
+          }
 
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split("\n");
@@ -410,7 +415,7 @@ export default function Results() {
               try {
                 const data = JSON.parse(line.slice(6));
                 if (data.chunk) {
-                  // Update state directly - this ensures the UI stays in sync
+                  console.log("[AI Debug] Chunk:", JSON.stringify(data.chunk));
                   setDisplayedText((prev) => prev + data.chunk);
                 }
               } catch (e) {
@@ -422,6 +427,7 @@ export default function Results() {
       } else {
         // Fallback for non-streaming JSON response
         const data = await r.json();
+        console.log("[AI Debug] Fallback response:", data);
         setDisplayedText(data.recommendation || "");
       }
     } catch (e) {
