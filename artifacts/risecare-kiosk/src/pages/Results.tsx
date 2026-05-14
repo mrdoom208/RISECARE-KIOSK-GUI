@@ -471,6 +471,8 @@ export default function Results() {
       setCountdown((prev) => prev - 1);
     }, 1000);
     const timer = setTimeout(() => {
+      abortRef.current?.abort();
+      abortRef.current = null;
       queryClient.removeQueries({ queryKey: [`/api/sessions/token`] });
 
       // Redirect to home
@@ -624,7 +626,8 @@ export default function Results() {
 
           <button
             onClick={() => {
-              // Manual reset
+              abortRef.current?.abort();
+              abortRef.current = null;
               queryClient.removeQueries({
                 queryKey: [`/api/sessions/token`],
               });
