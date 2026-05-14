@@ -25,7 +25,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
-const aiFetchedSessions = new Set<string>();
 export default function Results() {
   const [, params] = useRoute("/session/:token/results");
   const [, setLocation] = useLocation();
@@ -37,8 +36,6 @@ export default function Results() {
   const [aiError, setAiError] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
   const aiCalledRef = useRef(false);
-  const aiStreamText = useRef("");
-  const [aiStreamVersion, setAiStreamVersion] = useState(0);
 
   const printMutation = useMutation({
     mutationFn: async (data: { sessionId: number; recommendation: string }) => {
@@ -398,6 +395,7 @@ export default function Results() {
 
       if (r.headers.get("content-type")?.includes("text/event-stream")) {
         const reader = r.body?.getReader();
+        if (!reader) throw new Error("No response stream");
         const decoder = new TextDecoder();
 
         while (true) {
@@ -440,11 +438,9 @@ export default function Results() {
       !hasVitals ||
       displayedText ||
       aiLoading ||
-      aiFetchedSessions.has(sessionToken) ||
       aiCalledRef.current
     )
       return;
-    aiFetchedSessions.add(sessionToken);
     aiCalledRef.current = true;
     fetchAiRecommendation();
   }, [
@@ -521,28 +517,14 @@ export default function Results() {
           >
             <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              {aiLoading && !displayedText && !aiStreamText.current
+              {aiLoading && !displayedText
                 ? "AI Analyzing..."
                 : "AI Health Assessment"}
             </h3>
           </div>
           <div className="p-6">
-            {(() => {
-              console.log(
-                "[Render] aiLoading:",
-                aiLoading,
-                "displayedText:",
-                JSON.stringify(displayedText),
-                "streamText:",
-                JSON.stringify(aiStreamText.current),
-                "aiError:",
-                aiError,
-              );
-              return null;
-            })()}
             <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap min-h-[2em]">
               {displayedText ||
-                aiStreamText.current ||
                 (aiLoading && !aiError
                   ? "Generating personalized recommendation..."
                   : "No AI assessment available.")}
@@ -550,7 +532,7 @@ export default function Results() {
                 <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
               )}
             </p>
-            {!aiLoading && (displayedText || aiStreamText.current) && (
+            {!aiLoading && displayedText && (
               <div className="mt-4 pt-4 border-t border-border">
                 <p className="text-base text-muted-foreground italic">
                   Note: This is an automated assessment based on your recorded
