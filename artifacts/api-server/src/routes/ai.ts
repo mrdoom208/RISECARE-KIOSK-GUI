@@ -15,7 +15,7 @@ router.post("/ai/recommendation", async (req, res) => {
     return;
   }
 
-  const prompt = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 3-4 sentences. Keep it clear and actionable.
+  const prompt_message = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 3-4 sentences. Keep it clear and actionable.
 
 Patient Vitals:
 ${Object.entries(vitals)
@@ -31,11 +31,12 @@ Assessment:`;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: OLLAMA_MODEL,
-        prompt,
+        prompt: prompt_message,
         stream: true,
         options: { temperature: 0.3, num_predict: 100 },
       }),
     });
+    console.log("Requesting Ollama with prompt:", prompt_message);
 
     if (!response.ok) {
       throw new Error(`Ollama returned ${response.status}`);
@@ -46,9 +47,14 @@ Assessment:`;
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
 
+    req.socket.setNoDelay(true);
+    res.flushHeaders();
+
     const reader = response.body?.getReader();
     if (!reader) {
-      res.write(`data: ${JSON.stringify({ error: "No response stream", done: true })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ error: "No response stream", done: true })}\n\n`,
+      );
       res.end();
       return;
     }
