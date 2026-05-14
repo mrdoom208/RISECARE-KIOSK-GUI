@@ -4,7 +4,7 @@ import print from "./print";
 const router: IRouter = Router();
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "tinyllama";
+const OLLAMA_MODEL = "gwen2.5:0.5b";
 console.log(`Using Ollama at ${OLLAMA_HOST} with model ${OLLAMA_MODEL}`);
 
 router.post("/ai/recommendation", async (req, res) => {
@@ -15,7 +15,7 @@ router.post("/ai/recommendation", async (req, res) => {
     return;
   }
 
-  const prompt_message = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 3-4 sentences. Keep it clear and actionable.
+  const prompt_message = `You are a health assistant. Based on the following vital signs, provide a brief health recommendation in 2-3 sentences. Keep it clear and actionable.
 
 Patient Vitals:
 ${Object.entries(vitals)

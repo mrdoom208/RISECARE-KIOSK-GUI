@@ -36,6 +36,7 @@ export default function Results() {
   const [aiError, setAiError] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
   const aiCalledRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const printMutation = useMutation({
     mutationFn: async (data: { sessionId: number; recommendation: string }) => {
@@ -380,11 +381,11 @@ export default function Results() {
     };
   }, [resultsList, currentVitals]);
 
-  const fetchAiRecommendation = useCallback(async () => {
-    if (!session?.vitals) return;
+  const fetchAiRecommendation = useCallback(async (signal?: AbortSignal) => {
+    if (!session?.vitals || signal?.aborted) return;
     setAiLoading(true);
     setAiError(false);
-    setDisplayedText(""); // Clear previous text
+    setDisplayedText("");
 
     try {
       console.log("[AI Debug] Sending request");
@@ -392,6 +393,7 @@ export default function Results() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vitals: currentVitals }),
+        signal,
       });
 
       console.log("[AI Debug] Response status:", r.status, "content-type:", r.headers.get("content-type"));
@@ -431,6 +433,7 @@ export default function Results() {
         setDisplayedText(data.recommendation || "");
       }
     } catch (e) {
+      if ((e as Error)?.name === "AbortError") return;
       setAiError(true);
       console.error(e);
     } finally {
@@ -447,8 +450,14 @@ export default function Results() {
       aiCalledRef.current
     )
       return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     aiCalledRef.current = true;
-    fetchAiRecommendation();
+    fetchAiRecommendation(controller.signal);
+    return () => {
+      controller.abort();
+      abortRef.current = null;
+    };
   }, [
     currentVitals,
     displayedText,
