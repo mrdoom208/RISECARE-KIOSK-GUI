@@ -37,6 +37,8 @@ export default function Results() {
   const [aiError, setAiError] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
   const aiCalledRef = useRef(false);
+  const aiStreamText = useRef("");
+  const [aiStreamVersion, setAiStreamVersion] = useState(0);
 
   const printMutation = useMutation({
     mutationFn: async (data: { sessionId: number; recommendation: string }) => {
@@ -385,7 +387,7 @@ export default function Results() {
     if (!session?.vitals) return;
     setAiLoading(true);
     setAiError(false);
-    setDisplayedText("");
+    setDisplayedText(""); // Clear previous text
 
     try {
       const r = await fetch("/api/ai/recommendation", {
@@ -395,9 +397,8 @@ export default function Results() {
       });
 
       if (r.headers.get("content-type")?.includes("text/event-stream")) {
-        const decoder = new TextDecoder();
         const reader = r.body?.getReader();
-        if (!reader) throw new Error("No response stream");
+        const decoder = new TextDecoder();
 
         while (true) {
           const { done, value } = await reader.read();
@@ -411,6 +412,7 @@ export default function Results() {
               try {
                 const data = JSON.parse(line.slice(6));
                 if (data.chunk) {
+                  // Update state directly - this ensures the UI stays in sync
                   setDisplayedText((prev) => prev + data.chunk);
                 }
               } catch (e) {
@@ -420,6 +422,7 @@ export default function Results() {
           }
         }
       } else {
+        // Fallback for non-streaming JSON response
         const data = await r.json();
         setDisplayedText(data.recommendation || "");
       }
@@ -518,19 +521,36 @@ export default function Results() {
           >
             <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              {aiLoading && !displayedText
+              {aiLoading && !displayedText && !aiStreamText.current
                 ? "AI Analyzing..."
                 : "AI Health Assessment"}
             </h3>
           </div>
           <div className="p-6">
+            {(() => {
+              console.log(
+                "[Render] aiLoading:",
+                aiLoading,
+                "displayedText:",
+                JSON.stringify(displayedText),
+                "streamText:",
+                JSON.stringify(aiStreamText.current),
+                "aiError:",
+                aiError,
+              );
+              return null;
+            })()}
             <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap min-h-[2em]">
-              {displayedText || (aiLoading && !aiError ? "Generating personalized recommendation..." : "No AI assessment available.")}
+              {displayedText ||
+                aiStreamText.current ||
+                (aiLoading && !aiError
+                  ? "Generating personalized recommendation..."
+                  : "No AI assessment available.")}
               {aiLoading && !aiError && (
                 <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
               )}
             </p>
-            {!aiLoading && displayedText && (
+            {!aiLoading && (displayedText || aiStreamText.current) && (
               <div className="mt-4 pt-4 border-t border-border">
                 <p className="text-base text-muted-foreground italic">
                   Note: This is an automated assessment based on your recorded
