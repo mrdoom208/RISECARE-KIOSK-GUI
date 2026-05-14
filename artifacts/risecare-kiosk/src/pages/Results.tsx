@@ -391,8 +391,10 @@ export default function Results() {
                 setDisplayedText(fullText);
               }
               if (data.done) {
-                console.log("[AI Debug] Stream complete, total length:", fullText.length);
+                console.log("[AI Debug] Stream complete, fullText:", JSON.stringify(fullText), "length:", fullText.length);
+                console.log("[AI Debug] Calling setAiRecommendation with:", JSON.stringify(fullText));
                 setAiRecommendation(fullText);
+                console.log("[AI Debug] Called setAiRecommendation");
               }
               if (data.error) {
                 console.error("[AI Debug] Stream error:", data.error);
@@ -487,6 +489,11 @@ export default function Results() {
           <p className="text-xl text-muted-foreground mt-2">
             Review the summary below for {session.patientName}
           </p>
+        </div>
+
+        {/* Debug state display */}
+        <div className="mb-2 p-2 bg-black/80 text-green-400 text-xs font-mono rounded">
+          aiLoading={String(aiLoading)} aiError={String(aiError)} aiRecommendation={JSON.stringify(aiRecommendation)} displayedText.length={displayedText.length} branch={aiLoading || aiRecommendation ? "AI" : "rule"}
         </div>
 
         {/* AI Overall Recommendation - Top */}
