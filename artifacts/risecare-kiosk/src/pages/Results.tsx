@@ -33,7 +33,6 @@ export default function Results() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [countdown, setCountdown] = useState(60);
-  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
@@ -346,10 +345,6 @@ export default function Results() {
     };
   }, [resultsList, currentVitals]);
 
-  useEffect(() => {
-    console.log("[AI Debug] STATE aiRecommendation:", JSON.stringify(aiRecommendation), "aiLoading:", aiLoading, "displayedText.length:", displayedText.length);
-  }, [aiRecommendation, aiLoading, displayedText]);
-
   const fetchAiRecommendation = useCallback(async () => {
     if (!session?.vitals) return;
     setAiLoading(true);
@@ -395,11 +390,7 @@ export default function Results() {
                 setDisplayedText(fullText);
               }
               if (data.done) {
-                console.log("[AI Debug] Stream complete, fullText:", JSON.stringify(fullText), "length:", fullText.length);
-                console.log("[AI Debug] Calling setAiRecommendation with:", JSON.stringify(fullText), "typeof:", typeof fullText);
-                Promise.resolve().then(() => console.log("[AI Debug] After microtask, aiRecommendation should be set"));
-                setAiRecommendation(fullText);
-                console.log("[AI Debug] Called setAiRecommendation, fullText was:", JSON.stringify(fullText));
+                console.log("[AI Debug] Stream done, fullText length:", fullText.length);
               }
               if (data.error) {
                 console.error("[AI Debug] Stream error:", data.error);
@@ -415,7 +406,6 @@ export default function Results() {
         let data;
         try { data = JSON.parse(text); } catch { data = {}; }
         if (data.recommendation) {
-          setAiRecommendation(data.recommendation);
           setDisplayedText(data.recommendation);
         } else {
           setAiError(true);
@@ -431,11 +421,11 @@ export default function Results() {
 
   useEffect(() => {
     const hasVitals = Object.keys(currentVitals).length > 0;
-    if (!hasVitals || aiRecommendation || aiLoading || aiFetchedSessions.has(sessionToken) || aiCalledRef.current) return;
+    if (!hasVitals || displayedText || aiLoading || aiFetchedSessions.has(sessionToken) || aiCalledRef.current) return;
     aiFetchedSessions.add(sessionToken);
     aiCalledRef.current = true;
     fetchAiRecommendation();
-  }, [currentVitals, aiRecommendation, sessionToken, fetchAiRecommendation, aiLoading]);
+  }, [currentVitals, displayedText, sessionToken, fetchAiRecommendation, aiLoading]);
 
   // Auto-reset the session after showing results (kiosk mode)
   useEffect(() => {
@@ -496,77 +486,35 @@ export default function Results() {
           </p>
         </div>
 
-        {/* Debug state display */}
-        <div className="mb-2 p-2 bg-black/80 text-green-400 text-xs font-mono rounded">
-          aiLoading={String(aiLoading)} aiError={String(aiError)} aiRecommendation={JSON.stringify(aiRecommendation)} displayedText.length={displayedText.length} branch={aiLoading || aiRecommendation ? "AI" : "rule"}
-        </div>
-
-        {/* AI Overall Recommendation - Top */}
+        {/* AI Overall Recommendation */}
         <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div
             className={`p-4 border-b border-border ${
-              aiLoading
+              aiLoading && !displayedText
                 ? "bg-primary/5"
-                : overallRecommendation.status === "critical"
-                  ? "bg-destructive/10"
-                  : overallRecommendation.status === "warning"
-                    ? "bg-yellow-500/10"
-                    : "bg-primary/5"
+                : "bg-primary/5"
             }`}
           >
             <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              {aiLoading ? "AI Analyzing..." : aiRecommendation ? "AI Health Assessment" : overallRecommendation.title}
+              {aiLoading && !displayedText ? "AI Analyzing..." : "AI Health Assessment"}
             </h3>
           </div>
           <div className="p-6">
-            {aiLoading || aiRecommendation ? (
-              <>
-                <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap min-h-[2em]">
-                  {displayedText || (aiLoading && !aiError ? "Generating personalized recommendation..." : "")}
-                  {(aiLoading || displayedText.length < (aiRecommendation?.length ?? 0)) && !aiError && (
-                    <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
-                  )}
+            <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap min-h-[2em]">
+              {displayedText || (aiLoading && !aiError ? "Generating personalized recommendation..." : "No AI assessment available.")}
+              {aiLoading && !aiError && (
+                <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
+              )}
+            </p>
+            {!aiLoading && displayedText && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-base text-muted-foreground italic">
+                  Note: This is an automated assessment based on your recorded
+                  vitals. Please consult a healthcare professional for proper
+                  medical advice.
                 </p>
-                {!aiLoading && aiRecommendation && (
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <p className="text-base text-muted-foreground italic">
-                      Note: This is an automated assessment based on your recorded
-                      vitals. Please consult a healthcare professional for proper
-                      medical advice.
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <p className="text-lg text-foreground mb-4">
-                  {overallRecommendation.message}
-                </p>
-                <div
-                  className={`p-4 rounded-xl ${
-                    overallRecommendation.status === "critical"
-                      ? "bg-destructive/5 border border-destructive/20"
-                      : overallRecommendation.status === "warning"
-                        ? "bg-yellow-500/5 border border-yellow-500/20"
-                        : "bg-primary/5 border border-primary/20"
-                  }`}
-                >
-                  <p className="text-base font-semibold text-foreground mb-1">
-                    Recommended Action:
-                  </p>
-                  <p className="text-base text-muted-foreground">
-                    {overallRecommendation.action}
-                  </p>
-                </div>
-                <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-base text-muted-foreground italic">
-                    Note: This is an automated assessment based on your recorded
-                    vitals. Please consult a healthcare professional for proper
-                    medical advice.
-                  </p>
-                </div>
-              </>
+              </div>
             )}
           </div>
         </div>
