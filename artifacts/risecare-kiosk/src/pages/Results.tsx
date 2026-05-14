@@ -37,8 +37,6 @@ export default function Results() {
   const [aiError, setAiError] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
   const aiCalledRef = useRef(false);
-  const aiStreamText = useRef("");
-  const [aiStreamVersion, setAiStreamVersion] = useState(0);
 
   const printMutation = useMutation({
     mutationFn: async (data: { sessionId: number; recommendation: string }) => {
@@ -51,10 +49,17 @@ export default function Results() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Receipt sent", description: "Report sent to thermal printer" });
+      toast({
+        title: "Receipt sent",
+        description: "Report sent to thermal printer",
+      });
     },
     onError: () => {
-      toast({ title: "Print failed", description: "Could not connect to printer", variant: "destructive" });
+      toast({
+        title: "Print failed",
+        description: "Could not connect to printer",
+        variant: "destructive",
+      });
     },
   });
 
@@ -75,7 +80,10 @@ export default function Results() {
   // Compute current vitals
   const currentVitals = useMemo<Vitals>(() => {
     if (!session?.vitals) return {};
-    return session.vitals.reduce((acc: Vitals, curr: Vitals) => ({ ...acc, ...curr }), {});
+    return session.vitals.reduce(
+      (acc: Vitals, curr: Vitals) => ({ ...acc, ...curr }),
+      {},
+    );
   }, [session]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
@@ -83,7 +91,10 @@ export default function Results() {
   // Create results list (MUST be before conditional returns)
   const resultsList = [
     (() => {
-      const status = getBPStatus(currentVitals.bloodPressureSystolic, currentVitals.bloodPressureDiastolic);
+      const status = getBPStatus(
+        currentVitals.bloodPressureSystolic,
+        currentVitals.bloodPressureDiastolic,
+      );
       return {
         name: "Blood Pressure",
         val: currentVitals.bloodPressureSystolic
@@ -162,8 +173,12 @@ export default function Results() {
 
   // AI Overall Recommendation with varied advice (MUST be before conditional returns)
   const overallRecommendation = useMemo(() => {
-    const criticalCount = resultsList.filter((r) => r.status === "critical").length;
-    const warningCount = resultsList.filter((r) => r.status === "warning").length;
+    const criticalCount = resultsList.filter(
+      (r) => r.status === "critical",
+    ).length;
+    const warningCount = resultsList.filter(
+      (r) => r.status === "warning",
+    ).length;
     const normalCount = resultsList.filter((r) => r.status === "normal").length;
 
     // Check specific conditions for varied advice
@@ -195,7 +210,10 @@ export default function Results() {
 
     if (criticalCount > 0) {
       // Emergency / Clinic Visit
-      if (hasCriticalSpO2 || (hasCriticalTemp && (currentVitals.temperature ?? 0) > 39)) {
+      if (
+        hasCriticalSpO2 ||
+        (hasCriticalTemp && (currentVitals.temperature ?? 0) > 39)
+      ) {
         return {
           status: "critical",
           title: "🚨 Emergency: Seek Immediate Care",
@@ -210,7 +228,8 @@ export default function Results() {
         return {
           status: "critical",
           title: "🏥 Clinic Visit Required",
-          message: "Your blood pressure is dangerously high. This needs immediate medical evaluation.",
+          message:
+            "Your blood pressure is dangerously high. This needs immediate medical evaluation.",
           action:
             "Visit an urgent care clinic or hospital today. Avoid strenuous activity until cleared by a doctor.",
         };
@@ -220,7 +239,8 @@ export default function Results() {
         return {
           status: "critical",
           title: "🏥 Clinic Visit Required",
-          message: "Your heart rate is at a critical level requiring medical assessment.",
+          message:
+            "Your heart rate is at a critical level requiring medical assessment.",
           action:
             "Schedule an appointment with a cardiologist within 24 hours. Avoid caffeine and stress.",
         };
@@ -230,7 +250,8 @@ export default function Results() {
         return {
           status: "critical",
           title: "🏥 Medical Attention Needed",
-          message: "Your blood glucose is at dangerous levels (hypoglycemia or hyperglycemia).",
+          message:
+            "Your blood glucose is at dangerous levels (hypoglycemia or hyperglycemia).",
           action:
             "Visit an urgent care clinic immediately. Bring a snack if hypoglycemic, or seek diabetes management if hyperglycemic.",
         };
@@ -240,7 +261,8 @@ export default function Results() {
         status: "critical",
         title: "⚠️ Immediate Medical Attention Recommended",
         message: `You have ${criticalCount} critical reading(s). Please consult a healthcare professional as soon as possible.`,
-        action: "Schedule an appointment with your doctor immediately and bring this report.",
+        action:
+          "Schedule an appointment with your doctor immediately and bring this report.",
       };
     }
 
@@ -250,7 +272,8 @@ export default function Results() {
         return {
           status: "warning",
           title: "⚠️ Blood Pressure Elevated",
-          message: "Your blood pressure is above normal. This could be due to stress, salt intake, or lack of exercise.",
+          message:
+            "Your blood pressure is above normal. This could be due to stress, salt intake, or lack of exercise.",
           action:
             "Retake your BP after 15 minutes of rest in a quiet room. Reduce salt intake and practice stress management (meditation, walking).",
         };
@@ -260,7 +283,8 @@ export default function Results() {
         return {
           status: "warning",
           title: "⚠️ Weight Management Needed",
-          message: "Your BMI indicates you're in an obesity risk category. Lifestyle changes can help.",
+          message:
+            "Your BMI indicates you're in an obesity risk category. Lifestyle changes can help.",
           action:
             "Consult a nutritionist for a personalized meal plan. Aim for 150 minutes of moderate exercise per week (walking, swimming).",
         };
@@ -270,7 +294,8 @@ export default function Results() {
         status: "warning",
         title: "⚠️ Multiple Values Need Monitoring",
         message: `You have ${warningCount} readings outside normal range. Monitor these trends closely.`,
-        action: "Book a check-up within the next week. Bring this report and discuss lifestyle changes with your doctor.",
+        action:
+          "Book a check-up within the next week. Bring this report and discuss lifestyle changes with your doctor.",
       };
     }
 
@@ -296,7 +321,8 @@ export default function Results() {
         return {
           status: "warning",
           title: "⚠️ Low Blood Pressure Detected",
-          message: "Your blood pressure is lower than normal. This can cause dizziness or fatigue.",
+          message:
+            "Your blood pressure is lower than normal. This can cause dizziness or fatigue.",
           action:
             "Increase hydration (drink 2-3 glasses of water now). Rest for 20 minutes with your feet elevated. Eat a salty snack if feeling faint.",
         };
@@ -306,7 +332,8 @@ export default function Results() {
         return {
           status: "warning",
           title: "⚠️ Elevated Heart Rate",
-          message: "Your heart rate is above normal resting range. This could be due to stress, caffeine, or dehydration.",
+          message:
+            "Your heart rate is above normal resting range. This could be due to stress, caffeine, or dehydration.",
           action:
             "Rest for 10-15 minutes in a calm environment. Drink water and avoid caffeine for the next 4 hours. Retake measurement after resting.",
         };
@@ -316,7 +343,8 @@ export default function Results() {
         return {
           status: "warning",
           title: "⚠️ Low Oxygen Saturation",
-          message: "Your oxygen levels are slightly below optimal. This may indicate respiratory issues.",
+          message:
+            "Your oxygen levels are slightly below optimal. This may indicate respiratory issues.",
           action:
             "Practice deep breathing exercises (inhale 4 sec, hold 4 sec, exhale 4 sec). Avoid smoking and polluted areas. Retake after 10 minutes of fresh air.",
         };
@@ -325,8 +353,10 @@ export default function Results() {
       return {
         status: "warning",
         title: "⚠️ One Reading Needs Attention",
-        message: "One of your vital signs is slightly outside the normal range.",
-        action: "Retake this measurement in a few days to see if it was a temporary fluctuation.",
+        message:
+          "One of your vital signs is slightly outside the normal range.",
+        action:
+          "Retake this measurement in a few days to see if it was a temporary fluctuation.",
       };
     }
 
@@ -334,16 +364,20 @@ export default function Results() {
       return {
         status: "normal",
         title: "✅ All Vitals Looking Great!",
-        message: "All your vital signs are within healthy ranges. Excellent work maintaining your health!",
-        action: "Keep up your healthy habits! Continue regular check-ups every 6-12 months. Stay hydrated and keep active.",
+        message:
+          "All your vital signs are within healthy ranges. Excellent work maintaining your health!",
+        action:
+          "Keep up your healthy habits! Continue regular check-ups every 6-12 months. Stay hydrated and keep active.",
       };
     }
 
     return {
       status: "normal",
       title: "✅ Generally Healthy",
-      message: "Most of your readings are within normal ranges. You're doing well!",
-      action: "Maintain a balanced diet, stay physically active, and monitor your health regularly.",
+      message:
+        "Most of your readings are within normal ranges. You're doing well!",
+      action:
+        "Maintain a balanced diet, stay physically active, and monitor your health regularly.",
     };
   }, [resultsList, currentVitals]);
 
@@ -351,73 +385,47 @@ export default function Results() {
     if (!session?.vitals) return;
     setAiLoading(true);
     setAiError(false);
-    aiStreamText.current = "";
     setDisplayedText("");
 
     try {
-      console.log("[AI Debug] Sending vitals:", currentVitals);
       const r = await fetch("/api/ai/recommendation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vitals: currentVitals }),
       });
 
-      const contentType = r.headers.get("content-type") || "";
-
-      console.log("[AI Debug] Response type:", contentType);
-      if (contentType.includes("text/event-stream")) {
-        let chunkCount = 0;
+      if (r.headers.get("content-type")?.includes("text/event-stream")) {
+        const decoder = new TextDecoder();
         const reader = r.body?.getReader();
         if (!reader) throw new Error("No response stream");
-
-        const decoder = new TextDecoder();
-        let buffer = "";
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
 
           for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.chunk) {
-                chunkCount++;
-                aiStreamText.current += data.chunk;
-                if (chunkCount % 10 === 1) console.log("[AI Debug] Chunk received:", JSON.stringify(data.chunk));
-                setAiStreamVersion(v => v + 1);
+            if (line.startsWith("data: ")) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.chunk) {
+                  setDisplayedText((prev) => prev + data.chunk);
+                }
+              } catch (e) {
+                console.error("JSON parse error", e);
               }
-              if (data.done) {
-                console.log("[AI Debug] Stream done, total length:", aiStreamText.current.length);
-                setDisplayedText(aiStreamText.current);
-              }
-              if (data.error) {
-                console.error("[AI Debug] Stream error:", data.error);
-                setAiError(true);
-              }
-            } catch {
-              // skip malformed lines
             }
           }
         }
       } else {
-        const text = await r.text();
-        let data;
-        try { data = JSON.parse(text); } catch { data = {}; }
-        if (data.recommendation) {
-          aiStreamText.current = data.recommendation;
-          setDisplayedText(data.recommendation);
-        } else {
-          setAiError(true);
-        }
+        const data = await r.json();
+        setDisplayedText(data.recommendation || "");
       }
     } catch (e) {
       setAiError(true);
-      console.error("[AI Debug] Error:", e);
+      console.error(e);
     } finally {
       setAiLoading(false);
     }
@@ -425,11 +433,24 @@ export default function Results() {
 
   useEffect(() => {
     const hasVitals = Object.keys(currentVitals).length > 0;
-    if (!hasVitals || displayedText || aiLoading || aiFetchedSessions.has(sessionToken) || aiCalledRef.current) return;
+    if (
+      !hasVitals ||
+      displayedText ||
+      aiLoading ||
+      aiFetchedSessions.has(sessionToken) ||
+      aiCalledRef.current
+    )
+      return;
     aiFetchedSessions.add(sessionToken);
     aiCalledRef.current = true;
     fetchAiRecommendation();
-  }, [currentVitals, displayedText, sessionToken, fetchAiRecommendation, aiLoading]);
+  }, [
+    currentVitals,
+    displayedText,
+    sessionToken,
+    fetchAiRecommendation,
+    aiLoading,
+  ]);
 
   // Auto-reset the session after showing results (kiosk mode)
   useEffect(() => {
@@ -468,8 +489,6 @@ export default function Results() {
       </div>
     );
 
-
-
   return (
     <div
       className="min-h-screen bg-background flex flex-col pb-20"
@@ -494,25 +513,24 @@ export default function Results() {
         <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div
             className={`p-4 border-b border-border ${
-              aiLoading && !displayedText
-                ? "bg-primary/5"
-                : "bg-primary/5"
+              aiLoading && !displayedText ? "bg-primary/5" : "bg-primary/5"
             }`}
           >
             <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              {aiLoading && !displayedText && !aiStreamText.current ? "AI Analyzing..." : "AI Health Assessment"}
+              {aiLoading && !displayedText
+                ? "AI Analyzing..."
+                : "AI Health Assessment"}
             </h3>
           </div>
           <div className="p-6">
-            {(() => { console.log("[Render] aiLoading:", aiLoading, "displayedText:", JSON.stringify(displayedText), "streamText:", JSON.stringify(aiStreamText.current), "aiError:", aiError); return null; })()}
             <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap min-h-[2em]">
-              {(displayedText || aiStreamText.current) || (aiLoading && !aiError ? "Generating personalized recommendation..." : "No AI assessment available.")}
+              {displayedText || (aiLoading && !aiError ? "Generating personalized recommendation..." : "No AI assessment available.")}
               {aiLoading && !aiError && (
                 <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
               )}
             </p>
-            {!aiLoading && (displayedText || aiStreamText.current) && (
+            {!aiLoading && displayedText && (
               <div className="mt-4 pt-4 border-t border-border">
                 <p className="text-base text-muted-foreground italic">
                   Note: This is an automated assessment based on your recorded
@@ -523,8 +541,6 @@ export default function Results() {
             )}
           </div>
         </div>
-
-
 
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div className="divide-y divide-border/50">
@@ -578,7 +594,12 @@ export default function Results() {
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10">
         <div className="max-w-3xl mx-auto flex gap-3">
           <button
-            onClick={() => printMutation.mutate({ sessionId: session?.id, recommendation: overallRecommendation?.message ?? "" })}
+            onClick={() =>
+              printMutation.mutate({
+                sessionId: session?.id,
+                recommendation: overallRecommendation?.message ?? "",
+              })
+            }
             className="flex-1 h-12 bg-secondary text-secondary-foreground text-xl font-display font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             <Printer className="w-5 h-5" />
