@@ -32,7 +32,7 @@ Assessment:`;
       body: JSON.stringify({
         model: OLLAMA_MODEL,
         prompt,
-        stream: false,
+        stream: true,
         options: { temperature: 0.3, num_predict: 100 },
       }),
     });
@@ -41,11 +41,51 @@ Assessment:`;
       throw new Error(`Ollama returned ${response.status}`);
     }
 
-    const data = (await response.json()) as { response: string };
-    res.json({ recommendation: data.response.trim() });
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      res.write(`data: ${JSON.stringify({ error: "No response stream", done: true })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const data = JSON.parse(line);
+          if (data.response) {
+            res.write(`data: ${JSON.stringify({ chunk: data.response })}\n\n`);
+          }
+          if (data.done) {
+            res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+          }
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+
+    res.end();
   } catch (e) {
     console.error("Ollama error:", e);
-    res.json({ recommendation: null, error: "Ollama unavailable" });
+    res.write(`data: ${JSON.stringify({ error: "Ollama unavailable" })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
   }
 });
 
