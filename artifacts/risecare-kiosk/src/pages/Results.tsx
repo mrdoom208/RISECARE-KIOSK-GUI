@@ -346,6 +346,10 @@ export default function Results() {
     };
   }, [resultsList, currentVitals]);
 
+  useEffect(() => {
+    console.log("[AI Debug] STATE aiRecommendation:", JSON.stringify(aiRecommendation), "aiLoading:", aiLoading, "displayedText.length:", displayedText.length);
+  }, [aiRecommendation, aiLoading, displayedText]);
+
   const fetchAiRecommendation = useCallback(async () => {
     if (!session?.vitals) return;
     setAiLoading(true);
@@ -392,9 +396,10 @@ export default function Results() {
               }
               if (data.done) {
                 console.log("[AI Debug] Stream complete, fullText:", JSON.stringify(fullText), "length:", fullText.length);
-                console.log("[AI Debug] Calling setAiRecommendation with:", JSON.stringify(fullText));
+                console.log("[AI Debug] Calling setAiRecommendation with:", JSON.stringify(fullText), "typeof:", typeof fullText);
+                Promise.resolve().then(() => console.log("[AI Debug] After microtask, aiRecommendation should be set"));
                 setAiRecommendation(fullText);
-                console.log("[AI Debug] Called setAiRecommendation");
+                console.log("[AI Debug] Called setAiRecommendation, fullText was:", JSON.stringify(fullText));
               }
               if (data.error) {
                 console.error("[AI Debug] Stream error:", data.error);
