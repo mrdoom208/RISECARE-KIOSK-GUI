@@ -353,6 +353,7 @@ export default function Results() {
     setDisplayedText("");
 
     try {
+      console.log("[AI Debug] Sending vitals:", currentVitals);
       const r = await fetch("/api/ai/recommendation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -361,8 +362,10 @@ export default function Results() {
 
       const contentType = r.headers.get("content-type") || "";
 
+      console.log("[AI Debug] Response type:", contentType);
       if (contentType.includes("text/event-stream")) {
         let fullText = "";
+        let chunkCount = 0;
         const reader = r.body?.getReader();
         if (!reader) throw new Error("No response stream");
 
@@ -383,12 +386,16 @@ export default function Results() {
               const data = JSON.parse(line.slice(6));
               if (data.chunk) {
                 fullText += data.chunk;
+                chunkCount++;
+                if (chunkCount % 10 === 1) console.log("[AI Debug] Chunk received:", JSON.stringify(data.chunk));
                 setDisplayedText(fullText);
               }
               if (data.done) {
+                console.log("[AI Debug] Stream complete, total length:", fullText.length);
                 setAiRecommendation(fullText);
               }
               if (data.error) {
+                console.error("[AI Debug] Stream error:", data.error);
                 setAiError(true);
               }
             } catch {

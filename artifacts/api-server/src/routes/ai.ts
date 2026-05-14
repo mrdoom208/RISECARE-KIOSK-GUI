@@ -61,6 +61,7 @@ Assessment:`;
 
     const decoder = new TextDecoder();
     let buffer = "";
+    let chunkCount = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -75,9 +76,12 @@ Assessment:`;
         try {
           const data = JSON.parse(line);
           if (data.response) {
+            chunkCount++;
+            if (chunkCount <= 3) console.log("[Ollama] Chunk:", JSON.stringify(data.response));
             res.write(`data: ${JSON.stringify({ chunk: data.response })}\n\n`);
           }
           if (data.done) {
+            console.log("[Ollama] Stream done, total chunks:", chunkCount);
             res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
           }
         } catch {
