@@ -501,6 +501,7 @@ export default function Results() {
             </h3>
           </div>
           <div className="p-6">
+            {(() => { console.log("[Render] aiLoading:", aiLoading, "displayedText:", JSON.stringify(displayedText), "displayedText.length:", displayedText.length, "aiError:", aiError); return null; })()}
             <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap min-h-[2em]">
               {displayedText || (aiLoading && !aiError ? "Generating personalized recommendation..." : "No AI assessment available.")}
               {aiLoading && !aiError && (
