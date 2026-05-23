@@ -1,32 +1,47 @@
 import time
 import serial
 
-# On modern Raspberry Pi OS, /dev/serial0 automatically maps to the correct 
-# hardware UART on GPIO 14/15.
-ser = serial.Serial(
-    port='/dev/serial0',
-    baudrate=9600,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    bytesize=serial.EIGHTBITS,
-    timeout=1
-)
+print("Starting Loopback Test on GPIO 14 <-> GPIO 15...")
 
 try:
-    print("Serial port initialized. Starting loop...")
+    # Initialize serial port
+    ser = serial.Serial(
+        port='/dev/serial0',
+        baudrate=9600,
+        timeout=1
+    )
+    
+    # Clear any old data out of the buffers
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()
+    time.sleep(0.5)
+
     while True:
-        # 1. Send data out on GPIO 14 (TX)
-        message = "Hello from Pi!\n"
-        ser.write(message.encode('utf-8'))
-        print(f"Sent: {message.strip()}")
+        # 1. Send data out of TX (GPIO 14)
+        test_message = "PING\n"
+        ser.write(test_message.encode('utf-8'))
+        print(f"Sent: {test_message.strip()}")
         
-        # 2. Wait a moment and check for incoming data on GPIO 15 (RX)
-        time.sleep(1)
+        # Give the hardware a tiny split second to process the bytes
+        time.sleep(0.1)
+        
+        # 2. Check if the data arrived at RX (GPIO 15)
         if ser.in_waiting > 0:
-            incoming_data = ser.readline().decode('utf-8', errors='ignore')
-            print(f"Received: {incoming_data.strip()}")
+            incoming = ser.readline().decode('utf-8', errors='ignore')
+            print(f"Success! Received: {incoming.strip()}")
+        else:
+            print("Failed: No data came back.")
+            
+        print("-" * 30)
+        time.sleep(2) # Wait 2 seconds before trying again
+
+except serial.SerialException as e:
+    print(f"\nSerial Error: {e}")
+    print("This usually means /dev/serial0 is disabled or busy.")
+    print("Fix: Run 'sudo raspi-config', enable Serial Port, disable Serial Console, and reboot.")
 
 except KeyboardInterrupt:
-    print("\nExiting program.")
+    print("\nStopping test.")
 finally:
-    ser.close()  # Always clean up and close the port!
+    if 'ser' in locals() and ser.is_open:
+        ser.close()
