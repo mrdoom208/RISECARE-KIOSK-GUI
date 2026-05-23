@@ -2,10 +2,11 @@ import serial
 import time
 import sys
 import RPi.GPIO as GPIO
+import re
 
 SERIAL_PORT = '/dev/serial0'
 BOOT_PIN = 17
-BAUD_RATES = [9600, 4800, 2400, 115200, 19200, 38400, 57600]
+BAUD_RATES = [115200, 9600, 4800, 2400, 19200, 38400, 57600]
 BAUD_SWITCH_TIMEOUT = 8
 
 BOOT_HIGH = False
@@ -31,14 +32,64 @@ def try_baud_rate(baud):
         print(f"  {baud} baud failed: {e}")
         return None
 
-def parse_blood_pressure(buffer):
-    byte_list = list(buffer)
+def parse_as_text(buffer):
+    try:
+        text = buffer.decode('ascii', errors='replace')
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            sys_match = re.search(r'sys\s*=\s*(\d+)', line, re.IGNORECASE)
+            dia_match = re.search(r'dia\s*=\s*(\d+)', line, re.IGNORECASE)
+            pulse_match = re.search(r'pulse\s*=\s*(\d+)', line, re.IGNORECASE)
+            if sys_match and dia_match and pulse_match:
+                sys_val = int(sys_match.group(1))
+                dia_val = int(dia_match.group(1))
+                pulse_val = int(pulse_match.group(1))
+                print()
+                print("=" * 42)
+                print("       >>> INDO-PLAS READING DETECTED <<<")
+                print("=" * 42)
+                print(f"   SYSTOLIC  (High):     {sys_val} mmHg")
+                print(f"   DIASTOLIC (Low):      {dia_val} mmHg")
+                print(f"   PULSE     (Heart):    {pulse_val} bpm")
+                print("=" * 42)
+                print()
+                return True
+            hb_match = re.search(r'heart\s*=\s*(\d+)', line, re.IGNORECASE)
+            if sys_match and dia_match and hb_match:
+                sys_val = int(sys_match.group(1))
+                dia_val = int(dia_match.group(1))
+                pulse_val = int(hb_match.group(1))
+                print()
+                print("=" * 42)
+                print("       >>> INDO-PLAS READING DETECTED <<<")
+                print("=" * 42)
+                print(f"   SYSTOLIC  (High):     {sys_val} mmHg")
+                print(f"   DIASTOLIC (Low):      {dia_val} mmHg")
+                print(f"   PULSE     (Heart):    {pulse_val} bpm")
+                print("=" * 42)
+                print()
+                return True
+    except Exception:
+        pass
+    return False
 
-    if len(byte_list) < 6:
+def parse_blood_pressure(buffer):
+    if len(buffer) < 4:
         return False
 
-    print(f"\n[BUFFER] ({len(byte_list)} bytes) {buffer.hex().upper()}")
-    print(f"         DEC: {list(buffer)}")
+    if parse_as_text(buffer):
+        return True
+
+    hex_str = buffer.hex().upper()
+    byte_list = list(buffer)
+    ascii_str = ''.join(chr(b) if 32 <= b < 127 else '.' for b in byte_list)
+
+    print(f"\n[BUFFER] ({len(buffer)} bytes)")
+    print(f"  HEX: {hex_str}")
+    print(f"  ASC: {ascii_str}")
 
     for i in range(len(byte_list) - 2):
         val1 = byte_list[i]
@@ -48,7 +99,7 @@ def parse_blood_pressure(buffer):
         if (90 <= val1 <= 190) and (50 <= val2 <= 115) and (45 <= val3 <= 160):
             print()
             print("=" * 42)
-            print("       >>> INDO-PLAS READING DETECTED <<<")
+            print("       >>> RAW BYTE BP PATTERN FOUND <<<")
             print("=" * 42)
             print(f"   SYSTOLIC  (High):     {val1} mmHg")
             print(f"   DIASTOLIC (Low):      {val2} mmHg")
@@ -61,9 +112,9 @@ def parse_blood_pressure(buffer):
 
 def print_debug_help():
     print()
-    print("=" * 50)
+    print("=" * 52)
     print("  NO DATA RECEIVED — DEBUG CHECKLIST")
-    print("=" * 50)
+    print("=" * 52)
     print("  1. Verify Pi UART is enabled:")
     print("     sudo raspi-config -> Interface Options -> Serial Port")
     print("     -> 'login shell over serial'  = NO")
@@ -71,26 +122,29 @@ def print_debug_help():
     print("     Then reboot.")
     print()
     print("  2. Check your wiring:")
-    print("     Pi GPIO 14 (TXD)  -->  EBP 305 MRX")
-    print("     Pi GPIO 15 (RXD)  -->  EBP 305 MTX")
-    print("     Pi GND            -->  EBP 305 GND")
-    print("     Pi GPIO 17        -->  EBP 305 BOOT")
+    print("     Pi GPIO 14 (TXD)  -->  EBP305A MRX")
+    print("     Pi GPIO 15 (RXD)  -->  EBP305A MTX")
+    print("     Pi GND            -->  EBP305A GND")
+    print("     Pi GPIO 17        -->  EBP305A BOOT")
     print()
     print("  3. Try BOOT pin HIGH instead of LOW:")
     print("     python bp_bootloader_control.py --boot-high")
     print()
-    print("  4. Power the EBP 305 with its own batteries/USB.")
+    print("  4. Power the EBP305A with its own batteries.")
     print()
-    print("  5. Start a measurement AFTER the script is running.")
-    print("     Data only appears after the cuff finishes.")
+    print("  5. Start a measurement AFTER the script is running,")
+    print("     OR try pressing the MEMORY button on the device.")
     print()
     print("  6. Quick UART loopback test (on Pi):")
     print("     Connect GPIO 14 to GPIO 15 with a jumper")
     print("     then run: python -c \"")
-    print("       import serial; s=serial.Serial('/dev/serial0',9600,timeout=2)")
+    print("       import serial; s=serial.Serial('/dev/serial0',115200,timeout=2)")
     print("       s.write(b'HELLO'); print(repr(s.read(5)))\"")
     print("     Should print: b'HELLO'")
-    print("=" * 50)
+    print()
+    print("  7. If still no data: connect only GND and MTX")
+    print("     (leave MRX/BOOT unconnected), then try again.")
+    print("=" * 52)
     print()
 
 def main():
@@ -109,8 +163,8 @@ def main():
             current_baud_idx += 1
 
     print()
-    print("Listening for EBP 305 data.")
-    print("Put the cuff on, start a BP measurement now.")
+    print("Listening for EBP305A data.")
+    print("Put the cuff on and start a BP measurement, or press MEMORY.")
     print("Press Ctrl+C to stop.\n")
 
     buffer = bytearray()
@@ -131,8 +185,8 @@ def main():
 
                 parse_blood_pressure(buffer)
 
-                if len(buffer) > 200:
-                    buffer = buffer[-200:]
+                if len(buffer) > 500:
+                    buffer = buffer[-500:]
             else:
                 if (now - last_data_time > BAUD_SWITCH_TIMEOUT
                         and current_baud_idx + 1 < len(BAUD_RATES)):
