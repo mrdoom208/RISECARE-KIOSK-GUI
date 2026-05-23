@@ -25,6 +25,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
+const aiFetchedSessions = new Set<string>();
 export default function Results() {
   const [, params] = useRoute("/session/:token/results");
   const [, setLocation] = useLocation();
@@ -32,11 +33,28 @@ export default function Results() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [countdown, setCountdown] = useState(60);
+  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
+  const aiTextRef = useRef("");
+  const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aiCalledRef = useRef(false);
-  const abortRef = useRef<AbortController | null>(null);
+
+  const startTyping = useCallback((text: string) => {
+    aiTextRef.current = text;
+    setDisplayedText("");
+    if (typingRef.current) clearInterval(typingRef.current);
+    let i = 0;
+    typingRef.current = setInterval(() => {
+      i++;
+      setDisplayedText(text.slice(0, i));
+      if (i >= text.length) {
+        if (typingRef.current) clearInterval(typingRef.current);
+        typingRef.current = null;
+      }
+    }, 20);
+  }, []);
 
   const printMutation = useMutation({
     mutationFn: async (data: { sessionId: number; recommendation: string }) => {
@@ -381,89 +399,76 @@ export default function Results() {
     };
   }, [resultsList, currentVitals]);
 
-  const fetchAiRecommendation = useCallback(async (signal?: AbortSignal) => {
-    if (!session?.vitals || signal?.aborted) return;
+  const fetchAiRecommendation = useCallback(() => {
+    if (!session?.vitals) return;
     setAiLoading(true);
     setAiError(false);
-    setDisplayedText("");
+    const prompt = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 2 sentences. Keep it clear and actionable.
 
-    try {
-      console.log("[AI Debug] Sending vitals:", JSON.stringify(currentVitals));
-      const r = await fetch("/api/ai/recommendation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vitals: currentVitals }),
-      });
+Patient Vitals:
+${Object.entries(currentVitals)
+  .filter(([, v]) => v != null)
+  .map(([key, val]) => `- ${key}: ${val}`)
+  .join("\n")}
 
-      console.log("[AI Debug] Response status:", r.status, "content-type:", r.headers.get("content-type"));
-      if (r.headers.get("content-type")?.includes("text/event-stream")) {
-        const reader = r.body?.getReader();
-        if (!reader) throw new Error("No response stream");
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            console.log("[AI Debug] Stream done");
-            break;
-          }
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                if (data.chunk) {
-                  console.log("[AI Debug] Chunk:", JSON.stringify(data.chunk));
-                  setDisplayedText((prev) => prev + data.chunk);
-                }
-              } catch (e) {
-                console.error("JSON parse error", e);
-              }
-            }
-          }
+Assessment:`;
+    console.log("[AI Debug] Prompt:", prompt);
+    fetch("/api/ai/recommendation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vitals: currentVitals }),
+    })
+      .then(async (r) => {
+        const text = await r.text();
+        console.log("[AI Debug] Raw response:", text);
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = {};
         }
-      } else {
-        // Fallback for non-streaming JSON response
-        const data = await r.json();
-        console.log("[AI Debug] Fallback response:", data);
-        setDisplayedText(data.recommendation || "");
-      }
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") return;
-      setAiError(true);
-      console.error(e);
-    } finally {
-      setAiLoading(false);
-    }
-  }, [session, currentVitals]);
+        if (data.recommendation) {
+          setAiRecommendation(data.recommendation);
+          startTyping(data.recommendation);
+        } else {
+          setAiError(true);
+          console.error("[AI Debug] Error:", data.error || `HTTP ${r.status}`);
+        }
+      })
+      .catch((e) => {
+        setAiError(true);
+        console.error("[AI Debug] Error:", e);
+      })
+      .finally(() => setAiLoading(false));
+  }, [session, currentVitals, startTyping]);
 
   useEffect(() => {
     const hasVitals = Object.keys(currentVitals).length > 0;
     if (
       !hasVitals ||
-      displayedText ||
+      aiRecommendation ||
       aiLoading ||
+      aiFetchedSessions.has(sessionToken) ||
       aiCalledRef.current
     )
       return;
-    const controller = new AbortController();
-    abortRef.current = controller;
+    aiFetchedSessions.add(sessionToken);
     aiCalledRef.current = true;
-    fetchAiRecommendation(controller.signal);
-    return () => {
-      controller.abort();
-      abortRef.current = null;
-    };
+    fetchAiRecommendation();
   }, [
     currentVitals,
-    displayedText,
+    aiRecommendation,
     sessionToken,
     fetchAiRecommendation,
     aiLoading,
   ]);
+
+  // Cleanup typing interval on unmount
+  useEffect(() => {
+    return () => {
+      if (typingRef.current) clearInterval(typingRef.current);
+    };
+  }, []);
 
   // Auto-reset the session after showing results (kiosk mode)
   useEffect(() => {
@@ -471,8 +476,6 @@ export default function Results() {
       setCountdown((prev) => prev - 1);
     }, 1000);
     const timer = setTimeout(() => {
-      abortRef.current?.abort();
-      abortRef.current = null;
       queryClient.removeQueries({ queryKey: [`/api/sessions/token`] });
 
       // Redirect to home
@@ -524,38 +527,81 @@ export default function Results() {
           </p>
         </div>
 
-        {/* AI Overall Recommendation */}
+        {/* AI Overall Recommendation - Top */}
         <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div
             className={`p-4 border-b border-border ${
-              aiLoading && !displayedText ? "bg-primary/5" : "bg-primary/5"
+              aiLoading
+                ? "bg-primary/5"
+                : overallRecommendation.status === "critical"
+                  ? "bg-destructive/10"
+                  : overallRecommendation.status === "warning"
+                    ? "bg-yellow-500/10"
+                    : "bg-primary/5"
             }`}
           >
             <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              {aiLoading && !displayedText
+              {aiLoading
                 ? "AI Analyzing..."
-                : "AI Health Assessment"}
+                : aiRecommendation
+                  ? "AI Health Assessment"
+                  : overallRecommendation.title}
             </h3>
           </div>
           <div className="p-6">
-            <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap min-h-[2em]">
-              {displayedText ||
-                (aiLoading && !aiError
-                  ? "Generating personalized recommendation..."
-                  : "No AI assessment available.")}
-              {aiLoading && !aiError && (
-                <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
-              )}
-            </p>
-            {!aiLoading && displayedText && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <p className="text-base text-muted-foreground italic">
-                  Note: This is an automated assessment based on your recorded
-                  vitals. Please consult a healthcare professional for proper
-                  medical advice.
-                </p>
+            {aiLoading ? (
+              <div className="flex items-center gap-3 py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+                <span className="text-lg text-muted-foreground">
+                  Generating personalized recommendation...
+                </span>
               </div>
+            ) : aiRecommendation ? (
+              <>
+                <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap">
+                  {displayedText}
+                  {displayedText.length < (aiRecommendation?.length ?? 0) && (
+                    <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
+                  )}
+                </p>
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="text-base text-muted-foreground italic">
+                    Note: This is an automated assessment based on your recorded
+                    vitals. Please consult a healthcare professional for proper
+                    medical advice.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-lg text-foreground mb-4">
+                  {overallRecommendation.message}
+                </p>
+                <div
+                  className={`p-4 rounded-xl ${
+                    overallRecommendation.status === "critical"
+                      ? "bg-destructive/5 border border-destructive/20"
+                      : overallRecommendation.status === "warning"
+                        ? "bg-yellow-500/5 border border-yellow-500/20"
+                        : "bg-primary/5 border border-primary/20"
+                  }`}
+                >
+                  <p className="text-base font-semibold text-foreground mb-1">
+                    Recommended Action:
+                  </p>
+                  <p className="text-base text-muted-foreground">
+                    {overallRecommendation.action}
+                  </p>
+                </div>
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="text-base text-muted-foreground italic">
+                    Note: This is an automated assessment based on your recorded
+                    vitals. Please consult a healthcare professional for proper
+                    medical advice.
+                  </p>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -626,8 +672,7 @@ export default function Results() {
 
           <button
             onClick={() => {
-              abortRef.current?.abort();
-              abortRef.current = null;
+              // Manual reset
               queryClient.removeQueries({
                 queryKey: [`/api/sessions/token`],
               });
