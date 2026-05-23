@@ -5,14 +5,21 @@ import RPi.GPIO as GPIO
 
 SERIAL_PORT = '/dev/serial0'
 BOOT_PIN = 17
-BAUD_RATES = [9600, 115200, 19200, 38400, 57600]
-BAUD_SWITCH_TIMEOUT = 10  # seconds with no data before trying next baud
+BAUD_RATES = [9600, 4800, 2400, 115200, 19200, 38400, 57600]
+BAUD_SWITCH_TIMEOUT = 8
+
+BOOT_HIGH = False
+
+if len(sys.argv) > 1 and sys.argv[1] == "--boot-high":
+    BOOT_HIGH = True
 
 def setup_hardware():
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(BOOT_PIN, GPIO.OUT)
-    GPIO.output(BOOT_PIN, GPIO.LOW)
-    print("BOOT pin 17 set LOW (normal mode)")
+    state = GPIO.HIGH if BOOT_HIGH else GPIO.LOW
+    GPIO.output(BOOT_PIN, state)
+    print(f"BOOT pin 17 set {'HIGH' if BOOT_HIGH else 'LOW'}"
+          f" ({'bootloader' if BOOT_HIGH else 'normal'} mode)")
     return None
 
 def try_baud_rate(baud):
@@ -52,6 +59,40 @@ def parse_blood_pressure(buffer):
 
     return False
 
+def print_debug_help():
+    print()
+    print("=" * 50)
+    print("  NO DATA RECEIVED — DEBUG CHECKLIST")
+    print("=" * 50)
+    print("  1. Verify Pi UART is enabled:")
+    print("     sudo raspi-config -> Interface Options -> Serial Port")
+    print("     -> 'login shell over serial'  = NO")
+    print("     -> 'serial port hardware'     = YES")
+    print("     Then reboot.")
+    print()
+    print("  2. Check your wiring:")
+    print("     Pi GPIO 14 (TXD)  -->  EBP 305 MRX")
+    print("     Pi GPIO 15 (RXD)  -->  EBP 305 MTX")
+    print("     Pi GND            -->  EBP 305 GND")
+    print("     Pi GPIO 17        -->  EBP 305 BOOT")
+    print()
+    print("  3. Try BOOT pin HIGH instead of LOW:")
+    print("     python bp_bootloader_control.py --boot-high")
+    print()
+    print("  4. Power the EBP 305 with its own batteries/USB.")
+    print()
+    print("  5. Start a measurement AFTER the script is running.")
+    print("     Data only appears after the cuff finishes.")
+    print()
+    print("  6. Quick UART loopback test (on Pi):")
+    print("     Connect GPIO 14 to GPIO 15 with a jumper")
+    print("     then run: python -c \"")
+    print("       import serial; s=serial.Serial('/dev/serial0',9600,timeout=2)")
+    print("       s.write(b'HELLO'); print(repr(s.read(5)))\"")
+    print("     Should print: b'HELLO'")
+    print("=" * 50)
+    print()
+
 def main():
     setup_hardware()
 
@@ -67,12 +108,15 @@ def main():
         if ser is None:
             current_baud_idx += 1
 
-    print("Listening for EBP 305 data. Put on the cuff and start a BP test.")
+    print()
+    print("Listening for EBP 305 data.")
+    print("Put the cuff on, start a BP measurement now.")
     print("Press Ctrl+C to stop.\n")
 
     buffer = bytearray()
     last_data_time = time.time()
     idle_print = True
+    debug_printed = False
 
     try:
         while True:
@@ -83,6 +127,7 @@ def main():
                 buffer.extend(new_bytes)
                 last_data_time = now
                 idle_print = True
+                debug_printed = False
 
                 parse_blood_pressure(buffer)
 
@@ -102,9 +147,14 @@ def main():
                     buffer.clear()
                     idle_print = True
 
-                if idle_print and now - last_data_time > 2:
-                    print(f"Waiting for data... (current baud: {BAUD_RATES[current_baud_idx]})")
+                if idle_print and now - last_data_time > 3:
+                    baud = BAUD_RATES[current_baud_idx]
+                    print(f"Waiting for data... (baud: {baud})")
                     idle_print = False
+
+                if not debug_printed and now - last_data_time > BAUD_SWITCH_TIMEOUT * 3:
+                    print_debug_help()
+                    debug_printed = True
 
             time.sleep(0.05)
 
