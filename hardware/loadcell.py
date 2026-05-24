@@ -62,6 +62,16 @@ def calibrate_tare():
     return empty_offset
 
 
+def _stable_raw(samples=10):
+    readings = []
+    for i in range(samples):
+        readings.append(_raw())
+        time.sleep(0.2)
+    readings.sort()
+    trimmed = readings[2:-2]
+    return sum(trimmed) / len(trimmed)
+
+
 def calibrate_finalize(known_weight_grams=1000):
     global calibration_factor, empty_offset
 
@@ -71,10 +81,11 @@ def calibrate_finalize(known_weight_grams=1000):
 
     known_weight_kg = known_weight_grams / 1000
 
-    raw_loaded = _raw()
-    print(f"Loaded reading: {raw_loaded}")
+    print("Taking 10 readings...")
+    stable = _stable_raw(10)
+    print(f"Stable value (avg of middle 6): {stable:.0f}")
 
-    difference = raw_loaded - empty_offset
+    difference = stable - empty_offset
     if difference <= 0:
         print("Calibration failed: loaded reading must be higher than empty reading")
         return None
@@ -117,6 +128,16 @@ def get_weight():
         return None
 
     raw = _raw()
+    weight = (raw - empty_offset) / calibration_factor
+    return round(weight, 2)
+
+
+def get_stable_weight():
+    if calibration_factor is None or empty_offset is None or not sensor_available:
+        return None
+
+    print("Taking 10 readings for stable weight...")
+    raw = _stable_raw(10)
     weight = (raw - empty_offset) / calibration_factor
     return round(weight, 2)
 

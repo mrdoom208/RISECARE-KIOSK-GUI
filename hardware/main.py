@@ -116,7 +116,7 @@ def handle_command(sensor, session_id, value, payload):
                 result = {"cm": height}
                 success = True
         elif sensor == "weight":
-            weight = loadcell.get_weight()
+            weight = loadcell.get_stable_weight()
             if weight:
                 print(f"LoadCell weight: {weight} kg")
                 result = {"kg": weight}
