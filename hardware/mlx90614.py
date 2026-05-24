@@ -27,19 +27,31 @@ class MLX90614:
         try:
             self.bus = i2c_bus if i2c_bus is not None else SMBus(bus)
             self.handle = bus
-            self.read_reg(RAM_TA)
+            time.sleep(0.5)
+            self._read_with_retry(RAM_TA, retries=3)
         except Exception as e:
             self.close()
             print(f"❌ MLX90614 not reachable on I2C bus {bus} at 0x{address:02X}: {e}")
             return
 
+    def _read_with_retry(self, reg, retries=2):
+        for attempt in range(retries + 1):
+            try:
+                data = self.bus.read_i2c_block_data(self.address, reg, 3)
+                raw = (data[1] << 8) | data[0]
+                return raw
+            except Exception as e:
+                if attempt < retries:
+                    time.sleep(0.1)
+                else:
+                    raise e
+        return None
+
     def read_reg(self, reg):
         if self.handle is None:
             return None
         try:
-            data = self.bus.read_i2c_block_data(self.address, reg, 3)
-            raw = (data[1] << 8) | data[0]
-            return raw
+            return self._read_with_retry(reg)
         except Exception as e:
             print(f"⚠️ MLX90614 read error at reg 0x{reg:02X}: {e}")
             return None
@@ -57,7 +69,10 @@ class MLX90614:
         return round(raw * 0.02 - 273.15, 2)
 
     def get_temperature(self):
-        return self.read_object()
+        try:
+            return self.read_object()
+        except Exception:
+            return None
 
     def close(self):
         self.handle = None

@@ -155,17 +155,17 @@ export default function Dashboard() {
           ? { sys: reading.systolic, dia: reading.diastolic }
           : null;
       case "hr":
-        return reading.bpm ?? null;
+        return reading.bpm && reading.bpm > 0 ? reading.bpm : null;
       case "spo2":
-        return reading.spo2 ?? null;
+        return reading.spo2 && reading.spo2 > 0 ? reading.spo2 : null;
       case "weight":
-        return reading.kg ?? null;
+        return reading.kg && reading.kg > 0 ? reading.kg : null;
       case "height":
-        return reading.cm ?? null;
+        return reading.cm && reading.cm > 0 ? reading.cm : null;
       case "glucose":
-        return reading.mmol ?? null;
+        return reading.mmol && reading.mmol > 0 ? reading.mmol : null;
       case "temperature":
-        return reading.celsius ?? null;
+        return reading.celsius && reading.celsius > 0 ? reading.celsius : null;
     }
   };
 
