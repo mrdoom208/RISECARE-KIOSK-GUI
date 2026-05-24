@@ -9,6 +9,14 @@ except ImportError:
     print("Warning: smbus2 not installed. Install with: python -m pip install smbus2")
     smbus_available = False
 
+try:
+    from scipy.signal import butter, filtfilt
+    scipy_available = True
+except ImportError:
+    print("Warning: scipy not installed. Falling back to simple moving-average filter.")
+    print("Install with: python -m pip install scipy")
+    scipy_available = False
+
 
 class MAX30102:
     REG_INTR_STATUS_1 = 0x00
@@ -26,6 +34,8 @@ class MAX30102:
         self.bus = None
         self._red_buffer = []
         self._ir_buffer = []
+        self._smoothed_hr = 0
+        self._smoothed_spo2 = 0
 
         if not smbus_available:
             print("❌ smbus2 not available")
@@ -67,8 +77,8 @@ class MAX30102:
     def setup(self):
         self.write_reg(self.REG_MODE_CONFIG, 0x03)
         self.write_reg(self.REG_SPO2_CONFIG, 0x27)
-        self.write_reg(self.REG_LED1_PA, 0x24)
-        self.write_reg(self.REG_LED2_PA, 0x24)
+        self.write_reg(self.REG_LED1_PA, 0x1F)
+        self.write_reg(self.REG_LED2_PA, 0x1F)
         self.write_reg(self.REG_FIFO_WR_PTR, 0x00)
         self.write_reg(self.REG_FIFO_RD_PTR, 0x00)
 
@@ -84,7 +94,7 @@ class MAX30102:
             return red, ir
         return 0, 0
 
-    def read_sequential(self, samples=50, delay=0.01):
+    def read_sequential(self, samples=100, delay=0.005):
         red_samples = []
         ir_samples = []
 
@@ -105,48 +115,68 @@ class MAX30102:
                 pass
             self.bus = None
 
-    _BUFFER_MAX = 200
+    _BUFFER_MAX = 400
 
     def clear_buffer(self):
         self._red_buffer = []
         self._ir_buffer = []
+        self._smoothed_hr = 0
+        self._smoothed_spo2 = 0
 
     def calc_hr_and_spo2(self, ir_data, red_data):
-        ir_ac = ir_data - np.mean(ir_data)
-        red_ac = red_data - np.mean(red_data)
+        SAMPLE_RATE = 100.0
 
-        short_win = 5
-        long_win = 30
+        # --- Signal Quality Index: DC check (no finger / low perfusion) ---
+        ir_dc = np.mean(ir_data)
+        red_dc = np.mean(red_data)
 
-        ir_short = np.convolve(ir_ac, np.ones(short_win)/short_win, mode='same')
-        ir_long = np.convolve(ir_ac, np.ones(long_win)/long_win, mode='same')
-        ir_bp = ir_short - ir_long
-
-        red_short = np.convolve(red_ac, np.ones(short_win)/short_win, mode='same')
-        red_long = np.convolve(red_ac, np.ones(long_win)/long_win, mode='same')
-        red_bp = red_short - red_long
-
-        ir_amplitude = np.std(ir_bp[long_win:-long_win]) if len(ir_bp) > 2*long_win else np.std(ir_bp)
-        if ir_amplitude < 30:
+        if len(ir_data) < 50 or ir_dc < 10000:
             return 0, False, 0, False
 
-        threshold = ir_amplitude * 0.5
-        min_distance = 30
+        # --- Bandpass filter 0.7 - 4 Hz (42-240 BPM) ---
+        if scipy_available and len(ir_data) > 60:
+            nyquist = SAMPLE_RATE / 2.0
+            b, a = butter(2, [0.7 / nyquist, 4.0 / nyquist], btype="band")
+            ir_filt = filtfilt(b, a, ir_data)
+            red_filt = filtfilt(b, a, red_data)
+        else:
+            ir_ac = ir_data - ir_dc
+            red_ac = red_data - red_dc
+            short_win = 5
+            long_win = 30
+            ir_short = np.convolve(ir_ac, np.ones(short_win) / short_win, mode="same")
+            ir_long  = np.convolve(ir_ac, np.ones(long_win) / long_win,   mode="same")
+            ir_filt  = ir_short - ir_long
+            red_short = np.convolve(red_ac, np.ones(short_win) / short_win, mode="same")
+            red_long  = np.convolve(red_ac, np.ones(long_win) / long_win,   mode="same")
+            red_filt  = red_short - red_long
+
+        # --- Signal Quality Index: pulse amplitude check ---
+        ir_amplitude = np.std(ir_filt)
+        if ir_amplitude < 50:
+            return 0, False, 0, False
+
+        # --- Adaptive peak detection using first derivative ---
+        threshold = np.mean(ir_filt) + 0.5 * ir_amplitude
+        min_distance = int(0.3 * SAMPLE_RATE)
+
+        ir_diff = np.diff(ir_filt)
+        sign_changes = np.diff(np.sign(ir_diff))
+        zero_crossings = np.where(sign_changes < 0)[0] + 1
+
         peaks = []
         last_peak = -min_distance
-        search_start = long_win
-        search_end = len(ir_bp) - long_win
-        for i in range(search_start, search_end):
-            if (ir_bp[i] > ir_bp[i-1] and
-                ir_bp[i] > ir_bp[i+1] and
-                ir_bp[i] > threshold and
-                i - last_peak >= min_distance):
+        for i in zero_crossings:
+            if i <= 0 or i >= len(ir_filt) - 1:
+                continue
+            if ir_filt[i] > threshold and i - last_peak >= min_distance:
                 peaks.append(i)
                 last_peak = i
 
         if len(peaks) < 2:
             return 0, False, 0, False
 
+        # --- Heart Rate calculation with outlier rejection ---
         beat_intervals = np.diff(peaks)
         median_interval = np.median(beat_intervals)
         valid_intervals = beat_intervals[
@@ -158,30 +188,25 @@ class MAX30102:
             return 0, False, 0, False
 
         avg_interval = np.mean(valid_intervals)
-        heart_rate = (60.0 * 100.0) / avg_interval
+        heart_rate = (60.0 * SAMPLE_RATE) / avg_interval
 
-        ir_dc = np.mean(ir_data)
-        red_dc = np.mean(red_data)
-
-        ir_ac_rms = np.sqrt(np.mean(ir_bp**2))
-        red_ac_rms = np.sqrt(np.mean(red_bp**2))
+        # --- SpO2 calculation with polynomial calibration ---
+        ir_ac_rms = np.sqrt(np.mean(ir_filt ** 2))
+        red_ac_rms = np.sqrt(np.mean(red_filt ** 2))
 
         if ir_dc == 0 or ir_ac_rms == 0:
             return int(heart_rate), False, 0, False
 
         r_ratio = (red_ac_rms / red_dc) / (ir_ac_rms / ir_dc)
-        spo2 = 110 - 25 * r_ratio
+        spo2 = -45.060 * r_ratio ** 2 + 30.354 * r_ratio + 94.845
 
         hr_valid = not math.isnan(heart_rate) and 30 <= heart_rate <= 250
         spo2_valid = 70 <= spo2 <= 100
 
-        if not hr_valid and spo2_valid:
-            print(f"[calc_hr_and_spo2] peaks={len(peaks)}, intervals={len(beat_intervals)}, valid={len(valid_intervals)}, avg_int={avg_interval:.2f}, hr={heart_rate:.2f}")
-
         return int(heart_rate), hr_valid, int(min(spo2, 100)), spo2_valid
 
     def get_reading(self):
-        red_new, ir_new = self.read_sequential(samples=50)
+        red_new, ir_new = self.read_sequential(samples=100, delay=0.005)
 
         if len(red_new) < 10 or len(ir_new) < 10:
             print("[get_reading] Too few samples:", len(red_new), len(ir_new))
@@ -195,4 +220,26 @@ class MAX30102:
             self._red_buffer = self._red_buffer[excess:]
             self._ir_buffer = self._ir_buffer[excess:]
 
-        return self.calc_hr_and_spo2(self._ir_buffer, self._red_buffer)
+        raw_hr, hr_valid, raw_spo2, spo2_valid = self.calc_hr_and_spo2(
+            self._ir_buffer, self._red_buffer
+        )
+
+        if hr_valid:
+            if self._smoothed_hr == 0:
+                self._smoothed_hr = raw_hr
+            else:
+                self._smoothed_hr = int(0.7 * self._smoothed_hr + 0.3 * raw_hr)
+            hr = self._smoothed_hr
+        else:
+            hr = raw_hr
+
+        if spo2_valid:
+            if self._smoothed_spo2 == 0:
+                self._smoothed_spo2 = raw_spo2
+            else:
+                self._smoothed_spo2 = int(0.8 * self._smoothed_spo2 + 0.2 * raw_spo2)
+            spo2 = self._smoothed_spo2
+        else:
+            spo2 = raw_spo2
+
+        return hr, hr_valid, spo2, spo2_valid

@@ -136,19 +136,16 @@ def get_height():
         return None
 
     readings = []
-    for _ in range(10):
+    for _ in range(3):
         d = measure_distance()
         if _is_valid_distance(d):
             readings.append(d)
-        time.sleep(0.2)
+        time.sleep(0.05)
 
-    if len(readings) < 4:
-        print("Not enough valid readings for height")
+    if not readings:
         return None
 
-    readings.sort()
-    trimmed = readings[2:-2]
-    avg_distance = sum(trimmed) / len(trimmed)
+    avg_distance = _average_readings(readings)
     height = TOTAL_HEIGHT - avg_distance
 
     if height < 0:
