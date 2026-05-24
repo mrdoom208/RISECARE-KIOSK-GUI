@@ -32,6 +32,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const [sessionId] = useState(() => `session-${Date.now()}`);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
   const [confirmReset, setConfirmReset] = useState(false);
+  const [doneCooldown, setDoneCooldown] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, Feedback | null>>({});
   const testTimestamps = useRef<Record<string, number>>({});
   const calTimestamps = useRef<Record<string, number>>({});
@@ -246,6 +247,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   };
 
   const handleCalibrate = (sensorId: string) => {
+    setDoneCooldown(false);
     calTimestamps.current[sensorId] = Date.now();
     const isWeight = sensorId === "weight";
     setSensorFeedback(sensorId, {
@@ -261,6 +263,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   };
 
   const handleFinalizeCalibrate = (sensorId: string) => {
+    if (doneCooldown) return;
+    setDoneCooldown(true);
     commandMutation.mutate({ sensor: sensorId, value: 12, knownWeightGrams: 1000 });
   };
 
@@ -443,7 +447,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                         {sensor.id === "weight" && isWaitingForWeight && (
                           <Button
                             onClick={() => handleFinalizeCalibrate("weight")}
-                            disabled={commandMutation.isPending}
+                            disabled={commandMutation.isPending || doneCooldown}
                             className="mt-2 w-full"
                             size="sm"
                           >
