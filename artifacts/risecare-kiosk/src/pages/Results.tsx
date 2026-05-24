@@ -13,7 +13,6 @@ import {
   getHRStatus,
   getSpO2Status,
   getTempStatus,
-  getGlucoseStatus,
   getBMIStatus,
   calculateBMI,
   getStatusColor,
@@ -150,17 +149,7 @@ export default function Results() {
         val: currentVitals.temperature,
         unit: "°C",
         status,
-        msg: getTempMessage(status),
-      };
-    })(),
-    (() => {
-      const status = getGlucoseStatus(currentVitals.bloodGlucose);
-      return {
-        name: "Blood Glucose",
-        val: currentVitals.bloodGlucose,
-        unit: "mmol/L",
-        status,
-        msg: getGlucoseMessage(status),
+        msg: getTempMessage(status, currentVitals.temperature),
       };
     })(),
     {
@@ -212,10 +201,6 @@ export default function Results() {
     const hasCriticalTemp = resultsList.find(
       (r) => r.name === "Body Temp" && r.status === "critical",
     );
-    const hasCriticalGlucose = resultsList.find(
-      (r) => r.name === "Blood Glucose" && r.status === "critical",
-    );
-
     const hasWarningBP = resultsList.find(
       (r) => r.name === "Blood Pressure" && r.status === "warning",
     );
@@ -230,13 +215,16 @@ export default function Results() {
       // Emergency / Clinic Visit
       if (
         hasCriticalSpO2 ||
-        (hasCriticalTemp && (currentVitals.temperature ?? 0) > 39)
+        (hasCriticalTemp && (currentVitals.temperature ?? 0) > 39) ||
+        (hasCriticalTemp && (currentVitals.temperature ?? 0) < 35)
       ) {
+        const isHypothermia = (currentVitals.temperature ?? 0) < 35;
         return {
           status: "critical",
           title: "🚨 Emergency: Seek Immediate Care",
-          message:
-            "Critical oxygen levels or high fever detected. This requires emergency medical attention.",
+          message: isHypothermia
+            ? "Very low body temperature detected — possible hypothermia. This requires emergency medical attention."
+            : "Critical oxygen levels or high fever detected. This requires emergency medical attention.",
           action:
             "Go to the nearest emergency room or call emergency services (911) immediately. Do not wait.",
         };
@@ -261,17 +249,6 @@ export default function Results() {
             "Your heart rate is at a critical level requiring medical assessment.",
           action:
             "Schedule an appointment with a cardiologist within 24 hours. Avoid caffeine and stress.",
-        };
-      }
-
-      if (hasCriticalGlucose) {
-        return {
-          status: "critical",
-          title: "🏥 Medical Attention Needed",
-          message:
-            "Your blood glucose is at dangerous levels (hypoglycemia or hyperglycemia).",
-          action:
-            "Visit an urgent care clinic immediately. Bring a snack if hypoglycemic, or seek diabetes management if hyperglycemic.",
         };
       }
 
@@ -709,16 +686,11 @@ function getSpO2Message(s: VitalStatus) {
   if (s === "critical") return "Critical: Low oxygen levels detected.";
   return "Insufficient data.";
 }
-function getTempMessage(s: VitalStatus) {
+function getTempMessage(s: VitalStatus, temp?: number | null) {
   if (s === "normal") return "Body temperature is normal.";
   if (s === "warning") return "Slight variance in body temperature.";
-  if (s === "critical") return "Fever or severe temperature variance detected.";
-  return "Insufficient data.";
-}
-function getGlucoseMessage(s: VitalStatus) {
-  if (s === "normal") return "Blood glucose is within target range.";
-  if (s === "warning") return "Borderline blood glucose levels.";
-  if (s === "critical") return "High or very low glucose detected.";
+  if (s === "critical" && temp != null && temp < 35) return "Low body temperature detected — possible hypothermia.";
+  if (s === "critical") return "Fever or high temperature detected.";
   return "Insufficient data.";
 }
 function getBMIMessage(s: VitalStatus) {

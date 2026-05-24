@@ -12,7 +12,6 @@ const readingFields = [
   "temperature",
   "weight",
   "height",
-  "bloodGlucose",
 ];
 
 function countReadings(vitals: any) {

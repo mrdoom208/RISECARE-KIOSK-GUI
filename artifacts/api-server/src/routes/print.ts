@@ -26,7 +26,7 @@ router.post("/print/receipt", async (req, res) => {
     const session = sessions[0];
 
     const vitals = await query(
-      `SELECT blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, blood_glucose AS bloodGlucose, bmi FROM vital_readings WHERE session_id = ? ORDER BY recorded_at DESC LIMIT 1`,
+      `SELECT blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi FROM vital_readings WHERE session_id = ? ORDER BY recorded_at DESC LIMIT 1`,
       [sessionId]
     );
 

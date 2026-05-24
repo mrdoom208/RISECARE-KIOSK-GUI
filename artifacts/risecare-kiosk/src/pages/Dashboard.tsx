@@ -43,7 +43,6 @@ import {
   getHRStatus,
   getSpO2Status,
   getTempStatus,
-  getGlucoseStatus,
   getBMIStatus,
   calculateBMI,
 } from "@/lib/vitals-utils";
@@ -54,7 +53,6 @@ type VitalType =
   | "spo2"
   | "weight"
   | "height"
-  | "glucose"
   | "temperature";
 
 // Map vital types to sensor IDs
@@ -64,7 +62,6 @@ const vitalToSensorId: Record<VitalType, string> = {
   spo2: "spo2",
   weight: "weight",
   height: "height",
-  glucose: "glucose",
   temperature: "temperature",
 };
 
@@ -162,8 +159,6 @@ export default function Dashboard() {
         return reading.kg && reading.kg > 0 ? reading.kg : null;
       case "height":
         return reading.cm && reading.cm > 0 ? reading.cm : null;
-      case "glucose":
-        return reading.mmol && reading.mmol > 0 ? reading.mmol : null;
       case "temperature":
         return reading.celsius && reading.celsius > 0 ? reading.celsius : null;
     }
@@ -197,9 +192,6 @@ export default function Dashboard() {
         break;
       case "height":
         currentValue = getLiveReadingValue("height") ?? currentVitals.height;
-        break;
-      case "glucose":
-        currentValue = getLiveReadingValue("glucose") ?? currentVitals.bloodGlucose;
         break;
       case "temperature":
         currentValue = getLiveReadingValue("temperature") ?? currentVitals.temperature;
@@ -250,7 +242,6 @@ export default function Dashboard() {
     else if (activeKeypad === "spo2") payload.oxygenSaturation = num1;
     else if (activeKeypad === "weight") payload.weight = num1;
     else if (activeKeypad === "height") payload.height = num1;
-    else if (activeKeypad === "glucose") payload.bloodGlucose = num1;
     else if (activeKeypad === "temperature") payload.temperature = num1;
 
     saveVitalsMutation.mutate(
@@ -272,7 +263,6 @@ export default function Dashboard() {
     spo2: "spo2",
     weight: "weight",
     height: "height",
-    glucose: "glucose",
     temperature: "temperature",
   };
 
@@ -338,8 +328,6 @@ const handleCancelReading = async () => {
     clearPayload.weight = null;
   } else if (vital === "height") {
     clearPayload.height = null;
-  } else if (vital === "glucose") {
-    clearPayload.bloodGlucose = null;
   } else if (vital === "temperature") {
     clearPayload.temperature = null;
   }
@@ -400,15 +388,6 @@ const handleCancelReading = async () => {
           title: "Height",
           value: value != null ? Number(value).toFixed(1) : "Reading...",
           unit: "cm",
-          hasValue: value != null,
-        };
-      }
-      case "glucose": {
-        const value = getLiveReadingValue("glucose") ?? currentVitals.bloodGlucose;
-        return {
-          title: "Blood Glucose",
-          value: value != null ? Number(value).toFixed(1) : "Reading...",
-          unit: "mmol/L",
           hasValue: value != null,
         };
       }
@@ -528,24 +507,6 @@ const handleCancelReading = async () => {
                </div>
              </div>
            </div>
-
-            {/* Blood Glucose */}
-           <VitalCard
-             title="Blood Glucose"
-             value={currentVitals.bloodGlucose}
-             unit="mmol/L"
-             icon={<Droplet className="w-5 h-5" />}
-             status={getGlucoseStatus(currentVitals.bloodGlucose)}
-             onClick={() => {
-               if (!isVitalEnabled("glucose")) return;
-               setActiveKeypad("glucose");
-               setActiveSensor(
-                 sensorGuides.find((s) => s.name === "Blood Glucose Sensor") ||
-                   null,
-               );
-             }}
-             disabled={!isVitalEnabled("glucose")}
-           />
 
            {/* Temperature */}
            <VitalCard

@@ -248,9 +248,6 @@ components:
         height:
           type: number
           nullable: true
-        bloodGlucose:
-          type: number
-          nullable: true
         notes:
           type: string
           nullable: true
@@ -281,9 +278,6 @@ components:
           type: number
           nullable: true
         height:
-          type: number
-          nullable: true
-        bloodGlucose:
           type: number
           nullable: true
         bmi:

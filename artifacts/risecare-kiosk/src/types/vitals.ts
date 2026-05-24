@@ -6,5 +6,4 @@ export type Vitals = {
   heartRate?: number;
   oxygenSaturation?: number;
   temperature?: number;
-  bloodGlucose?: number;
 };

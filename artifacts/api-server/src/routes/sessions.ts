@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
-const VITALS_SELECT = `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, blood_glucose AS bloodGlucose, bmi, notes, recorded_at AS recordedAt FROM vital_readings`;
+const VITALS_SELECT = `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi, notes, recorded_at AS recordedAt FROM vital_readings`;
 
 router.get("/sessions", async (_req, res) => {
   const sessions = await query(
@@ -137,7 +137,6 @@ router.post("/sessions/:id/vitals", async (req, res) => {
         temperature = ?, 
         weight = ?, 
         height = ?, 
-        blood_glucose = ?, 
         bmi = ?, 
         notes = ?,
         recorded_at = CURRENT_TIMESTAMP
@@ -150,7 +149,6 @@ router.post("/sessions/:id/vitals", async (req, res) => {
         body.temperature ?? existing.temperature,
         body.weight ?? existing.weight,
         body.height ?? existing.height,
-        body.bloodGlucose ?? existing.blood_glucose,
         bmi,
         body.notes ?? existing.notes,
         existing.id
@@ -162,8 +160,8 @@ router.post("/sessions/:id/vitals", async (req, res) => {
     const result = await run(
       `INSERT INTO vital_readings (
         session_id, blood_pressure_systolic, blood_pressure_diastolic, heart_rate, 
-        oxygen_saturation, temperature, weight, height, blood_glucose, bmi, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        oxygen_saturation, temperature, weight, height, bmi, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         body.bloodPressureSystolic ?? null,
@@ -173,7 +171,6 @@ router.post("/sessions/:id/vitals", async (req, res) => {
         body.temperature ?? null,
         body.weight ?? null,
         body.height ?? null,
-        body.bloodGlucose ?? null,
         bmi,
         body.notes ?? null
       ]

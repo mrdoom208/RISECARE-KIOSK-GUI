@@ -5,7 +5,7 @@ const router: IRouter = Router();
 
 router.get("/vitals/latest", async (_req, res) => {
   const latestVitals = await query(
-    `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, blood_glucose AS bloodGlucose, bmi, notes, recorded_at AS recordedAt FROM vital_readings ORDER BY recorded_at DESC LIMIT 1`
+    `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi, notes, recorded_at AS recordedAt FROM vital_readings ORDER BY recorded_at DESC LIMIT 1`
   );
 
   if (latestVitals.length === 0) {
@@ -18,7 +18,7 @@ router.get("/vitals/latest", async (_req, res) => {
   const session = sessions[0];
 
   const vitals = await query(
-    `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, blood_glucose AS bloodGlucose, bmi, notes, recorded_at AS recordedAt FROM vital_readings WHERE session_id = ? ORDER BY recorded_at DESC`,
+    `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi, notes, recorded_at AS recordedAt FROM vital_readings WHERE session_id = ? ORDER BY recorded_at DESC`,
     [latestVital.sessionId]
   );
 

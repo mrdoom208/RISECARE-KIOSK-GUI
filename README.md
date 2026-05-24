@@ -9,7 +9,7 @@ A modern, self-service health monitoring kiosk application that enables patients
 ## Features
 
 - **Patient Registration** - Quick patient onboarding with validation (name, phone, age, gender)
-- **Vital Signs Recording** - Blood pressure, heart rate, SpO2, temperature, glucose, weight, height, BMI
+- **Vital Signs Recording** - Blood pressure, heart rate, SpO2, temperature, weight, height, BMI
 - **IoT Sensor Integration** - Optional MQTT-based real-time sensor data communication
 - **Health Status Evaluation** - Automated normal/warning/critical status for all vitals
 - **Session Management** - Track and review patient sessions with full history
@@ -177,7 +177,6 @@ Health status is automatically evaluated based on standard medical guidelines:
 | Heart Rate     | 60-100 bpm     | 50-59 or 101-110 | <50 or >110   |
 | SpO2           | ≥95%           | 90-94%           | <90%          |
 | Temperature    | 36.1-37.2°C    | Boundaries       | Outside range |
-| Blood Glucose  | 3.9-7.8 mmol/L | Near boundaries  | Outside range |
 | BMI            | 18.5-24.9      | <18.5 or 25-29.9 | ≥30           |
 
 ---

@@ -30,13 +30,6 @@ export function getTempStatus(temp?: number | null): VitalStatus {
   return 'critical';
 }
 
-export function getGlucoseStatus(gluc?: number | null): VitalStatus {
-  if (!gluc) return 'unknown';
-  if (gluc >= 3.9 && gluc <= 7.8) return 'normal';
-  if ((gluc > 7.8 && gluc <= 11.0) || (gluc >= 3.0 && gluc < 3.9)) return 'warning';
-  return 'critical';
-}
-
 export function calculateBMI(weight?: number | null, height?: number | null): number | null {
   if (!weight || !height) return null;
   const heightM = height / 100;

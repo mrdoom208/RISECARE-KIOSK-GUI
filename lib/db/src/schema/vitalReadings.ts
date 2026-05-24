@@ -9,7 +9,6 @@ export const insertVitalReadingSchema = z.object({
   temperature: z.number().optional(),
   weight: z.number().optional(),
   height: z.number().optional(),
-  bloodGlucose: z.number().optional(),
   bmi: z.number().optional(),
   notes: z.string().optional(),
 });
@@ -26,7 +25,6 @@ export interface VitalReading {
   temperature: number | null;
   weight: number | null;
   height: number | null;
-  bloodGlucose: number | null;
   bmi: number | null;
   notes: string | null;
   recordedAt: string;

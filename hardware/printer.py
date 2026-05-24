@@ -101,10 +101,6 @@ def print_receipt(data):
         if temp is not None:
             p.text(f"Temperature:     {temp} C\n")
 
-        glucose = vitals.get("bloodGlucose")
-        if glucose is not None:
-            p.text(f"Blood Glucose:   {glucose} mmol/L\n")
-
         weight = vitals.get("weight")
         if weight is not None:
             p.text(f"Weight:          {weight} kg\n")
@@ -160,7 +156,6 @@ def test_print():
             "bloodPressureDiastolic": 80,
             "oxygenSaturation": 98,
             "temperature": 36.6,
-            "bloodGlucose": 5.2,
             "weight": 70.5,
             "height": 175,
             "bmi": 23.0

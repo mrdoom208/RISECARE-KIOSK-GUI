@@ -31,7 +31,9 @@ class MLX90614:
             self._read_with_retry(RAM_TA, retries=3)
         except Exception as e:
             self.close()
-            print(f"❌ MLX90614 not reachable on I2C bus {bus} at 0x{address:02X}: {e}")
+            print(f"⚠️ MLX90614 not detected on I2C bus {bus} at 0x{address:02X}: {e}")
+            print("   Run 'i2cdetect -y 1' to check connected devices.")
+            print("   Temperature sensor will be unavailable — system continues.")
             return
 
     def _read_with_retry(self, reg, retries=2):

@@ -85,29 +85,6 @@ subscribe("risecare/sensors/height", async (data) => {
   }
 });
 
-subscribe("risecare/sensors/glucose", async (data) => {
-  latestReadings["glucose"] = data;
-  if (data.sessionId && data.mmol != null) {
-    await saveSensorValue(data.sessionId, "blood_glucose", data.mmol);
-    console.log("💾 Glucose saved from sensor:", data);
-  }
-});
-
-// In-memory calibration results (last result per sensor)
-let calibrationResults: Record<string, any> = {};
-
-// In-memory calibration progress messages (last progress per sensor)
-let calibrationProgress: Record<string, any> = {};
-
-// In-memory latest sensor readings (for live preview)
-let latestReadings: Record<string, any> = {};
-
-// In-memory test results (last result per sensor)
-let testResults: Record<string, any> = {};
-
-// In-memory sensor availability (reported from Python hardware)
-let sensorAvailability: Record<string, boolean> = {};
-
 subscribe("risecare/sensors/availability", async (data) => {
   sensorAvailability = data;
   console.log("📡 Sensor availability:", data);
