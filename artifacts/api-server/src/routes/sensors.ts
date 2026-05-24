@@ -23,6 +23,13 @@ async function saveSensorValue(sessionId: number, column: string, value: number)
   }
 }
 
+// In-memory stores
+let latestReadings: Record<string, any> = {};
+let calibrationResults: Record<string, any> = {};
+let calibrationProgress: Record<string, any> = {};
+let testResults: Record<string, any> = {};
+let sensorAvailability: Record<string, boolean> = {};
+
 // Subscribe to sensor data from Python
 subscribe("risecare/sensors/bp", async (data) => {
   latestReadings["bp"] = data;

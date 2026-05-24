@@ -17,7 +17,7 @@ import {
   Lock,
   Thermometer,
 } from "lucide-react";
-import { getStatusColor, getStatusText } from "@/lib/vitals-utils";
+import { getStatusColor, getStatusText, getBPStatus, getHRStatus, getSpO2Status, getTempStatus, getBMIStatus, calculateBMI } from "@/lib/vitals-utils";
 import { KioskHeader } from "@/components/KioskHeader";
 import { VitalCard } from "@/components/VitalCard";
 import InstructionModal from "@/components/InstructionModal";
@@ -37,15 +37,6 @@ import {
 import NotFound from "./not-found";
 
 import { sensorGuides } from "@/data/sensorGuides";
-
-import {
-  getBPStatus,
-  getHRStatus,
-  getSpO2Status,
-  getTempStatus,
-  getBMIStatus,
-  calculateBMI,
-} from "@/lib/vitals-utils";
 
 type VitalType =
   | "bp"
@@ -508,25 +499,25 @@ const handleCancelReading = async () => {
              </div>
            </div>
 
-           {/* Temperature */}
-           <VitalCard
-             title="Temperature"
-             value={currentVitals.temperature}
-             unit="°C"
-             icon={<Thermometer className="w-5 h-5" />}
-             status={getTempStatus(currentVitals.temperature)}
-             onClick={() => {
-               if (!isVitalEnabled("temperature")) return;
-               setActiveKeypad("temperature");
-               setActiveSensor(
-                 sensorGuides.find((s) => s.name === "Thermometer") || null,
-               );
-             }}
-             disabled={!isVitalEnabled("temperature")}
-           />
+            {/* Temperature */}
+            <VitalCard
+              title="Temperature"
+              value={currentVitals.temperature}
+              unit="°C"
+              icon={<Thermometer className="w-5 h-5" />}
+              status={getTempStatus(currentVitals.temperature)}
+              onClick={() => {
+                if (!isVitalEnabled("temperature")) return;
+                setActiveKeypad("temperature");
+                setActiveSensor(
+                  sensorGuides.find((s) => s.name === "Thermometer") || null,
+                );
+              }}
+              disabled={!isVitalEnabled("temperature")}
+            />
 
-           {/* Weight */}
-           <VitalCard
+            {/* Weight */}
+            <VitalCard
              title="Weight"
              value={currentVitals.weight}
              unit="kg"
