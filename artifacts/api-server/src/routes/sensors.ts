@@ -196,6 +196,19 @@ router.get("/sensors/status", async (_req, res) => {
   });
 });
 
+// Reset all calibration data
+router.post("/sensors/calibration/reset", async (req, res) => {
+  calibrationResults = {};
+  calibrationProgress = {};
+  publish("risecare/command/calibration", {
+    sessionId: req.body.sessionId,
+    sensor: "calibration",
+    value: 99,
+    timestamp: new Date().toISOString(),
+  });
+  res.json({ status: "ok" });
+});
+
 // Get latest calibration result
 router.get("/sensors/calibration", async (_req, res) => {
   res.json(calibrationResults);

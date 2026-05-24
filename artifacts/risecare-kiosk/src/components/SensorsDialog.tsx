@@ -31,6 +31,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const { toast } = useToast();
   const [sessionId] = useState(() => `session-${Date.now()}`);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
+  const [confirmReset, setConfirmReset] = useState(false);
   const [feedback, setFeedback] = useState<Record<string, Feedback | null>>({});
   const testTimestamps = useRef<Record<string, number>>({});
   const calTimestamps = useRef<Record<string, number>>({});
@@ -86,12 +87,6 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     refetchInterval: hasPending ? 500 : false,
   });
 
-  const weightCalFb = feedback["weight"];
-  const isWeightCalReading = weightCalFb?.type === "calibrate" && weightCalFb?.status === "pending" && calibrationProgress?.weight?.message?.startsWith("Reading:");
-  const weightCalValue = isWeightCalReading && calibrationProgress?.weight?.message
-    ? parseFloat(calibrationProgress.weight.message.replace("Reading: ", "").replace(" kg", ""))
-    : null;
-
   const { data: testResults } = useQuery({
     queryKey: ["test-results"],
     queryFn: async () => {
@@ -102,31 +97,6 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     enabled: isOpen && hasPending,
     refetchInterval: hasPending ? 1000 : false,
   });
-
-  const [weightCalStableCount, setWeightCalStableCount] = useState(0);
-  const weightCalPrevRef = useRef<number | null>(null);
-  const WEIGHT_CAL_STABLE_THRESHOLD = 0.05;
-  const WEIGHT_CAL_STABLE_COUNT = 5;
-
-  useEffect(() => {
-    if (!isWeightCalReading || weightCalValue == null) {
-      setWeightCalStableCount(0);
-      weightCalPrevRef.current = null;
-      return;
-    }
-    const prev = weightCalPrevRef.current;
-    if (prev !== null) {
-      const diff = Math.abs(weightCalValue - prev);
-      if (diff <= WEIGHT_CAL_STABLE_THRESHOLD) {
-        setWeightCalStableCount((c) => Math.min(c + 1, WEIGHT_CAL_STABLE_COUNT));
-      } else {
-        setWeightCalStableCount(1);
-      }
-    } else {
-      setWeightCalStableCount(1);
-    }
-    weightCalPrevRef.current = weightCalValue;
-  }, [isWeightCalReading, weightCalValue]);
 
   const commandMutation = useMutation({
     mutationFn: async ({
@@ -277,19 +247,47 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
 
   const handleCalibrate = (sensorId: string) => {
     calTimestamps.current[sensorId] = Date.now();
+    const isWeight = sensorId === "weight";
     setSensorFeedback(sensorId, {
       type: "calibrate",
       status: "pending",
-      message: sensorId === "weight"
-        ? "Clear the scale. The system will tare first, then ask for 1 kg."
-        : "Make sure nothing is under the height sensor.",
+      message: isWeight ? "Clearing scale..." : "Calibrating...",
     });
     commandMutation.mutate({
       sensor: sensorId,
       value: 2,
-      knownWeightGrams: sensorId === "weight" ? 1000 : undefined,
+      knownWeightGrams: isWeight ? 1000 : undefined,
     });
   };
+
+  const handleFinalizeCalibrate = (sensorId: string) => {
+    commandMutation.mutate({ sensor: sensorId, value: 12, knownWeightGrams: 1000 });
+  };
+
+  const isWaitingForWeight =
+    feedback["weight"]?.type === "calibrate" &&
+    feedback["weight"]?.status === "pending" &&
+    calibrationProgress?.weight?.message?.startsWith("Tare done");
+
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/sensors/calibration/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Calibration reset", description: "All calibration data cleared." });
+      setConfirmReset(false);
+      refetch();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to reset calibration", variant: "destructive" });
+    },
+  });
 
   const toggleSensor = (sensorId: string) => {
     const newState = { ...enabledSensors };
@@ -442,6 +440,16 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                             <span className="text-xs text-muted-foreground">timeout 20s</span>
                           )}
                         </div>
+                        {sensor.id === "weight" && isWaitingForWeight && (
+                          <Button
+                            onClick={() => handleFinalizeCalibrate("weight")}
+                            disabled={commandMutation.isPending}
+                            className="mt-2 w-full"
+                            size="sm"
+                          >
+                            Done — weight placed
+                          </Button>
+                        )}
                       </div>
                     )}
 
@@ -481,76 +489,25 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
             <Button onClick={() => refetch()} className="w-full mt-4" variant="outline">
               Refresh Status
             </Button>
+            <div className="mt-6 pt-4 border-t border-border/50">
+              {confirmReset ? (
+                <div className="flex gap-2">
+                  <Button onClick={() => setConfirmReset(false)} variant="outline" className="flex-1" size="sm">
+                    Cancel
+                  </Button>
+                  <Button onClick={() => resetMutation.mutate()} variant="destructive" className="flex-1" size="sm" disabled={resetMutation.isPending}>
+                    {resetMutation.isPending ? "Resetting..." : "Confirm Reset"}
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={() => setConfirmReset(true)} variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-destructive">
+                  Reset All Calibration
+                </Button>
+              )}
+            </div>
           </motion.div>
         </motion.div>
       )}
-
-      {/* Weight calibration reading overlay */}
-      <AnimatePresence>
-        {isWeightCalReading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
-              className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
-            >
-              <h2 className="text-2xl font-bold mb-2 text-center">Weight Calibration</h2>
-              <p className="text-center text-muted-foreground mb-6">
-                Place your 1 kg weight on the scale and wait for stable readings.
-              </p>
-
-              <div className="text-center mb-8">
-                <div className="text-6xl font-bold font-display text-primary mb-2">
-                  {weightCalValue != null ? weightCalValue.toFixed(2) : "---"}
-                </div>
-                <div className="text-xl text-muted-foreground">kg</div>
-              </div>
-
-              <p className="text-center text-muted-foreground mb-6">
-                {weightCalValue != null ? "Reading from sensor..." : "Waiting for sensor data..."}
-              </p>
-
-              <div className="flex gap-4">
-                <button
-                  onClick={() => {
-                    setWeightCalStableCount(0);
-                    weightCalPrevRef.current = null;
-                    setSensorFeedback("weight", {
-                      type: "calibrate",
-                      status: "fail",
-                      message: "Calibration cancelled",
-                    });
-                    clearFeedbackAfter("weight", 5000);
-                    commandMutation.mutate({ sensor: "weight", value: 0 });
-                  }}
-                  className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 transition font-semibold text-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    setWeightCalStableCount(0);
-                    weightCalPrevRef.current = null;
-                    commandMutation.mutate({ sensor: "weight", value: 12, knownWeightGrams: 1000 });
-                  }}
-                  disabled={weightCalStableCount < WEIGHT_CAL_STABLE_COUNT}
-                  className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Done {weightCalStableCount < WEIGHT_CAL_STABLE_COUNT && `(${weightCalStableCount}/${WEIGHT_CAL_STABLE_COUNT})`}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </AnimatePresence>
   );
 }

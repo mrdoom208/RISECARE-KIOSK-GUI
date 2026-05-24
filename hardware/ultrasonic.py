@@ -158,6 +158,18 @@ def get_height():
 CALIBRATION_FILE = "calibration.json"
 
 
+def reset_calibration():
+    global TOTAL_HEIGHT
+    TOTAL_HEIGHT = None
+    if os.path.exists(CALIBRATION_FILE):
+        with open(CALIBRATION_FILE, "r") as f:
+            data = json.load(f)
+        data.pop("ultrasonic", None)
+        with open(CALIBRATION_FILE, "w") as f:
+            json.dump(data, f)
+        print("Ultrasonic calibration reset")
+
+
 def load_calibration():
     global TOTAL_HEIGHT
 

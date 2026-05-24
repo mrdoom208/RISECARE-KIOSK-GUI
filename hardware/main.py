@@ -19,8 +19,6 @@ spo2_enabled = False
 height_enabled = False
 weight_enabled = False
 temp_enabled = False
-weight_calibrating = False
-
 hr_last_read = 0.0
 height_last_read = 0.0
 weight_last_read = 0.0
@@ -37,7 +35,7 @@ def publish_calibration_progress(sensor, message):
 
 
 def handle_command(sensor, session_id, value, payload):
-    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, weight_calibrating, weight_cal_buffer, hr_last_read, height_last_read, weight_last_read, temp_last_read
+    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, hr_last_read, height_last_read, weight_last_read, temp_last_read
 
     if session_id:
         current_session_id = session_id
@@ -77,22 +75,15 @@ def handle_command(sensor, session_id, value, payload):
             })
         elif sensor == "weight":
             known_weight = payload.get("knownWeightGrams", 1000)
-            publish_calibration_progress("weight", "Step 1: Clear the scale. Taring...")
-            success = loadcell.calibrate_tare(
-                progress_callback=lambda message: publish_calibration_progress("weight", message)
-            )
-            if success:
-                weight_cal_buffer = []
-                publish_calibration_progress("weight", "Step 2: Place your 1 kg weight on the scale now.")
-                weight_calibrating = True
+            tare_ok = loadcell.calibrate_tare()
+            if tare_ok is not None:
+                publish_calibration_progress("weight", f"Tare done. Place {known_weight}g weight and click Done.")
             else:
                 mqtt_client.publish("risecare/calibration/weight", {
                     "status": "failed",
                     "sessionId": current_session_id,
                     "timestamp": time.time()
                 })
-                mode = 1
-                running = True
         elif sensor == "heartrate" or sensor == "spo2":
             print("⚠️ Calibration not implemented for heartrate/spo2")
         else:
@@ -102,16 +93,8 @@ def handle_command(sensor, session_id, value, payload):
 
     elif value == 12:
         if sensor == "weight":
-            if not weight_calibrating:
-                print("⚠️ No weight calibration in progress")
-                return
-            weight_calibrating = False
             known_weight = payload.get("knownWeightGrams", 1000)
-            publish_calibration_progress("weight", "Finalizing calibration...")
-            factor = loadcell.calibrate_finalize(
-                known_weight_grams=known_weight,
-                progress_callback=lambda message: publish_calibration_progress("weight", message)
-            )
+            factor = loadcell.calibrate_finalize(known_weight_grams=known_weight)
             mqtt_client.publish("risecare/calibration/weight", {
                 "status": "ok" if factor is not None else "failed",
                 "factor": factor,
@@ -119,8 +102,6 @@ def handle_command(sensor, session_id, value, payload):
                 "sessionId": current_session_id,
                 "timestamp": time.time()
             })
-        else:
-            print(f"⚠️ Unknown sensor for calibrate finalize: {sensor}")
 
     elif value == 3:
         print(f"🧪 Testing {sensor}...")
@@ -181,6 +162,17 @@ def handle_command(sensor, session_id, value, payload):
         mode = 1
         running = True
 
+    elif value == 99:
+        if sensor == "calibration":
+            print("Resetting all calibration...")
+            loadcell.reset_calibration()
+            ultrasonic.reset_calibration()
+            mqtt_client.publish("risecare/calibration/reset", {
+                "status": "ok",
+                "sessionId": current_session_id,
+                "timestamp": time.time()
+            })
+
     elif value == 0:
         if sensor == "heartrate":
             hr_enabled = False
@@ -195,15 +187,6 @@ def handle_command(sensor, session_id, value, payload):
             height_enabled = False
         elif sensor == "weight":
             weight_enabled = False
-            if weight_calibrating:
-                weight_calibrating = False
-                weight_cal_buffer = []
-                mqtt_client.publish("risecare/calibration/weight", {
-                    "status": "failed",
-                    "sessionId": current_session_id,
-                    "timestamp": time.time()
-                })
-                print("⚠️ Weight calibration cancelled")
         elif sensor == "temperature":
             temp_enabled = False
         if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled and not temp_enabled:
@@ -282,20 +265,6 @@ def main():
                     try:
                         weight = loadcell.get_weight()
                         weight_last_read = time.time()
-                    except Exception:
-                        pass
-                elif weight_calibrating and now - weight_last_read >= READ_INTERVAL:
-                    try:
-                        cal_weight = loadcell.get_weight()
-                        if cal_weight is not None:
-                            weight_last_read = time.time()
-                            weight_cal_buffer.append(cal_weight)
-                            if len(weight_cal_buffer) > 5:
-                                weight_cal_buffer.pop(0)
-                            smoothed = round(sum(weight_cal_buffer) / len(weight_cal_buffer), 2)
-                            publish_calibration_progress("weight", f"Reading: {smoothed:.2f} kg")
-                            mqtt_client.publish("risecare/sensors/weight",
-                                {"kg": smoothed, "sessionId": current_session_id, "timestamp": now, "_calibrating": True})
                     except Exception:
                         pass
 
