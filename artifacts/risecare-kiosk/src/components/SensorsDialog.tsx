@@ -25,6 +25,7 @@ type Feedback = {
 
 const TEST_TIMEOUT = 12000;
 const CAL_TIMEOUT = 20000;
+const RATE_LIMIT_MS = 2000;
 
 export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const { toast } = useToast();
@@ -36,6 +37,11 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const testTimestamps = useRef<Record<string, number>>({});
   const calTimestamps = useRef<Record<string, number>>({});
   const feedbackTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  const lastAction = useRef<Record<string, number>>({});
+  const isRateLimited = (sensorId: string) => {
+    const last = lastAction.current[sensorId];
+    return last != null && Date.now() - last < RATE_LIMIT_MS;
+  };
 
   const hasPending = Object.values(feedback).some((f) => f?.status === "pending");
 
@@ -236,6 +242,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   }, [calibrationResults, feedback]);
 
   const handleTest = (sensorId: string) => {
+    if (isRateLimited(sensorId)) return;
+    lastAction.current[sensorId] = Date.now();
     testTimestamps.current[sensorId] = Date.now();
     setSensorFeedback(sensorId, {
       type: "test",
@@ -246,13 +254,15 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   };
 
   const handleCalibrate = (sensorId: string) => {
+    if (isRateLimited(sensorId)) return;
+    lastAction.current[sensorId] = Date.now();
     setDoneCooldown(false);
     calTimestamps.current[sensorId] = Date.now();
     const isWeight = sensorId === "weight";
     setSensorFeedback(sensorId, {
       type: "calibrate",
       status: "pending",
-      message: isWeight ? "Clearing scale..." : "Calibrating...",
+      message: isWeight ? "Clearing scale..." : "Measuring height...",
     });
     commandMutation.mutate({
       sensor: sensorId,
@@ -263,14 +273,25 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
 
   const handleFinalizeCalibrate = (sensorId: string) => {
     if (doneCooldown) return;
+    if (isRateLimited(sensorId + "_finalize")) return;
+    lastAction.current[sensorId + "_finalize"] = Date.now();
     setDoneCooldown(true);
-    commandMutation.mutate({ sensor: sensorId, value: 12, knownWeightGrams: 1000 });
+    commandMutation.mutate({
+      sensor: sensorId,
+      value: 12,
+      knownWeightGrams: sensorId === "weight" ? 1000 : undefined,
+    });
   };
 
   const isWaitingForWeight =
     feedback["weight"]?.type === "calibrate" &&
     feedback["weight"]?.status === "pending" &&
     calibrationProgress?.weight?.message?.startsWith("Tare done");
+
+  const isWaitingForHeight =
+    feedback["height"]?.type === "calibrate" &&
+    feedback["height"]?.status === "pending" &&
+    calibrationProgress?.height?.message?.startsWith("Height measured");
 
   const resetMutation = useMutation({
     mutationFn: async () => {
@@ -442,6 +463,16 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                             Done — weight placed
                           </Button>
                         )}
+                        {sensor.id === "height" && isWaitingForHeight && (
+                          <Button
+                            onClick={() => handleFinalizeCalibrate("height")}
+                            disabled={commandMutation.isPending || doneCooldown}
+                            className="mt-2 w-full"
+                            size="sm"
+                          >
+                            Done — height measured
+                          </Button>
+                        )}
                       </div>
                     )}
 
@@ -452,7 +483,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                           disabled={
                             commandMutation.isPending ||
                             !enabledSensors[sensor.id] ||
-                            fb?.status === "pending"
+                            fb?.status === "pending" ||
+                            isRateLimited(sensor.id)
                           }
                           variant="outline"
                           size="sm"
@@ -465,7 +497,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                         disabled={
                           commandMutation.isPending ||
                           !enabledSensors[sensor.id] ||
-                          fb?.status === "pending"
+                          fb?.status === "pending" ||
+                          isRateLimited(sensor.id)
                         }
                         variant="secondary"
                         size="sm"

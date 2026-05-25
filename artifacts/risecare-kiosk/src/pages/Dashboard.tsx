@@ -239,7 +239,7 @@ export default function Dashboard() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({
-            queryKey: [`/api/sessions/token`],
+            queryKey: ["session", sessionToken],
           });
           setActiveKeypad(null);
         },
@@ -326,7 +326,7 @@ const handleCancelReading = async () => {
     { id: Number(sessionToken), data: clearPayload },
     {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: [`/api/sessions/token`] });
+        queryClient.invalidateQueries({ queryKey: ["session", sessionToken] });
       },
     },
   );

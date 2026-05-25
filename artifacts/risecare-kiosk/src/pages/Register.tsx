@@ -113,9 +113,8 @@ className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-bor
                     Age <span className="text-destructive">*</span>
                   </label>
                   <input
-                    type="number"
-                    min="1"
-                    max="999"
+                    type="text"
+                    inputMode="numeric"
                     value={age}
                     onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
                     placeholder="Years"

@@ -24,7 +24,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
-const aiFetchedSessions = new Set<string>();
 export default function Results() {
   const [, params] = useRoute("/session/:token/results");
   const [, setLocation] = useLocation();
@@ -80,7 +79,7 @@ export default function Results() {
     },
   });
 
-  const { data: session, isLoading } = useQuery<Session>({
+  const { data: session, isLoading, refetch } = useQuery<Session>({
     queryKey: ["session", sessionToken],
     queryFn: async () => {
       const res = await fetch("/api/sessions/token", {
@@ -419,17 +418,29 @@ Assessment:`;
       .finally(() => setAiLoading(false));
   }, [session, currentVitals, startTyping]);
 
+  // Reset AI state when session token changes
+  useEffect(() => {
+    setAiRecommendation(null);
+    setAiLoading(false);
+    setAiError(false);
+    setDisplayedText("");
+    aiCalledRef.current = false;
+    if (typingRef.current) {
+      clearInterval(typingRef.current);
+      typingRef.current = null;
+    }
+  }, [sessionToken]);
+
+  // Fetch AI when vitals are ready
   useEffect(() => {
     const hasVitals = Object.keys(currentVitals).length > 0;
     if (
       !hasVitals ||
       aiRecommendation ||
       aiLoading ||
-      aiFetchedSessions.has(sessionToken) ||
       aiCalledRef.current
     )
       return;
-    aiFetchedSessions.add(sessionToken);
     aiCalledRef.current = true;
     fetchAiRecommendation();
   }, [
@@ -453,17 +464,17 @@ Assessment:`;
       setCountdown((prev) => prev - 1);
     }, 1000);
     const timer = setTimeout(() => {
-      queryClient.removeQueries({ queryKey: [`/api/sessions/token`] });
+      queryClient.removeQueries({ queryKey: ["session", sessionToken] });
 
       // Redirect to home
       setLocation("/");
-    }, countdown * 1000); // 20 seconds display
+    }, 60 * 1000); // 60 seconds display
 
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [sessionToken, countdown]);
+  }, [sessionToken]);
 
   if (isLoading)
     return (
@@ -486,12 +497,11 @@ Assessment:`;
 
   return (
     <div
-      className="min-h-screen bg-background flex flex-col pb-20"
-      style={{ minHeight: "100dvh" }}
+      className="h-dvh bg-background flex flex-col"
     >
       <KioskHeader title="Session Results" />
 
-      <main className="flex-1 p-4 max-w-2xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto p-4 pb-20 max-w-2xl mx-auto w-full min-h-0">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-success/20 text-success rounded-full mb-3">
             <CheckCircle className="w-6 h-6" />
@@ -651,7 +661,7 @@ Assessment:`;
             onClick={() => {
               // Manual reset
               queryClient.removeQueries({
-                queryKey: [`/api/sessions/token`],
+                queryKey: ["session", sessionToken],
               });
               setLocation("/");
             }}

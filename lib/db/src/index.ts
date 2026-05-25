@@ -44,11 +44,18 @@ function createTables() {
     // New tables for settings
     db.run("CREATE TABLE IF NOT EXISTS accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, passcode TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
     db.run("CREATE TABLE IF NOT EXISTS activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, action TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (account_id) REFERENCES accounts(id))");
+    db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
 
     // Insert default account if none exists
     const accounts = db.exec("SELECT COUNT(*) as count FROM accounts");
     if (accounts[0]?.values?.[0]?.[0] === 0) {
       db.run("INSERT INTO accounts (name, passcode) VALUES ('admin', '082405')");
+    }
+
+    // Insert default settings if none exist
+    const existingMode = db.exec("SELECT value FROM settings WHERE key = 'ai_mode'");
+    if (!existingMode[0]?.values?.length) {
+      db.run("INSERT INTO settings (key, value) VALUES ('ai_mode', 'integrated')");
     }
 
     saveDb();
