@@ -2,8 +2,6 @@ import { Link } from "wouter";
 import { Activity, ArrowRight, ClipboardList, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import { useListSessions } from "@workspace/api-client-react";
-import { motion } from "framer-motion";
-
 export default function Home() {
   const { data: sessions, isLoading } = useListSessions();
 
@@ -20,11 +18,7 @@ export default function Home() {
       </div>
 
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-4 max-w-7xl mx-auto w-full">
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-8"
+        <div className="text-center mb-8"
         >
           <div className="w-16 h-16 bg-white rounded-3xl shadow-xl p-3 mx-auto mb-4 flex items-center justify-center border border-border/50">
             <img
@@ -40,17 +34,13 @@ export default function Home() {
             Your comprehensive vital signs monitoring kiosk. Quick, accurate,
             and easy to use.
           </p>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex flex-col md:flex-row gap-3 w-full max-w-2xl"
+        <div className="flex flex-col md:flex-row gap-3 w-full max-w-2xl"
         >
           <Link href="/register" className="flex-1">
-            <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground p-5 rounded-[1rem] shadow-xl shadow-primary/25 active:scale-[0.98] transition-all flex flex-col items-center justify-center gap-2 border border-white/10 group">
-              <div className="bg-white/20 p-3 rounded-full group-hover:scale-110 transition-transform">
+            <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground p-5 rounded-[1rem] shadow-xl shadow-primary/25 flex flex-col items-center justify-center gap-2 border border-white/10 group">
+              <div className="bg-white/20 p-3 rounded-full">
                 <UserPlus className="w-8 h-8 text-white" />
               </div>
               <span className="text-2xl font-bold font-display">
@@ -60,7 +50,7 @@ export default function Home() {
           </Link>
 
           <Link href="/history" className="flex-1">
-            <button className="w-full bg-card hover:bg-secondary text-foreground p-5 rounded-[1rem] shadow-xl shadow-black/5 active:scale-[0.98] transition-all flex flex-col items-center justify-center gap-2 border border-border">
+            <button className="w-full bg-card hover:bg-secondary text-foreground p-5 rounded-[1rem] shadow-xl shadow-black/5 flex flex-col items-center justify-center gap-2 border border-border">
               <div className="bg-primary/10 p-3 rounded-full text-primary">
                 <ClipboardList className="w-8 h-8" />
               </div>
@@ -69,14 +59,10 @@ export default function Home() {
               </span>
             </button>
           </Link>
-        </motion.div>
+        </div>
 
         {/* Recent Sessions widget */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-8 w-full max-w-2xl"
+        <div className="mt-8 w-full max-w-2xl"
         >
           <div className="flex items-center justify-between mb-3 px-2">
             <h3 className="text-xl font-bold text-foreground">
@@ -102,7 +88,7 @@ export default function Home() {
                     href={`/session/${session.token}/results`}
                     key={session.id}
                   >
-                    <div className="p-3 hover:bg-secondary/50 active:bg-secondary transition-colors cursor-pointer flex items-center justify-between">
+                    <div className="p-3 hover:bg-secondary/50 cursor-pointer flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center">
                           <Activity className="w-4 h-4" />
@@ -130,7 +116,7 @@ export default function Home() {
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

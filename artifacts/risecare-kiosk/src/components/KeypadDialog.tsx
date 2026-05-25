@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { X, Delete, Check } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 interface KeypadDialogProps {
   isOpen: boolean;
@@ -52,17 +51,10 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-card w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-border/50"
-          >
+          <div className="bg-card w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-border/50">
             <div className="p-6 border-b border-border flex justify-between items-center bg-secondary/30">
               <h3 className="text-2xl font-bold">{title}</h3>
-              <button onClick={onClose} className="p-3 bg-muted rounded-full active:bg-border transition-colors">
+              <button onClick={onClose} className="p-3 bg-muted rounded-full">
                 <X className="w-8 h-8 text-muted-foreground" />
               </button>
             </div>
@@ -72,7 +64,7 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
               <div className="flex gap-4 mb-8">
                 <div 
                   onClick={() => setActiveInput(1)}
-                  className={`flex-1 flex flex-col items-center justify-center p-6 rounded-2xl border-4 transition-colors ${
+                  className={`flex-1 flex flex-col items-center justify-center p-6 rounded-2xl border-4 ${
                     activeInput === 1 ? 'border-primary bg-primary/5' : 'border-muted bg-muted/20'
                   }`}
                 >
@@ -87,7 +79,7 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
                     <div className="flex items-center text-4xl font-light text-muted-foreground">/</div>
                     <div 
                       onClick={() => setActiveInput(2)}
-                      className={`flex-1 flex flex-col items-center justify-center p-6 rounded-2xl border-4 transition-colors ${
+                      className={`flex-1 flex flex-col items-center justify-center p-6 rounded-2xl border-4 ${
                         activeInput === 2 ? 'border-primary bg-primary/5' : 'border-muted bg-muted/20'
                       }`}
                     >
@@ -106,26 +98,26 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
                   <button
                     key={num}
                     onClick={() => handleKey(num.toString())}
-                    className="h-20 text-3xl font-semibold bg-secondary text-secondary-foreground rounded-2xl active:scale-95 active:bg-primary active:text-primary-foreground transition-all"
+                    className="h-20 text-3xl font-semibold bg-secondary text-secondary-foreground rounded-2xl"
                   >
                     {num}
                   </button>
                 ))}
                 <button
                   onClick={() => handleKey(".")}
-                  className="h-20 text-4xl font-semibold bg-secondary text-secondary-foreground rounded-2xl active:scale-95 active:bg-primary active:text-primary-foreground transition-all"
+                  className="h-20 text-4xl font-semibold bg-secondary text-secondary-foreground rounded-2xl"
                 >
                   .
                 </button>
                 <button
                   onClick={() => handleKey("0")}
-                  className="h-20 text-3xl font-semibold bg-secondary text-secondary-foreground rounded-2xl active:scale-95 active:bg-primary active:text-primary-foreground transition-all"
+                                      className="h-20 text-3xl font-semibold bg-secondary text-secondary-foreground rounded-2xl"
                 >
                   0
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="h-20 flex items-center justify-center bg-muted text-muted-foreground rounded-2xl active:scale-95 active:bg-destructive active:text-destructive-foreground transition-all"
+                  className="h-20 flex items-center justify-center bg-muted text-muted-foreground rounded-2xl"
                 >
                   <Delete className="w-8 h-8" />
                 </button>
@@ -134,23 +126,21 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <button
                   onClick={handleClear}
-                  className="h-20 text-xl font-bold bg-muted text-muted-foreground rounded-2xl active:scale-95 transition-all"
+                  className="h-20 text-xl font-bold bg-muted text-muted-foreground rounded-2xl"
                 >
                   Clear
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={!value1 && !value2}
-                  className="h-20 text-xl font-bold bg-primary text-primary-foreground rounded-2xl active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/25"
+                  className="h-20 text-xl font-bold bg-primary text-primary-foreground rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary/25"
                 >
                   <Check className="w-8 h-8" />
                   Save
                 </button>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
     </div>
   );
 }

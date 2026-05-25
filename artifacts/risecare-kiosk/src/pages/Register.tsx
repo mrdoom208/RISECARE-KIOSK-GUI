@@ -83,9 +83,9 @@ export default function Register() {
                   value={name}
                   onChange={(e) => setName(e.target.value.replace(/[0-9]/g, ""))}
                   placeholder="Tap to enter patient name"
-                  className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground"
-                />
-              </div>
+className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
 
               <div className="space-y-2.5">
                 <label className="text-xl font-semibold text-foreground flex items-center gap-2">
@@ -102,7 +102,7 @@ export default function Register() {
                     value={phoneDisplay}
                     onChange={handlePhoneChange}
                     placeholder="912 345 6789"
-                    className="no-spinner w-full h-12 pl-16 pr-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground"
+                    className="no-spinner w-full h-12 pl-16 pr-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground"
                   />
                 </div>
               </div>
@@ -119,7 +119,7 @@ export default function Register() {
                     value={age}
                     onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
                     placeholder="Years"
-                    className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
                   />
                 </div>
 
@@ -130,7 +130,7 @@ export default function Register() {
                   <select
                     value={gender}
                     onChange={(e) => setGender(e.target.value as any)}
-                    className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all appearance-none"
+                    className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none appearance-none"
                   >
                     <option value="">Select...</option>
                     <option value="male">Male</option>
@@ -147,7 +147,7 @@ export default function Register() {
               disabled={
                 !name || !phoneValid || !age || !gender || createSession.isPending
               }
-              className="h-12 px-6 text-xl font-bold bg-primary text-primary-foreground rounded-lg shadow-xl shadow-primary/25 disabled:opacity-50 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center gap-2"
+              className="h-12 px-6 text-xl font-bold bg-primary text-primary-foreground rounded-lg shadow-xl shadow-primary/25 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
             >
               {createSession.isPending ? "Starting..." : "Begin Session"}
               {!createSession.isPending && <ArrowRight className="w-4 h-4" />}

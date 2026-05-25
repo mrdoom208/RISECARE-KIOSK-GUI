@@ -31,7 +31,7 @@ export function KioskHeader({
           {showBack && (
             <button
               onClick={() => setLocation(backTo)}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-secondary-foreground active:scale-95 transition-transform"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-secondary-foreground "
             >
               <ArrowLeft className="w-6 h-6" />
             </button>
@@ -54,7 +54,7 @@ export function KioskHeader({
           </span>
           <button
             onClick={() => setShowSettings(true)}
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-secondary-foreground active:scale-95 transition-transform"
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-secondary-foreground "
             title="Settings"
           >
             <Settings className="w-5 h-5" />

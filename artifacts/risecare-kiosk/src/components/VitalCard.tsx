@@ -33,10 +33,9 @@ export function VitalCard({
       className={`
         relative overflow-hidden group
         bg-card rounded-xl p-3 border-2 
-        transition-all duration-200
         ${disabled 
           ? "cursor-not-allowed opacity-50 border-border/30" 
-          : "cursor-pointer active:scale-[0.98] shadow-sm hover:shadow-md border-border/50 hover:border-primary/50"
+          : "cursor-pointer shadow-sm border-border/50 hover:border-primary/50"
         }
         ${hasValue && !disabled ? "" : "border-dashed"}
       `}

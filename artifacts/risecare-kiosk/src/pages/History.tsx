@@ -57,7 +57,7 @@ export default function History() {
                     onClick={() =>
                       setLocation(`/session/${session.token}/results`)
                     }
-                    className="hover:bg-muted/30 active:bg-secondary cursor-pointer transition-colors group"
+                    className="hover:bg-muted/30 active:bg-secondary cursor-pointer group"
                   >
                     <td className="p-4">
                       <div className="flex items-center gap-2 text-base">
@@ -82,7 +82,7 @@ export default function History() {
                       {countReadings(session.vitals)} Records
                     </td>
                     <td className="p-4 text-right">
-                      <button className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-secondary text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                      <button className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-secondary text-primary group-hover:bg-primary group-hover:text-primary-foreground">
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     </td>

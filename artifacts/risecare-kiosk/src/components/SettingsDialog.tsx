@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   Check,
@@ -161,21 +160,10 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
 
   return (
     <>
-      <AnimatePresence>
+      <>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
-              className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50 max-h-[90vh] overflow-y-auto"
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
+            <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
                 <button
@@ -183,7 +171,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     if (activeSubmenu) setActiveSubmenu(null);
                     else handleClose();
                   }}
-                  className="p-2 rounded-full hover:bg-muted transition-colors"
+                  className="p-2 rounded-full hover:bg-muted"
                 >
                   {activeSubmenu ? (
                     <ChevronRight className="w-6 h-6 rotate-180" />
@@ -228,27 +216,27 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                       <button
                         key={num}
                         onClick={() => handleKeyPress(num.toString())}
-                        className="h-16 text-2xl font-semibold bg-secondary rounded-xl active:scale-95 active:bg-primary active:text-primary-foreground transition-all"
+                        className="h-16 text-2xl font-semibold bg-secondary rounded-xl "
                       >
                         {num}
                       </button>
                     ))}
                     <button
                       onClick={handlePasswordDelete}
-                      className="h-16 flex items-center justify-center bg-muted rounded-xl active:scale-95 transition-all"
+                      className="h-16 flex items-center justify-center bg-muted rounded-xl "
                     >
                       <X className="w-6 h-6" />
                     </button>
                     <button
                       onClick={() => handleKeyPress("0")}
-                      className="h-16 text-2xl font-semibold bg-secondary rounded-xl active:scale-95 active:bg-primary active:text-primary-foreground transition-all"
+                      className="h-16 text-2xl font-semibold bg-secondary rounded-xl "
                     >
                       0
                     </button>
                     <button
                       onClick={handlePasswordSubmit}
                       disabled={password.length !== 6}
-                      className="h-16 flex items-center justify-center bg-primary text-white rounded-xl active:scale-95 disabled:opacity-50 transition-all"
+                      className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
                     >
                       <Check className="w-6 h-6" />
                     </button>
@@ -258,7 +246,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                 <div>
                   {logsLoading ? (
                     <div className="flex justify-center py-8">
-                      <Loader2 className="w-8 h-8 animate-spin" />
+                      <Loader2 className="w-8 h-8" />
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -300,21 +288,21 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                 <div className="space-y-3">
                   <button
                     onClick={handleExport}
-                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors text-left"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80  text-left"
                   >
                     <FileText className="w-5 h-5" />
                     <span className="text-lg font-semibold">Export Database</span>
                   </button>
                   <button
                     onClick={handleImport}
-                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors text-left"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80  text-left"
                   >
                     <Database className="w-5 h-5" />
                     <span className="text-lg font-semibold">Import Database</span>
                   </button>
                   <button
                     onClick={handleDelete}
-                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-100 hover:bg-red-200 text-red-700 transition-colors text-left"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-100 hover:bg-red-200 text-red-700  text-left"
                   >
                     <FileText className="w-5 h-5" />
                     <span className="text-lg font-semibold">Delete All Data</span>
@@ -324,7 +312,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                 <div className="space-y-3">
                   <button
                     onClick={() => setShowSensors(true)}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
+                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
                       <Activity className="w-5 h-5" />
@@ -335,7 +323,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
 
                   <button
                     onClick={handleActivityLogs}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
+                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
                       <FileText className="w-5 h-5" />
@@ -346,7 +334,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
 
                   <button
                     onClick={handleDatabase}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
+                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
                       <Database className="w-5 h-5" />
@@ -356,10 +344,10 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                   </button>
                 </div>
               )}
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </>
 
       <SensorsDialog
         isOpen={showSensors}

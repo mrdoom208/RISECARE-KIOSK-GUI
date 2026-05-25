@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { useRoute, useLocation } from "wouter";
 import { useSaveVitals } from "@workspace/api-client-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -404,11 +403,7 @@ const handleCancelReading = async () => {
   if (!session) return <NotFound />;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className="h-screen bg-background flex flex-col overflow-hidden"
+    <div className="h-screen bg-background flex flex-col overflow-hidden"
     >
       <KioskHeader
         title={`Recording: ${session.patientName}`}
@@ -461,8 +456,7 @@ const handleCancelReading = async () => {
              className={`
                relative overflow-hidden group
                bg-card rounded-xl p-3 border-2
-               transition-all duration-200
-               cursor-pointer active:scale-[0.98] shadow-sm hover:shadow-md border-border/50 hover:border-primary/50
+               cursor-pointer shadow-sm border-border/50 hover:border-primary/50
              `}
            >
              <div className="flex justify-between items-start mb-3">
@@ -593,7 +587,7 @@ const handleCancelReading = async () => {
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10 flex justify-center">
         <AlertDialog open={showFinishConfirm} onOpenChange={setShowFinishConfirm}>
           <AlertDialogTrigger asChild>
-            <button className="w-full max-w-[800px] h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <button className="w-full max-w-[800px] h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 flex items-center justify-center gap-2">
               <CheckCircle2 className="w-5 h-5" />
               Finish & View Results
             </button>
@@ -628,21 +622,9 @@ const handleCancelReading = async () => {
       />
 
       {/* Reading Display - shows real-time MQTT value */}
-      <AnimatePresence>
         {readingVital && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
-              className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
+            <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
             >
               {(() => {
                 const display = getReadingDisplay(readingVital);
@@ -713,22 +695,21 @@ const handleCancelReading = async () => {
               <div className="flex gap-4">
                 <button
                   onClick={handleCancelReading}
-                  className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 transition font-semibold text-lg"
+                  className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 font-semibold text-lg"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDoneReading}
                   disabled={!isStable}
-                  className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Done {!isStable && `(${stableCount}/${STABLE_READING_COUNT})`}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

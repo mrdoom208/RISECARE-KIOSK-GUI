@@ -20,7 +20,7 @@ export default function NotFound() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background">
       {/* Circular Loader */}
-      <div className="w-24 h-24 border-4 border-primary border-t-transparent rounded-full animate-spin mb-8"></div>
+      <div className="w-24 h-24 border-4 border-primary border-t-transparent rounded-full mb-8"></div>
 
       <div className="text-center">
         <h1 className="text-3xl md:text-5xl font-bold text-destructive mb-4">

@@ -529,7 +529,7 @@ Assessment:`;
           <div className="p-6">
             {aiLoading ? (
               <div className="flex items-center gap-3 py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+                <div className="rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
                 <span className="text-lg text-muted-foreground">
                   Generating personalized recommendation...
                 </span>
@@ -539,7 +539,7 @@ Assessment:`;
                 <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap">
                   {displayedText}
                   {displayedText.length < (aiRecommendation?.length ?? 0) && (
-                    <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
+                    <span className="inline-block w-0.5 h-5 bg-primary ml-0.5" />
                   )}
                 </p>
                 <div className="mt-4 pt-4 border-t border-border">
@@ -641,7 +641,7 @@ Assessment:`;
                 recommendation: overallRecommendation?.message ?? "",
               })
             }
-            className="flex-1 h-12 bg-secondary text-secondary-foreground text-xl font-display font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="flex-1 h-12 bg-secondary text-secondary-foreground text-xl font-display font-bold rounded-xl flex items-center justify-center gap-2"
           >
             <Printer className="w-5 h-5" />
             Print Report
@@ -655,7 +655,7 @@ Assessment:`;
               });
               setLocation("/");
             }}
-            className="flex-[2] h-12 bg-primary text-primary-foreground text-xl font-display font-bold rounded-xl shadow-xl shadow-primary/25 active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="flex-[2] h-12 bg-primary text-primary-foreground text-xl font-display font-bold rounded-xl shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
           >
             <Home className="w-5 h-5" />
             Returning to home in ( {countdown} ) s...

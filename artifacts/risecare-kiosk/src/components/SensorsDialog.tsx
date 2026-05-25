@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale, Thermometer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -306,26 +305,15 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   };
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ duration: 0.2 }}
-            className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
+          <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
           >
             <div className="flex justify-between items-center mb-6">
               <button
                 onClick={onClose}
-                className="p-2 rounded-full hover:bg-muted transition-colors"
+                className="p-2 rounded-full hover:bg-muted"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -341,7 +329,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                 </div>
                 <div className="flex items-center gap-2">
                   {statusLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4" />
                   ) : (
                     <div
                       className={`w-3 h-3 rounded-full ${sensorStatus?.connected ? "bg-green-500" : "bg-red-500"}`}
@@ -419,7 +407,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            {fb.status === "pending" && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+                            {fb.status === "pending" && <Loader2 className="w-4 h-4 text-blue-500" />}
                             {fb.status === "success" && <CheckCircle2 className="w-4 h-4 text-green-500" />}
                             {fb.status === "fail" && <XCircle className="w-4 h-4 text-red-500" />}
                             <span
@@ -509,9 +497,9 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                 </Button>
               )}
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }
