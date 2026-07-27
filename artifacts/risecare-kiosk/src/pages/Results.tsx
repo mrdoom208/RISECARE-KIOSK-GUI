@@ -22,6 +22,7 @@ import type { Vitals } from "@/types/vitals";
 import { useMemo, useEffect, useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useRateLimit } from "@/hooks/use-rate-limit";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 export default function Results() {
@@ -30,6 +31,7 @@ export default function Results() {
   const sessionToken = params?.token || "";
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isRateLimited } = useRateLimit(1000);
   const [countdown, setCountdown] = useState(60);
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -38,6 +40,17 @@ export default function Results() {
   const aiTextRef = useRef("");
   const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aiCalledRef = useRef(false);
+  const [printCooldown, setPrintCooldown] = useState(false);
+
+  const { data: recEnabled } = useQuery({
+    queryKey: ["recommendation-enabled"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/recommendation");
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      return data.enabled as boolean;
+    },
+  });
 
   const startTyping = useCallback((text: string) => {
     aiTextRef.current = text;
@@ -441,6 +454,10 @@ Assessment:`;
       aiCalledRef.current
     )
       return;
+    if (recEnabled === false) {
+      aiCalledRef.current = true;
+      return;
+    }
     aiCalledRef.current = true;
     fetchAiRecommendation();
   }, [
@@ -449,6 +466,7 @@ Assessment:`;
     sessionToken,
     fetchAiRecommendation,
     aiLoading,
+    recEnabled,
   ]);
 
   // Cleanup typing interval on unmount
@@ -515,6 +533,7 @@ Assessment:`;
         </div>
 
         {/* AI Overall Recommendation - Top */}
+        {recEnabled !== false && (
         <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div
             className={`p-4 border-b border-border ${
@@ -592,6 +611,7 @@ Assessment:`;
             )}
           </div>
         </div>
+        )}
 
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div className="divide-y divide-border/50">
@@ -645,21 +665,25 @@ Assessment:`;
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10">
         <div className="max-w-3xl mx-auto flex gap-3">
           <button
-            onClick={() =>
+            onClick={() => {
+              if (isRateLimited("print")) return;
+              setPrintCooldown(true);
+              setTimeout(() => setPrintCooldown(false), 5000);
               printMutation.mutate({
                 sessionId: session?.id,
                 recommendation: overallRecommendation?.message ?? "",
-              })
-            }
-            className="flex-1 h-12 bg-secondary text-secondary-foreground text-xl font-display font-bold rounded-xl flex items-center justify-center gap-2"
+              });
+            }}
+            disabled={printMutation.isPending || printCooldown}
+            className="flex-1 h-12 bg-secondary text-secondary-foreground text-xl font-display font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Printer className="w-5 h-5" />
-            Print Report
+            {printMutation.isPending ? "Printing..." : printCooldown ? "Wait..." : "Print Report"}
           </button>
 
           <button
             onClick={() => {
-              // Manual reset
+              if (isRateLimited("home")) return;
               queryClient.removeQueries({
                 queryKey: ["session", sessionToken],
               });

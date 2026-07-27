@@ -3,6 +3,7 @@ import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale, Ther
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useRateLimit } from "@/hooks/use-rate-limit";
 
 interface SensorsDialogProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ const RATE_LIMIT_MS = 2000;
 
 export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const { toast } = useToast();
+  const { isRateLimited: isGloballyRateLimited } = useRateLimit(1000);
   const [sessionId] = useState(() => `session-${Date.now()}`);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
   const [confirmReset, setConfirmReset] = useState(false);
@@ -405,7 +407,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                           </span>
                         )}
                         <Button
-                          onClick={() => toggleSensor(sensor.id)}
+                          onClick={() => { if (isGloballyRateLimited("toggle-" + sensor.id)) return; toggleSensor(sensor.id); }}
                           disabled={commandMutation.isPending && !fb}
                           variant={enabledSensors[sensor.id] ? "default" : "outline"}
                           size="sm"
@@ -511,21 +513,21 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
               })}
             </div>
 
-            <Button onClick={() => refetch()} className="w-full mt-4" variant="outline">
+            <Button onClick={() => { if (isGloballyRateLimited("refresh")) return; refetch(); }} className="w-full mt-4" variant="outline">
               Refresh Status
             </Button>
             <div className="mt-6 pt-4 border-t border-border/50">
               {confirmReset ? (
                 <div className="flex gap-2">
-                  <Button onClick={() => setConfirmReset(false)} variant="outline" className="flex-1" size="sm">
+                  <Button onClick={() => { if (isGloballyRateLimited("reset-cancel")) return; setConfirmReset(false); }} variant="outline" className="flex-1" size="sm">
                     Cancel
                   </Button>
-                  <Button onClick={() => resetMutation.mutate()} variant="destructive" className="flex-1" size="sm" disabled={resetMutation.isPending}>
+                  <Button onClick={() => { if (isGloballyRateLimited("reset-confirm")) return; resetMutation.mutate(); }} variant="destructive" className="flex-1" size="sm" disabled={resetMutation.isPending}>
                     {resetMutation.isPending ? "Resetting..." : "Confirm Reset"}
                   </Button>
                 </div>
               ) : (
-                <Button onClick={() => setConfirmReset(true)} variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-destructive">
+                <Button onClick={() => { if (isGloballyRateLimited("reset-all")) return; setConfirmReset(true); }} variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-destructive">
                   Reset All Calibration
                 </Button>
               )}

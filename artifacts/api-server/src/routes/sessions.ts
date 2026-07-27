@@ -184,4 +184,57 @@ router.post("/sessions/:id/vitals", async (req, res) => {
   res.status(201).json(vital);
 });
 
+router.post("/sessions/:id/vitals/clear", async (req, res) => {
+  const { id } = SaveVitalsParams.parse({ id: Number(req.params.id) });
+  const body = SaveVitalsBody.parse(req.body);
+
+  const sessions = await query(`SELECT * FROM sessions WHERE id = ?`, [id]);
+  const session = sessions[0];
+
+  if (!session) {
+    res.status(404).json({ error: "not_found", message: "Session not found" });
+    return;
+  }
+
+  const allowedColumns: Record<string, string> = {
+    bloodPressureSystolic: "blood_pressure_systolic",
+    bloodPressureDiastolic: "blood_pressure_diastolic",
+    heartRate: "heart_rate",
+    oxygenSaturation: "oxygen_saturation",
+    temperature: "temperature",
+    weight: "weight",
+    height: "height",
+    notes: "notes",
+  };
+
+  const columnsToClear = Object.entries(allowedColumns)
+    .filter(([field]) => Object.prototype.hasOwnProperty.call(body, field))
+    .map(([, column]) => column);
+
+  if (columnsToClear.length === 0) {
+    res.status(400).json({ error: "invalid_request", message: "No vital fields provided to clear" });
+    return;
+  }
+
+  const existingVitals = await query(`SELECT * FROM vital_readings WHERE session_id = ? LIMIT 1`, [id]);
+  const existing = existingVitals[0] || null;
+
+  if (!existing) {
+    res.status(204).send();
+    return;
+  }
+
+  const shouldClearBmi = columnsToClear.includes("weight") || columnsToClear.includes("height");
+  const setClause = [...columnsToClear, ...(shouldClearBmi ? ["bmi"] : [])]
+    .map((column) => `${column} = NULL`)
+    .join(", ");
+
+  await run(
+    `UPDATE vital_readings SET ${setClause}, recorded_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [existing.id]
+  );
+
+  res.status(204).send();
+});
+
 export default router;

@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useSaveVitals } from "@workspace/api-client-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRateLimit } from "@/hooks/use-rate-limit";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 import {
@@ -31,7 +32,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import NotFound from "./not-found";
 
@@ -56,6 +56,7 @@ const vitalToSensorId: Record<VitalType, string> = {
 };
 
 export default function Dashboard() {
+  const { isRateLimited } = useRateLimit(1000);
   const [, params] = useRoute("/session/:token");
   const [, setLocation] = useLocation();
   const sessionToken = params?.token || "";
@@ -322,14 +323,23 @@ const handleCancelReading = async () => {
     clearPayload.temperature = null;
   }
 
-  saveVitalsMutation.mutate(
-    { id: Number(sessionToken), data: clearPayload },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["session", sessionToken] });
-      },
-    },
-  );
+  if (Object.keys(clearPayload).length === 0) return;
+
+  try {
+    const res = await fetch(`/api/sessions/${session.id}/vitals/clear`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(clearPayload),
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to clear canceled reading");
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["session", sessionToken] });
+  } catch (err) {
+    console.error("Failed to clear canceled reading:", err);
+  }
 };
 
   const getReadingDisplay = (vital: VitalType) => {
@@ -434,6 +444,8 @@ const handleCancelReading = async () => {
               currentVitals.bloodPressureDiastolic,
             )}
             onClick={() => {
+              if (isRateLimited("bp")) return;
+              if (!isVitalEnabled("bp")) return;
               setActiveKeypad("bp");
               setActiveSensor(
                 sensorGuides.find((s) => s.name === "Blood Pressure Cuff") ||
@@ -446,6 +458,7 @@ const handleCancelReading = async () => {
            {/* Heart Rate & SpO2 (combined) */}
            <div
              onClick={() => {
+               if (isRateLimited("hr-spo2")) return;
                if (!isVitalEnabled("hr") && !isVitalEnabled("spo2")) return;
                setActiveKeypad("hr");
                setActiveSensor(
@@ -501,6 +514,7 @@ const handleCancelReading = async () => {
               icon={<Thermometer className="w-5 h-5" />}
               status={getTempStatus(currentVitals.temperature)}
               onClick={() => {
+                if (isRateLimited("temperature")) return;
                 if (!isVitalEnabled("temperature")) return;
                 setActiveKeypad("temperature");
                 setActiveSensor(
@@ -518,6 +532,7 @@ const handleCancelReading = async () => {
              icon={<Scale className="w-5 h-5" />}
              status="unknown"
              onClick={() => {
+               if (isRateLimited("weight")) return;
                if (!isVitalEnabled("weight")) return;
                setActiveKeypad("weight");
                setActiveSensor(
@@ -536,6 +551,7 @@ const handleCancelReading = async () => {
              icon={<Ruler className="w-5 h-5" />}
              status="unknown"
              onClick={() => {
+               if (isRateLimited("height")) return;
                if (!isVitalEnabled("height")) return;
                setActiveKeypad("height");
                setActiveSensor(
@@ -585,13 +601,17 @@ const handleCancelReading = async () => {
 
       {/* Bottom bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10 flex justify-center">
-        <AlertDialog open={showFinishConfirm} onOpenChange={setShowFinishConfirm}>
-          <AlertDialogTrigger asChild>
-            <button className="w-full max-w-[800px] h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 flex items-center justify-center gap-2">
+          <AlertDialog open={showFinishConfirm} onOpenChange={setShowFinishConfirm}>
+            <button
+              onClick={() => {
+                if (isRateLimited("finish")) return;
+                setShowFinishConfirm(true);
+              }}
+              className="w-full max-w-[800px] h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+            >
               <CheckCircle2 className="w-5 h-5" />
               Finish & View Results
             </button>
-          </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="text-2xl">Finish Session?</AlertDialogTitle>
@@ -604,7 +624,10 @@ const handleCancelReading = async () => {
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => setLocation(`/session/${sessionToken}/results`)}
+                onClick={() => {
+                  if (isRateLimited("finish-confirm")) return;
+                  setLocation(`/session/${sessionToken}/results`);
+                }}
                 className="h-12 text-xl font-bold flex-1 bg-primary text-primary-foreground hover:bg-primary/80"
               >
                 Yes, Finish
@@ -694,13 +717,19 @@ const handleCancelReading = async () => {
 
               <div className="flex gap-4">
                 <button
-                  onClick={handleCancelReading}
+                  onClick={() => {
+                    if (isRateLimited("cancel-reading")) return;
+                    handleCancelReading();
+                  }}
                   className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 font-semibold text-lg"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleDoneReading}
+                  onClick={() => {
+                    if (isRateLimited("done-reading")) return;
+                    handleDoneReading();
+                  }}
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X, Delete, Check } from "lucide-react";
+import { useRateLimit } from "@/hooks/use-rate-limit";
 
 interface KeypadDialogProps {
   isOpen: boolean;
@@ -12,11 +13,13 @@ interface KeypadDialogProps {
 }
 
 export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, secondaryUnit }: KeypadDialogProps) {
+  const { isRateLimited } = useRateLimit(300);
   const [value1, setValue1] = useState("");
   const [value2, setValue2] = useState("");
   const [activeInput, setActiveInput] = useState<1 | 2>(1);
 
   const handleKey = (key: string) => {
+    if (isRateLimited("key-" + key)) return;
     if (activeInput === 1) {
       if (value1.length < 5) setValue1(prev => prev + key);
     } else {
@@ -25,6 +28,7 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
   };
 
   const handleDelete = () => {
+    if (isRateLimited("delete")) return;
     if (activeInput === 1) {
       setValue1(prev => prev.slice(0, -1));
     } else {
@@ -33,11 +37,13 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
   };
 
   const handleClear = () => {
+    if (isRateLimited("clear")) return;
     if (activeInput === 1) setValue1("");
     else setValue2("");
   };
 
   const handleSave = () => {
+    if (isRateLimited("save")) return;
     onSave(value1, value2);
     // Reset state after slight delay for animation
     setTimeout(() => {

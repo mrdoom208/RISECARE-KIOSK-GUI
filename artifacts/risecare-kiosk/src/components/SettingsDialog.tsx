@@ -13,9 +13,11 @@ import {
   List,
   Brain,
   Cpu,
+  Lightbulb,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useRateLimit } from "@/hooks/use-rate-limit";
 import { SensorsDialog } from "./SensorsDialog";
 
 interface SettingsDialogProps {
@@ -26,6 +28,7 @@ interface SettingsDialogProps {
 export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isRateLimited } = useRateLimit(800);
   const [step, setStep] = useState<"password" | "menu" | "create-admin">("password");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -83,6 +86,39 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       return data.mode as string;
     },
     enabled: activeSubmenu === "ai-integration",
+  });
+
+  const { data: recEnabled, isLoading: recLoading } = useQuery({
+    queryKey: ["recommendation-enabled"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/recommendation");
+      if (!res.ok) throw new Error("Failed to fetch recommendation setting");
+      const data = await res.json();
+      return data.enabled as boolean;
+    },
+  });
+
+  const setRecMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      let url = "/api/settings/recommendation";
+      if (account) {
+        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.name)}`;
+      }
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error("Failed to set recommendation");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recommendation-enabled"] });
+      toast({ title: "Recommendation setting updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update recommendation setting", variant: "destructive" });
+    },
   });
 
   const setAiModeMutation = useMutation({
@@ -445,26 +481,26 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                       <button
                         key={num}
-                        onClick={() => handleKeyPress(num.toString())}
+                        onClick={() => { if (isRateLimited("pw-" + num)) return; handleKeyPress(num.toString()); }}
                         className="h-16 text-2xl font-semibold bg-secondary rounded-xl "
                       >
                         {num}
                       </button>
                     ))}
                     <button
-                      onClick={handlePasswordDelete}
+                      onClick={() => { if (isRateLimited("pw-del")) return; handlePasswordDelete(); }}
                       className="h-16 flex items-center justify-center bg-muted rounded-xl "
                     >
                       <X className="w-6 h-6" />
                     </button>
                     <button
-                      onClick={() => handleKeyPress("0")}
+                      onClick={() => { if (isRateLimited("pw-0")) return; handleKeyPress("0"); }}
                       className="h-16 text-2xl font-semibold bg-secondary rounded-xl "
                     >
                       0
                     </button>
                     <button
-                      onClick={handlePasswordSubmit}
+                      onClick={() => { if (isRateLimited("pw-submit")) return; handlePasswordSubmit(); }}
                       disabled={password.length !== 6}
                       className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
                     >
@@ -527,26 +563,26 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                       <button
                         key={num}
-                        onClick={() => handleAdminKeyPress(num.toString())}
+                        onClick={() => { if (isRateLimited("admin-" + num)) return; handleAdminKeyPress(num.toString()); }}
                         className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
                       >
                         {num}
                       </button>
                     ))}
                     <button
-                      onClick={handleAdminDelete}
+                      onClick={() => { if (isRateLimited("admin-del")) return; handleAdminDelete(); }}
                       className="h-16 flex items-center justify-center bg-muted rounded-xl"
                     >
                       <X className="w-6 h-6" />
                     </button>
                     <button
-                      onClick={() => handleAdminKeyPress("0")}
+                      onClick={() => { if (isRateLimited("admin-0")) return; handleAdminKeyPress("0"); }}
                       className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
                     >
                       0
                     </button>
                     <button
-                      onClick={handleCreateAdmin}
+                      onClick={() => { if (isRateLimited("admin-create")) return; handleCreateAdmin(); }}
                       disabled={createAdminMutation.isPending}
                       className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
                     >
@@ -626,26 +662,26 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                       <button
                         key={num}
-                        onClick={() => handleActionPasscodePress(num.toString())}
+                        onClick={() => { if (isRateLimited("action-" + num)) return; handleActionPasscodePress(num.toString()); }}
                         className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
                       >
                         {num}
                       </button>
                     ))}
                     <button
-                      onClick={handleActionPasscodeDelete}
+                      onClick={() => { if (isRateLimited("action-del")) return; handleActionPasscodeDelete(); }}
                       className="h-16 flex items-center justify-center bg-muted rounded-xl"
                     >
                       <X className="w-6 h-6" />
                     </button>
                     <button
-                      onClick={() => handleActionPasscodePress("0")}
+                      onClick={() => { if (isRateLimited("action-0")) return; handleActionPasscodePress("0"); }}
                       className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
                     >
                       0
                     </button>
                     <button
-                      onClick={handleActionVerify}
+                      onClick={() => { if (isRateLimited("action-verify")) return; handleActionVerify(); }}
                       disabled={actionPasscode.length !== 6}
                       className="h-16 flex items-center justify-center bg-red-600 text-white rounded-xl disabled:opacity-50"
                     >
@@ -656,21 +692,21 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
               ) : activeSubmenu === "database" ? (
                 <div className="space-y-3">
                   <button
-                    onClick={() => handleActionPrompt("export")}
+                    onClick={() => { if (isRateLimited("export")) return; handleActionPrompt("export"); }}
                     className="w-full flex items-center gap-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80  text-left"
                   >
                     <FileText className="w-5 h-5" />
                     <span className="text-lg font-semibold">Export Database</span>
                   </button>
                   <button
-                    onClick={() => handleActionPrompt("import")}
+                    onClick={() => { if (isRateLimited("import")) return; handleActionPrompt("import"); }}
                     className="w-full flex items-center gap-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80  text-left"
                   >
                     <Database className="w-5 h-5" />
                     <span className="text-lg font-semibold">Import Database</span>
                   </button>
                   <button
-                    onClick={() => handleActionPrompt("delete")}
+                    onClick={() => { if (isRateLimited("delete-records")) return; handleActionPrompt("delete"); }}
                     className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-100 hover:bg-red-200 text-red-700  text-left"
                   >
                     <FileText className="w-5 h-5" />
@@ -680,7 +716,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
               ) : activeSubmenu === "admin-accounts" ? (
                 <div className="space-y-3">
                   <button
-                    onClick={() => { setStep("create-admin"); setAdminError(""); }}
+                    onClick={() => { if (isRateLimited("create-admin")) return; setStep("create-admin"); setAdminError(""); }}
                     className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
@@ -723,8 +759,39 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     </div>
                   )}
                 </div>
-              ) : activeSubmenu === "ai-integration" ? (
+               ) : activeSubmenu === "ai-integration" ? (
                 <div className="space-y-3">
+                  {/* Recommendation master toggle */}
+                  <div className="p-4 rounded-xl bg-secondary">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Lightbulb className="w-5 h-5" />
+                        <div>
+                          <span className="text-lg font-semibold block">Enable Recommendations</span>
+                          <span className="text-sm text-muted-foreground">
+                            {recLoading ? "Loading..." : recEnabled ? "Recommendations are shown after each session" : "No recommendations will be shown"}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (isRateLimited("rec-toggle")) return;
+                          setRecMutation.mutate(!recEnabled);
+                        }}
+                        disabled={recLoading || setRecMutation.isPending}
+                        className={`relative w-14 h-8 rounded-full transition-colors ${
+                          recEnabled ? "bg-primary" : "bg-muted-foreground/30"
+                        }`}
+                      >
+                        <div
+                          className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                            recEnabled ? "left-7" : "left-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
                   {aiModeLoading ? (
                     <div className="flex justify-center py-8">
                       <Loader2 className="w-8 h-8" />
@@ -735,7 +802,10 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                         Select how health recommendations are generated:
                       </p>
                       <button
-                        onClick={() => setAiModeMutation.mutate("integrated")}
+                        onClick={() => {
+                          if (isRateLimited("ai-integrated")) return;
+                          setAiModeMutation.mutate("integrated");
+                        }}
                         disabled={setAiModeMutation.isPending}
                         className={`w-full flex items-center gap-3 p-4 rounded-xl text-left ${
                           aiMode === "integrated"
@@ -753,7 +823,10 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                         {aiMode === "integrated" && <Check className="w-5 h-5 ml-auto text-primary" />}
                       </button>
                       <button
-                        onClick={() => setAiModeMutation.mutate("rule-based")}
+                        onClick={() => {
+                          if (isRateLimited("ai-rulebased")) return;
+                          setAiModeMutation.mutate("rule-based");
+                        }}
                         disabled={setAiModeMutation.isPending}
                         className={`w-full flex items-center gap-3 p-4 rounded-xl text-left ${
                           aiMode === "rule-based"
@@ -776,7 +849,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
               ) : (
                 <div className="space-y-3">
                   <button
-                    onClick={() => setShowSensors(true)}
+                    onClick={() => { if (isRateLimited("sensors")) return; setShowSensors(true); }}
                     className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
@@ -787,7 +860,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                   </button>
 
                   <button
-                    onClick={handleActivityLogs}
+                    onClick={() => { if (isRateLimited("activity-log")) return; handleActivityLogs(); }}
                     className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
@@ -798,7 +871,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                   </button>
 
                   <button
-                    onClick={handleDatabase}
+                    onClick={() => { if (isRateLimited("database")) return; handleDatabase(); }}
                     className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
@@ -809,7 +882,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                   </button>
 
                   <button
-                    onClick={() => printTestMutation.mutate()}
+                    onClick={() => { if (isRateLimited("print-test")) return; printTestMutation.mutate(); }}
                     disabled={printTestMutation.isPending}
                     className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
@@ -825,7 +898,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                   </button>
 
                   <button
-                    onClick={handleAIIntegration}
+                    onClick={() => { if (isRateLimited("ai-integration-menu")) return; handleAIIntegration(); }}
                     className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
@@ -836,7 +909,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                   </button>
 
                   <button
-                    onClick={handleAdminAccounts}
+                    onClick={() => { if (isRateLimited("admin-accounts-menu")) return; handleAdminAccounts(); }}
                     className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">

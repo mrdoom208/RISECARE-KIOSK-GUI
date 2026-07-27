@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 
 const INPUT_TAGS = new Set(["input", "textarea"]);
 
@@ -85,7 +86,8 @@ function clearValue(el: HTMLInputElement | HTMLTextAreaElement) {
 }
 
 export function VirtualKeyboard() {
-  const [visible, setVisible] = useState(false);
+  const { setVisible } = useVirtualKeyboard();
+  const [visible, setVisibleInternal] = useState(false);
   const [shift, setShift] = useState(false);
   const [layout, setLayout] = useState<Layout>("qwerty");
   const elRef = useRef<HTMLElement | null>(null);
@@ -98,9 +100,13 @@ export function VirtualKeyboard() {
       if (!shouldShowKeyboard(target)) return;
       if (blurTimer.current) clearTimeout(blurTimer.current);
       elRef.current = target;
+      setVisibleInternal(true);
       setVisible(true);
       setLayout(isNumeric(target) ? "numeric" : "qwerty");
       setShift(false);
+      window.setTimeout(() => {
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+      }, 50);
     };
 
     const onFocusOut = () => {
@@ -111,6 +117,7 @@ export function VirtualKeyboard() {
           !shouldShowKeyboard(document.activeElement as HTMLElement)
         ) {
           elRef.current = null;
+          setVisibleInternal(false);
           setVisible(false);
         }
       }, 150);

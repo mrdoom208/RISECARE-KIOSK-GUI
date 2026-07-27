@@ -179,11 +179,26 @@ async function getAiMode(): Promise<string> {
   }
 }
 
+async function getRecommendationEnabled(): Promise<boolean> {
+  try {
+    const rows = await query("SELECT value FROM settings WHERE key = 'recommendation_enabled'");
+    return (rows && rows.length > 0) ? rows[0].value === "true" : true;
+  } catch {
+    return true;
+  }
+}
+
 router.post("/ai/recommendation", async (req, res) => {
   const { vitals } = req.body;
 
   if (!vitals) {
     res.status(400).json({ error: "vitals required" });
+    return;
+  }
+
+  const recEnabled = await getRecommendationEnabled();
+  if (!recEnabled) {
+    res.json({ recommendation: "", disabled: true });
     return;
   }
 

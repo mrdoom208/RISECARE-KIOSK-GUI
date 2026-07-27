@@ -1,4 +1,5 @@
 import { SensorGuide } from "@/types/sensorGuide";
+import { useRateLimit } from "@/hooks/use-rate-limit";
 
 interface InstructionModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ export default function InstructionModal({
   onStart,
   sensorGuide,
 }: InstructionModalProps) {
+  const { isRateLimited } = useRateLimit(1000);
   return (
     <>
       {isOpen && (
@@ -58,13 +60,19 @@ export default function InstructionModal({
 
             <div className="flex flex-row gap-4">
               <button
-                onClick={onClose}
+                onClick={() => {
+                  if (isRateLimited("cancel")) return;
+                  onClose();
+                }}
                 className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 font-semibold text-lg"
               >
                 Cancel
               </button>
               <button
-                onClick={onStart}
+                onClick={() => {
+                  if (isRateLimited("start")) return;
+                  onStart();
+                }}
                 className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg"
               >
                 Start

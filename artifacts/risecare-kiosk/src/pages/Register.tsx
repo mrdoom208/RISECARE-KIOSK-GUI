@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { UserPlus, ArrowRight, User, Phone } from "lucide-react";
 import { useCreateSession } from "@workspace/api-client-react";
+import { useRateLimit } from "@/hooks/use-rate-limit";
+import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { KioskHeader } from "@/components/KioskHeader";
 
 const PH_PREFIX = "+63";
@@ -14,7 +16,9 @@ function formatPhoneDisplay(digits: string): string {
 }
 
 export default function Register() {
+  const { isRateLimited } = useRateLimit(1000);
   const [, setLocation] = useLocation();
+  const { visible: keyboardVisible } = useVirtualKeyboard();
   const [name, setName] = useState("");
   const [phoneRaw, setPhoneRaw] = useState("");
   const [age, setAge] = useState("");
@@ -52,27 +56,41 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col" style={{ minHeight: "100dvh" }}>
+    <div className="h-screen bg-background flex flex-col overflow-hidden" style={{ height: "100dvh" }}>
       <KioskHeader title="Patient Registration" showBack backTo="/" />
 
-      <main className="flex-1 flex items-center justify-center p-4">
+      <main
+        className={`flex-1 min-h-0 flex justify-center overflow-y-auto overscroll-contain p-4 transition-[padding] duration-200 ${
+          keyboardVisible ? "items-start pt-3 pb-80" : "items-center"
+        }`}
+      >
         <div className="w-full max-w-xl bg-card rounded-xl shadow-xl border border-border/50 overflow-hidden">
-          <div className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-15 h-15 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                <UserPlus className="w-10 h-10" />
+          <div className={keyboardVisible ? "p-5" : "p-6"}>
+            <div
+              className={
+                keyboardVisible
+                  ? "flex items-center gap-3 mb-4"
+                  : "flex items-center gap-3 mb-6"
+              }
+            >
+              <div
+                className={`${
+                  keyboardVisible ? "w-12 h-12" : "w-15 h-15"
+                } bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0`}
+              >
+                <UserPlus className={keyboardVisible ? "w-7 h-7" : "w-10 h-10"} />
               </div>
               <div>
-                <h2 className="text-2xl font-bold font-display">
+                <h2 className={`${keyboardVisible ? "text-xl" : "text-2xl"} font-bold font-display`}>
                   Personal Information
                 </h2>
-                <p className="text-base text-muted-foreground mt-1">
+                <p className={`${keyboardVisible ? "text-sm" : "text-base"} text-muted-foreground mt-1`}>
                   Enter details to begin the measurement session
                 </p>
               </div>
             </div>
 
-            <div className="space-y-5">
+            <div className={keyboardVisible ? "space-y-4" : "space-y-5"}>
               <div className="space-y-2.5">
                 <label className="text-xl font-semibold text-foreground flex items-center gap-2">
                   <User className="w-8 h-8 text-primary" /> Full Name{" "}
@@ -83,9 +101,9 @@ export default function Register() {
                   value={name}
                   onChange={(e) => setName(e.target.value.replace(/[0-9]/g, ""))}
                   placeholder="Tap to enter patient name"
-className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground"
-                  />
-                </div>
+                  className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground"
+                />
+              </div>
 
               <div className="space-y-2.5">
                 <label className="text-xl font-semibold text-foreground flex items-center gap-2">
@@ -142,7 +160,10 @@ className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-bor
 
           <div className="p-4 bg-secondary/30 border-t border-border flex justify-end">
             <button
-              onClick={handleStart}
+              onClick={() => {
+                if (isRateLimited("begin-session")) return;
+                handleStart();
+              }}
               disabled={
                 !name || !phoneValid || !age || !gender || createSession.isPending
               }

@@ -57,6 +57,10 @@ function createTables() {
     if (!existingMode[0]?.values?.length) {
       db.run("INSERT INTO settings (key, value) VALUES ('ai_mode', 'integrated')");
     }
+    const existingRec = db.exec("SELECT value FROM settings WHERE key = 'recommendation_enabled'");
+    if (!existingRec[0]?.values?.length) {
+      db.run("INSERT INTO settings (key, value) VALUES ('recommendation_enabled', 'true')");
+    }
 
     saveDb();
   } catch (e) {

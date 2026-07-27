@@ -3,6 +3,7 @@ import { ArrowLeft, Clock, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { SettingsDialog } from "./SettingsDialog";
+import { useRateLimit } from "@/hooks/use-rate-limit";
 
 interface KioskHeaderProps {
   title: string;
@@ -15,6 +16,7 @@ export function KioskHeader({
   showBack = false,
   backTo = "/",
 }: KioskHeaderProps) {
+  const { isRateLimited } = useRateLimit(1000);
   const [time, setTime] = useState(new Date());
   const [showSettings, setShowSettings] = useState(false);
   const [, setLocation] = useLocation();
@@ -53,7 +55,10 @@ export function KioskHeader({
             {format(time, "HH:mm")}
           </span>
           <button
-            onClick={() => setShowSettings(true)}
+            onClick={() => {
+              if (isRateLimited("settings")) return;
+              setShowSettings(true);
+            }}
             className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary text-secondary-foreground "
             title="Settings"
           >

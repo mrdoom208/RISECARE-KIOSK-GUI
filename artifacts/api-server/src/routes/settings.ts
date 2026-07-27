@@ -82,14 +82,16 @@ router.get("/accounts", async (_req, res) => {
 // Verify passcode
 router.post("/verify-passcode", async (req, res) => {
   try {
-    const { passcode } = req.body;
+    const { passcode, context } = req.body;
     const accounts = await query("SELECT * FROM accounts WHERE passcode = ?", [passcode]);
 
     if (accounts && accounts.length > 0) {
       const account = accounts[0];
       // Log activity
+      const action = context === "history" ? "History Accessed" : "Settings Accessed";
+      const details = context === "history" ? "User opened session history" : "User opened settings menu";
       await run("INSERT INTO activity_log (account_id, action, details) VALUES (?, ?, ?)",
-        [account.id, "Settings Accessed", "User opened settings menu"]);
+        [account.id, action, details]);
 
       res.json({ success: true, account });
     } else {
@@ -196,6 +198,33 @@ router.post("/delete", async (req, res) => {
     res.json({ status: "deleted" });
   } catch (e) {
     res.status(500).json({ error: "Failed to delete data" });
+  }
+});
+
+// Get recommendation enabled setting
+router.get("/recommendation", async (_req, res) => {
+  try {
+    const rows = await query("SELECT value FROM settings WHERE key = 'recommendation_enabled'");
+    const enabled = (rows && rows.length > 0) ? rows[0].value === "true" : true;
+    res.json({ enabled });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to get recommendation setting" });
+  }
+});
+
+// Set recommendation enabled setting
+router.post("/recommendation", async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const val = enabled ? "true" : "false";
+    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('recommendation_enabled', ?)", [val]);
+    const accountId = req.query.accountId;
+    const accountName = req.query.accountName as string;
+    await run("INSERT INTO activity_log (account_id, action, details) VALUES (?, ?, ?)",
+      [accountId || null, "Recommendation Toggled", `Recommendations ${enabled ? 'enabled' : 'disabled'} by ${accountName || 'Unknown'}`]);
+    res.json({ success: true, enabled: !!enabled });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to set recommendation setting" });
   }
 });
 
