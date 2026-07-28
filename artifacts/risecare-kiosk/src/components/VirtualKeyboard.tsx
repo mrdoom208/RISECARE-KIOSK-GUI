@@ -204,7 +204,7 @@ export function VirtualKeyboard() {
         key={label}
         onMouseDown={(e) => { handleMouseDown(e); handleKey(label); }}
         onMouseUp={handleMouseUp}
-        className={`h-12 portrait:h-16 md:h-14 rounded-lg text-base md:text-lg font-semibold flex items-center justify-center ${
+        className={`h-12 portrait:h-20 md:h-14 rounded-lg text-base portrait:text-lg md:text-lg font-semibold flex items-center justify-center ${
           opts.primary
             ? "bg-primary text-primary-foreground"
             : opts.danger
@@ -222,11 +222,11 @@ export function VirtualKeyboard() {
   return (
     <div
       onMouseDown={handleMouseDown}
-      className="fixed bottom-0 left-0 right-0 z-[9999] bg-card border-t border-border p-2 portrait:p-3 portrait:pb-8 shadow-2xl">
+      className="fixed bottom-0 left-0 right-0 z-[9999] bg-card border-t border-border p-2 portrait:p-3.5 portrait:pb-8 shadow-2xl">
       {layout === "qwerty" ? (
-        <div className="max-w-3xl mx-auto space-y-1.5">
+        <div className="max-w-3xl mx-auto space-y-1.5 portrait:space-y-2.5">
           {QWERTY_ROWS.map((row, ri) => (
-            <div key={ri} className="flex gap-1 justify-center">
+            <div key={ri} className="flex gap-1 portrait:gap-2 justify-center">
               {row[0] === "Shift" ? (
                 <>
                   {btn("Shift")}
@@ -246,7 +246,7 @@ export function VirtualKeyboard() {
           ))}
         </div>
       ) : (
-        <div className="max-w-sm mx-auto space-y-1.5">
+        <div className="max-w-sm mx-auto space-y-1.5 portrait:space-y-2.5">
           {NUMERIC_ROWS.map((row, ri) => (
             <div key={ri} className="flex gap-2 justify-center">
               {row.map((k) => {
