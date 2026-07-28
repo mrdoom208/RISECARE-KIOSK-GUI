@@ -204,7 +204,7 @@ export function VirtualKeyboard() {
         key={label}
         onMouseDown={(e) => { handleMouseDown(e); handleKey(label); }}
         onMouseUp={handleMouseUp}
-        className={`h-12 md:h-14 rounded-lg text-base md:text-lg font-semibold flex items-center justify-center ${
+        className={`h-12 portrait:h-16 md:h-14 rounded-lg text-base md:text-lg font-semibold flex items-center justify-center ${
           opts.primary
             ? "bg-primary text-primary-foreground"
             : opts.danger
@@ -222,7 +222,7 @@ export function VirtualKeyboard() {
   return (
     <div
       onMouseDown={handleMouseDown}
-      className="fixed bottom-0 left-0 right-0 z-[9999] bg-card border-t border-border p-2 pb-6 shadow-2xl">
+      className="fixed bottom-0 left-0 right-0 z-[9999] bg-card border-t border-border p-2 portrait:p-3 portrait:pb-8 shadow-2xl">
       {layout === "qwerty" ? (
         <div className="max-w-3xl mx-auto space-y-1.5">
           {QWERTY_ROWS.map((row, ri) => (

@@ -57,20 +57,20 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="bg-card w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-border/50">
-            <div className="p-6 border-b border-border flex justify-between items-center bg-secondary/30">
+          <div className="bg-card w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-border/50 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-border flex justify-between items-center bg-secondary/30 shrink-0">
               <h3 className="text-2xl font-bold">{title}</h3>
               <button onClick={onClose} className="p-3 bg-muted rounded-full">
                 <X className="w-8 h-8 text-muted-foreground" />
               </button>
             </div>
 
-            <div className="p-8">
+            <div className="p-8 pb-4 shrink-0">
               {/* Displays */}
-              <div className="flex gap-4 mb-8">
-                <div 
+              <div className="flex gap-4 mb-6">
+                <div
                   onClick={() => setActiveInput(1)}
-                  className={`flex-1 flex flex-col items-center justify-center p-6 rounded-2xl border-4 ${
+                  className={`flex-1 flex flex-col items-center justify-center p-4 rounded-2xl border-4 ${
                     activeInput === 1 ? 'border-primary bg-primary/5' : 'border-muted bg-muted/20'
                   }`}
                 >
@@ -83,9 +83,9 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
                 {isDouble && (
                   <>
                     <div className="flex items-center text-4xl font-light text-muted-foreground">/</div>
-                    <div 
+                    <div
                       onClick={() => setActiveInput(2)}
-                      className={`flex-1 flex flex-col items-center justify-center p-6 rounded-2xl border-4 ${
+                      className={`flex-1 flex flex-col items-center justify-center p-4 rounded-2xl border-4 ${
                         activeInput === 2 ? 'border-primary bg-primary/5' : 'border-muted bg-muted/20'
                       }`}
                     >
@@ -97,49 +97,51 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
                   </>
                 )}
               </div>
+            </div>
 
-              {/* Keypad */}
-              <div className="grid grid-cols-3 gap-4">
+            {/* Keypad — 1/3 of viewport */}
+            <div className="h-[33.333vh] px-4 pb-4 flex flex-col gap-2 shrink-0">
+              <div className="flex-1 grid grid-cols-3 gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
                   <button
                     key={num}
                     onClick={() => handleKey(num.toString())}
-                    className="h-20 text-3xl font-semibold bg-secondary text-secondary-foreground rounded-2xl"
+                    className="h-full text-3xl font-semibold bg-secondary text-secondary-foreground rounded-2xl active:opacity-70"
                   >
                     {num}
                   </button>
                 ))}
                 <button
                   onClick={() => handleKey(".")}
-                  className="h-20 text-4xl font-semibold bg-secondary text-secondary-foreground rounded-2xl"
+                  className="h-full text-4xl font-semibold bg-secondary text-secondary-foreground rounded-2xl active:opacity-70"
                 >
                   .
                 </button>
                 <button
                   onClick={() => handleKey("0")}
-                                      className="h-20 text-3xl font-semibold bg-secondary text-secondary-foreground rounded-2xl"
+                  className="h-full text-3xl font-semibold bg-secondary text-secondary-foreground rounded-2xl active:opacity-70"
                 >
                   0
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="h-20 flex items-center justify-center bg-muted text-muted-foreground rounded-2xl"
+                  className="h-full flex items-center justify-center bg-muted text-muted-foreground rounded-2xl active:opacity-70"
                 >
                   <Delete className="w-8 h-8" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-2 gap-2 h-[38%]">
                 <button
                   onClick={handleClear}
-                  className="h-20 text-xl font-bold bg-muted text-muted-foreground rounded-2xl"
+                  className="h-full text-xl font-bold bg-muted text-muted-foreground rounded-2xl active:opacity-70"
                 >
                   Clear
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={!value1 && !value2}
-                  className="h-20 text-xl font-bold bg-primary text-primary-foreground rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary/25"
+                  className="h-full text-xl font-bold bg-primary text-primary-foreground rounded-2xl disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary/25 active:opacity-70"
                 >
                   <Check className="w-8 h-8" />
                   Save
