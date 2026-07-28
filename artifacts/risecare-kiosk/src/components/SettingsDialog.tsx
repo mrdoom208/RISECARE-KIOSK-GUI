@@ -612,7 +612,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                       <Loader2 className="w-8 h-8" />
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
                       {activityLogs?.length > 0 ? (
                         activityLogs.map((log: any, i: number) => (
                           <div

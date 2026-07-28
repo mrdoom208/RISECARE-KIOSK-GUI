@@ -93,6 +93,25 @@ export function VirtualKeyboard() {
   const elRef = useRef<HTMLElement | null>(null);
   const isPressingKey = useRef(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backspaceInitialTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backspaceRepeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopBackspaceRepeat = useCallback(() => {
+    if (backspaceInitialTimer.current) {
+      clearTimeout(backspaceInitialTimer.current);
+      backspaceInitialTimer.current = null;
+    }
+    if (backspaceRepeatTimer.current) {
+      clearInterval(backspaceRepeatTimer.current);
+      backspaceRepeatTimer.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopBackspaceRepeat();
+    };
+  }, [stopBackspaceRepeat]);
 
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
@@ -145,6 +164,16 @@ export function VirtualKeyboard() {
     backspaceAtCursor(el);
   }, []);
 
+  const startBackspaceRepeat = useCallback(() => {
+    stopBackspaceRepeat();
+    backspaceInitialTimer.current = setTimeout(() => {
+      handleBackspace();
+      backspaceRepeatTimer.current = setInterval(() => {
+        handleBackspace();
+      }, 50);
+    }, 300);
+  }, [handleBackspace, stopBackspaceRepeat]);
+
   const handleSpace = useCallback(() => handleChar(" "), [handleChar]);
 
   const handleDone = useCallback(() => {
@@ -195,6 +224,7 @@ export function VirtualKeyboard() {
 
   const handleMouseUp = () => {
     isPressingKey.current = false;
+    stopBackspaceRepeat();
   };
 
   const btn = (label: string, opts: { wide?: boolean; primary?: boolean; danger?: boolean } = {}) => {
@@ -202,7 +232,15 @@ export function VirtualKeyboard() {
     return (
       <button
         key={label}
-        onMouseDown={(e) => { handleMouseDown(e); handleKey(label); }}
+        onMouseDown={(e) => {
+          handleMouseDown(e);
+          if (label === "Backspace") {
+            handleBackspace();
+            startBackspaceRepeat();
+          } else {
+            handleKey(label);
+          }
+        }}
         onMouseUp={handleMouseUp}
         className={`h-12 portrait:h-20 md:h-14 rounded-lg text-base portrait:text-lg md:text-lg font-semibold flex items-center justify-center ${
           opts.primary
