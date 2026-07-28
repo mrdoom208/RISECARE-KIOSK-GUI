@@ -250,7 +250,7 @@ export function VirtualKeyboard() {
               : isSpecial
                 ? "bg-muted text-muted-foreground px-3"
                 : "bg-secondary text-secondary-foreground"
-        } ${opts.wide ? "flex-[2]" : "flex-1"} active:opacity-70`}
+        } ${opts.wide ? "flex-[2]" : "flex-1"} active:brightness-75`}
       >
         {label === "Backspace" ? "⌫" : label === "Space" ? "Space" : label === "Shift" ? (shift ? "⇧" : "⇪") : label}
       </button>
