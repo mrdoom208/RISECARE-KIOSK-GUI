@@ -3,6 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useSaveVitals } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRateLimit } from "@/hooks/use-rate-limit";
+import { useToast } from "@/hooks/use-toast";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 import {
@@ -61,6 +62,7 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const sessionToken = params?.token || "";
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const [activeKeypad, setActiveKeypad] = useState<VitalType | null>(null);
   const [activeSensor, setActiveSensor] = useState<
@@ -96,6 +98,22 @@ export default function Dashboard() {
   const isVitalEnabled = (vital: VitalType) => {
     const sensorId = vitalToSensorId[vital];
     return enabledSensors[sensorId] || false;
+  };
+
+  const { data: sensorStatus } = useQuery({
+    queryKey: ["sensor-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/status");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    refetchInterval: 5000,
+  });
+
+  const mqttConnected = sensorStatus?.connected ?? false;
+
+  const isVitalDisabled = (vital: VitalType) => {
+    return !mqttConnected || !isVitalEnabled(vital);
   };
 
   const { data: session, isLoading } = useQuery<Session>({
@@ -261,7 +279,7 @@ const handleStartReading = async () => {
   if (!activeSensor || !activeKeypad || !session?.id) return;
 
   try {
-    await fetch("/api/sensors/command", {
+    const res = await fetch("/api/sensors/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -270,8 +288,11 @@ const handleStartReading = async () => {
         value: 1,
       }),
     });
+    if (!res.ok) throw new Error("Failed to start sensor");
   } catch (err) {
     console.error("Failed to send start command:", err);
+    toast({ title: "Sensor error", description: "Failed to start sensor reading", variant: "destructive" });
+    return;
   }
 
   setReadingVital(activeKeypad);
@@ -281,7 +302,7 @@ const handleStartReading = async () => {
 const stopSensor = async () => {
   if (!readingVital || !session?.id) return;
   try {
-    await fetch("/api/sensors/command", {
+    const res = await fetch("/api/sensors/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -290,8 +311,10 @@ const stopSensor = async () => {
         value: 0,
       }),
     });
+    if (!res.ok) throw new Error("Failed to stop sensor");
   } catch (err) {
     console.error("Failed to send stop command:", err);
+    toast({ title: "Sensor error", description: "Failed to stop sensor", variant: "destructive" });
   }
   setReadingVital(null);
   setStableCount(0);
@@ -339,6 +362,7 @@ const handleCancelReading = async () => {
     queryClient.invalidateQueries({ queryKey: ["session", sessionToken] });
   } catch (err) {
     console.error("Failed to clear canceled reading:", err);
+    toast({ title: "Error", description: "Failed to clear canceled reading", variant: "destructive" });
   }
 };
 
@@ -426,7 +450,7 @@ const handleCancelReading = async () => {
               Vital Signs
             </h2>
             <p className="text-base text-muted-foreground mt-1">
-              Tap any card to record a measurement.
+              {mqttConnected ? "Tap any card to record a measurement." : "MQTT disconnected — sensors unavailable."}
             </p>
           </div>
         </div>
@@ -445,13 +469,14 @@ const handleCancelReading = async () => {
             )}
             onClick={() => {
               if (isRateLimited("bp")) return;
-              if (!isVitalEnabled("bp")) return;
+              if (isVitalDisabled("bp")) return;
               setActiveKeypad("bp");
               setActiveSensor(
                 sensorGuides.find((s) => s.name === "Blood Pressure Cuff") ||
                   null,
               );
             }}
+            disabled={isVitalDisabled("bp")}
             isDouble
           />
 
@@ -459,7 +484,7 @@ const handleCancelReading = async () => {
            <div
              onClick={() => {
                if (isRateLimited("hr-spo2")) return;
-               if (!isVitalEnabled("hr") && !isVitalEnabled("spo2")) return;
+               if (isVitalDisabled("hr") && isVitalDisabled("spo2")) return;
                setActiveKeypad("hr");
                setActiveSensor(
                  sensorGuides.find((s) => s.name === "Pulse Oximeter Sensor") ||
@@ -469,7 +494,7 @@ const handleCancelReading = async () => {
              className={`
                relative overflow-hidden group
                bg-card rounded-xl p-3 border-2
-               cursor-pointer shadow-sm border-border/50 hover:border-primary/50
+               ${(isVitalDisabled("hr") && isVitalDisabled("spo2")) ? "cursor-not-allowed opacity-50 border-border/50" : "cursor-pointer border-border/50 hover:border-primary/50"}
              `}
            >
              <div className="flex justify-between items-start mb-3">
@@ -515,13 +540,13 @@ const handleCancelReading = async () => {
               status={getTempStatus(currentVitals.temperature)}
               onClick={() => {
                 if (isRateLimited("temperature")) return;
-                if (!isVitalEnabled("temperature")) return;
+                if (isVitalDisabled("temperature")) return;
                 setActiveKeypad("temperature");
                 setActiveSensor(
                   sensorGuides.find((s) => s.name === "Thermometer") || null,
                 );
               }}
-              disabled={!isVitalEnabled("temperature")}
+              disabled={isVitalDisabled("temperature")}
             />
 
             {/* Weight */}
@@ -533,14 +558,14 @@ const handleCancelReading = async () => {
              status="unknown"
              onClick={() => {
                if (isRateLimited("weight")) return;
-               if (!isVitalEnabled("weight")) return;
+               if (isVitalDisabled("weight")) return;
                setActiveKeypad("weight");
                setActiveSensor(
                  sensorGuides.find((s) => s.name === "Body Weight Scale") ||
                    null,
                );
              }}
-             disabled={!isVitalEnabled("weight")}
+             disabled={isVitalDisabled("weight")}
            />
 
            {/* Height */}
@@ -552,7 +577,7 @@ const handleCancelReading = async () => {
              status="unknown"
              onClick={() => {
                if (isRateLimited("height")) return;
-               if (!isVitalEnabled("height")) return;
+               if (isVitalDisabled("height")) return;
                setActiveKeypad("height");
                setActiveSensor(
                  sensorGuides.find(
@@ -560,7 +585,7 @@ const handleCancelReading = async () => {
                  ) || null,
                );
              }}
-             disabled={!isVitalEnabled("height")}
+             disabled={isVitalDisabled("height")}
            />
 
           {/* Auto BMI */}

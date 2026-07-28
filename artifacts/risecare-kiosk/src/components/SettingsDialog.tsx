@@ -46,6 +46,8 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   const [pendingAction, setPendingAction] = useState<"export" | "import" | "delete" | null>(null);
   const [actionPasscode, setActionPasscode] = useState("");
   const [actionError, setActionError] = useState("");
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [verifyingAction, setVerifyingAction] = useState(false);
 
   const { data: sensorStatus, isLoading: statusLoading } = useQuery({
     queryKey: ["sensor-status"],
@@ -192,7 +194,9 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   });
 
   const handlePasswordSubmit = async () => {
+    if (password.length !== 6 || verifyingPassword) return;
     try {
+      setVerifyingPassword(true);
       const res = await fetch("/api/settings/verify-passcode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -212,6 +216,8 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       }
     } catch (e) {
       setError("Failed to verify passcode");
+    } finally {
+      setVerifyingPassword(false);
     }
   };
 
@@ -341,15 +347,19 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
         formData.append("accountName", account.name);
       }
 
-      const res = await fetch("/api/settings/import", {
-        method: "POST",
-        body: formData,
-      });
+      try {
+        const res = await fetch("/api/settings/import", {
+          method: "POST",
+          body: formData,
+        });
 
-      if (res.ok) {
-        alert("Database imported successfully");
-      } else {
-        alert("Failed to import database");
+        if (res.ok) {
+          toast({ title: "Database imported", description: "Database imported successfully" });
+        } else {
+          toast({ title: "Import failed", description: "Failed to import database", variant: "destructive" });
+        }
+      } catch {
+        toast({ title: "Import failed", description: "Failed to import database", variant: "destructive" });
       }
     };
     input.click();
@@ -358,8 +368,6 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   };
 
   const handleDeleteRecords = async () => {
-    if (!confirm("Delete all patient records? This cannot be undone.")) return;
-
     const url = new URL("/api/settings/delete", window.location.origin);
     if (account) {
       url.searchParams.set("accountId", account.id.toString());
@@ -368,12 +376,12 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     try {
       const res = await fetch(url.toString(), { method: "POST" });
       if (res.ok) {
-        alert("All records deleted");
+        toast({ title: "Records deleted", description: "All records deleted successfully" });
       } else {
-        alert("Failed to delete records");
+        toast({ title: "Delete failed", description: "Failed to delete records", variant: "destructive" });
       }
     } catch {
-      alert("Failed to delete records");
+      toast({ title: "Delete failed", description: "Failed to delete records", variant: "destructive" });
     }
     setPendingAction(null);
     setActionPasscode("");
@@ -385,6 +393,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       return;
     }
     try {
+      setVerifyingAction(true);
       const res = await fetch("/api/settings/verify-passcode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -399,6 +408,8 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     } catch {
       setActionError("Failed to verify passcode");
       return;
+    } finally {
+      setVerifyingAction(false);
     }
 
     if (pendingAction === "export") await handleExport();
@@ -501,10 +512,10 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     </button>
                     <button
                       onClick={() => { if (isRateLimited("pw-submit")) return; handlePasswordSubmit(); }}
-                      disabled={password.length !== 6}
+                      disabled={password.length !== 6 || verifyingPassword}
                       className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
                     >
-                      <Check className="w-6 h-6" />
+                      {verifyingPassword ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
                     </button>
                   </div>
                 </>
@@ -682,10 +693,10 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     </button>
                     <button
                       onClick={() => { if (isRateLimited("action-verify")) return; handleActionVerify(); }}
-                      disabled={actionPasscode.length !== 6}
+                      disabled={actionPasscode.length !== 6 || verifyingAction}
                       className="h-16 flex items-center justify-center bg-red-600 text-white rounded-xl disabled:opacity-50"
                     >
-                      <Check className="w-6 h-6" />
+                      {verifyingAction ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
                     </button>
                   </div>
                 </>

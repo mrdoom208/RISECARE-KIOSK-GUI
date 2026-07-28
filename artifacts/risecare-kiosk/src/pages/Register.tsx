@@ -28,6 +28,8 @@ export default function Register() {
   const phoneDigits = phoneRaw.replace(/\D/g, "");
   const phoneValid = phoneDigits.length === 10 && phoneDigits[0] === "9";
   const phoneDisplay = formatPhoneDisplay(phoneRaw);
+  const phoneError = phoneDigits.length > 0 && !phoneValid && phoneDigits.length >= 10 ? "Phone must start with 9 and be 10 digits" : "";
+  const allFilled = name && phoneValid && age && gender;
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "").slice(0, 10);
@@ -120,8 +122,9 @@ export default function Register() {
                     value={phoneDisplay}
                     onChange={handlePhoneChange}
                     placeholder="912 345 6789"
-                    className="no-spinner w-full h-12 pl-16 pr-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground"
+                    className={`no-spinner w-full h-12 pl-16 pr-4 text-xl rounded-lg bg-background border-2 ${phoneError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground`}
                   />
+                  {phoneError && <p className="text-destructive text-sm mt-1">{phoneError}</p>}
                 </div>
               </div>
 
@@ -158,7 +161,10 @@ export default function Register() {
             </div>
           </div>
 
-          <div className="p-4 bg-secondary/30 border-t border-border flex justify-end">
+          <div className="p-4 bg-secondary/30 border-t border-border flex flex-col items-end gap-1">
+            {!allFilled && !createSession.isPending && (
+              <p className="text-sm text-muted-foreground">Fill in all required fields to continue</p>
+            )}
             <button
               onClick={() => {
                 if (isRateLimited("begin-session")) return;

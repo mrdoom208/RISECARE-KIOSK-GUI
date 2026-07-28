@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale, Thermometer } from "lucide-react";
+import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale, Thermometer, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -133,6 +133,36 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     },
   });
 
+  const testAllMutation = useMutation({
+    mutationFn: async (sensorIds: string[]) => {
+      const res = await fetch("/api/sensors/test-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, sensors: sensorIds }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to start test all",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const { data: testAllResults } = useQuery({
+    queryKey: ["test-all-results"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/test-all-results");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: isOpen && hasPending,
+    refetchInterval: hasPending ? 1000 : false,
+  });
+
   const clearFeedbackAfter = (sensorId: string, delay = 4000) => {
     if (feedbackTimers.current[sensorId]) clearTimeout(feedbackTimers.current[sensorId]);
     feedbackTimers.current[sensorId] = setTimeout(() => {
@@ -144,6 +174,47 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     setFeedback((prev) => ({ ...prev, [sensorId]: fb }));
   };
 
+  // Independent timeout checker — ticks every second, never depends on query data
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setFeedback((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const sensorId of Object.keys(next)) {
+          const fb = next[sensorId];
+          if (!fb || fb.status !== "pending") continue;
+
+          if (fb.type === "test") {
+            const started = testTimestamps.current[sensorId];
+            if (now - started > TEST_TIMEOUT) {
+              next[sensorId] = { type: "test", status: "fail", message: "Test timed out — no response from sensor" };
+              changed = true;
+            }
+          } else if (fb.type === "calibrate") {
+            const started = calTimestamps.current[sensorId];
+            if (now - started > CAL_TIMEOUT) {
+              next[sensorId] = { type: "calibrate", status: "fail", message: "Calibration timed out" };
+              changed = true;
+            }
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Schedule auto-clear for timed-out feedbacks
+  useEffect(() => {
+    for (const sensorId of Object.keys(feedback)) {
+      const fb = feedback[sensorId];
+      if (!fb || fb.status !== "fail") continue;
+      const delay = fb.type === "calibrate" ? 12000 : 4000;
+      clearFeedbackAfter(sensorId, delay);
+    }
+  }, [feedback]);
+
   // Check test results
   useEffect(() => {
     for (const sensorId of Object.keys(feedback)) {
@@ -151,18 +222,6 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       if (fb?.type !== "test" || fb.status !== "pending") continue;
 
       const started = testTimestamps.current[sensorId];
-      const elapsed = Date.now() - started;
-
-      if (elapsed > TEST_TIMEOUT) {
-        setSensorFeedback(sensorId, {
-          type: "test",
-          status: "fail",
-          message: "Test timed out — no response from sensor",
-        });
-        clearFeedbackAfter(sensorId);
-        continue;
-      }
-
       const result = testResults?.[sensorId];
       if (result && result._receivedAt > started) {
         if (result.status === "success") {
@@ -182,7 +241,6 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
             message: "Test failed — sensor returned error",
           });
         }
-        clearFeedbackAfter(sensorId);
       }
     }
   }, [testResults, feedback]);
@@ -194,18 +252,6 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       if (fb?.type !== "calibrate" || fb.status !== "pending") continue;
 
       const started = calTimestamps.current[sensorId];
-      const elapsed = Date.now() - started;
-
-      if (elapsed > CAL_TIMEOUT) {
-        setSensorFeedback(sensorId, {
-          type: "calibrate",
-          status: "fail",
-          message: "Calibration timed out",
-        });
-        clearFeedbackAfter(sensorId, 12000);
-        continue;
-      }
-
       const result = calibrationResults?.[sensorId];
       if (result && result._receivedAt > started) {
         const sensorName = sensors.find((s) => s.id === sensorId)?.name ?? sensorId;
@@ -238,7 +284,6 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
             variant: "destructive",
           });
         }
-        clearFeedbackAfter(sensorId, 12000);
       }
     }
   }, [calibrationResults, feedback]);
@@ -253,6 +298,27 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
       message: "Testing sensor...",
     });
     commandMutation.mutate({ sensor: sensorId, value: 3 });
+  };
+
+  const handleTestAll = () => {
+    const enabledIds = sensors.filter((s) => enabledSensors[s.id]).map((s) => s.id);
+    if (enabledIds.length === 0) {
+      toast({
+        title: "No sensors enabled",
+        description: "Enable at least one sensor to test",
+        variant: "destructive",
+      });
+      return;
+    }
+    enabledIds.forEach((id) => {
+      testTimestamps.current[id] = Date.now();
+      setSensorFeedback(id, {
+        type: "test",
+        status: "pending",
+        message: "Testing sensor...",
+      });
+    });
+    testAllMutation.mutate(enabledIds);
   };
 
   const handleCalibrate = (sensorId: string) => {
@@ -408,7 +474,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                         )}
                         <Button
                           onClick={() => { if (isGloballyRateLimited("toggle-" + sensor.id)) return; toggleSensor(sensor.id); }}
-                          disabled={commandMutation.isPending && !fb}
+                          disabled={commandMutation.isPending || !sensorStatus?.connected}
                           variant={enabledSensors[sensor.id] ? "default" : "outline"}
                           size="sm"
                         >
@@ -484,6 +550,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                           onClick={() => handleCalibrate(sensor.id)}
                           disabled={
                             commandMutation.isPending ||
+                            !sensorStatus?.connected ||
                             !enabledSensors[sensor.id] ||
                             fb?.status === "pending" ||
                             isRateLimited(sensor.id)
@@ -498,6 +565,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                         onClick={() => handleTest(sensor.id)}
                         disabled={
                           commandMutation.isPending ||
+                          !sensorStatus?.connected ||
                           !enabledSensors[sensor.id] ||
                           fb?.status === "pending" ||
                           isRateLimited(sensor.id)
@@ -516,6 +584,42 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
             <Button onClick={() => { if (isGloballyRateLimited("refresh")) return; refetch(); }} className="w-full mt-4" variant="outline">
               Refresh Status
             </Button>
+            <Button
+              onClick={handleTestAll}
+              disabled={testAllMutation.isPending || hasPending || !sensorStatus?.connected}
+              className="w-full mt-2"
+              variant="default"
+            >
+              {testAllMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="w-4 h-4 mr-2" />
+              )}
+              Test All Sensors
+            </Button>
+
+            {/* Test All Summary */}
+            {testAllResults?.completed && testAllResults?.summary && (
+              <div className="mt-4 p-4 rounded-xl bg-secondary">
+                <p className="font-semibold mb-2">Test Summary</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(testAllResults.summary).map(([sensor, status]) => (
+                    <div key={sensor} className="flex items-center gap-2">
+                      {status === "working" ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <XCircle className="w-4 h-4 text-red-500" />
+                      )}
+                      <span className="text-sm capitalize">{sensor}</span>
+                      <span className={`text-xs ${status === "working" ? "text-green-600" : "text-red-600"}`}>
+                        {status === "working" ? "Working" : "Not Working"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Published to risecare/test/summary</p>
+              </div>
+            )}
             <div className="mt-6 pt-4 border-t border-border/50">
               {confirmReset ? (
                 <div className="flex gap-2">

@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { KioskHeader } from "@/components/KioskHeader";
-import { Calendar, Check, ChevronRight, User, X } from "lucide-react";
+import { Calendar, Check, ChevronRight, Loader2, User, X } from "lucide-react";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -241,7 +241,7 @@ export default function History() {
               disabled={passcode.length !== 6 || isVerifying}
               className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
             >
-              <Check className="w-6 h-6" />
+              {isVerifying ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
             </button>
           </div>
         </DialogContent>

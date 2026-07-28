@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { query, run } from "@workspace/db";
-import { publish, subscribe } from "../mqtt";
+import { publish, subscribe, isConnected } from "../mqtt";
 
 const router: IRouter = Router();
 
@@ -29,6 +29,16 @@ let calibrationResults: Record<string, any> = {};
 let calibrationProgress: Record<string, any> = {};
 let testResults: Record<string, any> = {};
 let sensorAvailability: Record<string, boolean> = {};
+
+// Test-all state
+let testAllState: {
+  sessionId: string;
+  sensors: string[];
+  results: Record<string, { status: string; sensor: string; receivedAt: number }>;
+  startedAt: number;
+  completed: boolean;
+  summary: Record<string, string>;
+} | null = null;
 
 // Subscribe to sensor data from Python
 subscribe("risecare/sensors/bp", async (data) => {
@@ -110,6 +120,16 @@ subscribe("risecare/test/+", async (data, topic) => {
   if (sensor) {
     testResults[sensor] = { ...data, _receivedAt: Date.now() };
     console.log(`🧪 Test result [${sensor}]:`, data);
+
+    // Feed into test-all state
+    if (testAllState && !testAllState.completed && testAllState.sensors.includes(sensor)) {
+      testAllState.results[sensor] = { ...data, receivedAt: Date.now() };
+
+      // Check if all sensors have results
+      if (Object.keys(testAllState.results).length === testAllState.sensors.length) {
+        completeTestAll();
+      }
+    }
   }
 });
 
@@ -121,6 +141,77 @@ subscribe("risecare/calibration/height", async (data) => {
 subscribe("risecare/calibration/weight", async (data) => {
   console.log("⚖️ Weight calibration result:", data);
   calibrationResults["weight"] = { ...data, _receivedAt: Date.now() };
+});
+
+// Complete test-all and publish MQTT summary
+function completeTestAll() {
+  if (!testAllState || testAllState.completed) return;
+  testAllState.completed = true;
+
+  const summary: Record<string, string> = {};
+  for (const sensor of testAllState.sensors) {
+    const result = testAllState.results[sensor];
+    summary[sensor] = result?.status === "success" ? "working" : "not_working";
+  }
+  testAllState.summary = summary;
+
+  publish("risecare/test/summary", {
+    sensors: summary,
+    sessionId: testAllState.sessionId,
+    timestamp: new Date().toISOString(),
+  });
+  console.log("📋 Test-all summary:", summary);
+}
+
+// API endpoint to test all enabled sensors sequentially
+router.post("/sensors/test-all", async (req, res) => {
+  const { sessionId, sensors: sensorIds } = req.body;
+
+  if (!sessionId || !sensorIds?.length) {
+    res.status(400).json({ error: "sessionId and sensors array required" });
+    return;
+  }
+
+  if (!isConnected()) {
+    res.status(500).json({ error: "MQTT not connected" });
+    return;
+  }
+
+  testAllState = {
+    sessionId,
+    sensors: sensorIds,
+    results: {},
+    startedAt: Date.now(),
+    completed: false,
+    summary: {},
+  };
+
+  // Send test commands staggered by 2 seconds
+  sensorIds.forEach((sensor: string, index: number) => {
+    setTimeout(() => {
+      publish(`risecare/command/${sensor}`, {
+        sessionId,
+        sensor,
+        value: 3,
+        timestamp: new Date().toISOString(),
+      });
+    }, index * 2000);
+  });
+
+  // Set timeout to force-complete if some sensors don't respond
+  const totalTime = sensorIds.length * 2000 + 14000;
+  setTimeout(() => {
+    if (testAllState && !testAllState.completed) {
+      completeTestAll();
+    }
+  }, totalTime);
+
+  res.json({ status: "started", sensorCount: sensorIds.length });
+});
+
+// Get test-all results
+router.get("/sensors/test-all-results", async (_req, res) => {
+  res.json(testAllState);
 });
 
 // API endpoint to send sensor command (start=1 / stop=0)
@@ -172,7 +263,6 @@ router.post("/sensors/trigger", async (req, res) => {
 
 // Get sensor status
 router.get("/sensors/status", async (_req, res) => {
-  const { isConnected } = await import("../mqtt");
   res.json({
     connected: isConnected(),
     broker: process.env.MQTT_BROKER || "mqtt://localhost:1883",

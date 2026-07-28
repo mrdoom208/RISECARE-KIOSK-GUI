@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
-import { Activity, ArrowRight, Check, ClipboardList, UserPlus, X } from "lucide-react";
+import { Activity, ArrowRight, Check, ClipboardList, Loader2, UserPlus, X } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useRateLimit } from "@/hooks/use-rate-limit";
@@ -263,7 +263,7 @@ export default function Home() {
               disabled={historyPasscode.length !== 6 || isVerifyingHistory}
               className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
             >
-              <Check className="w-6 h-6" />
+              {isVerifyingHistory ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
             </button>
           </div>
         </DialogContent>
