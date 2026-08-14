@@ -7,13 +7,20 @@ import {
   ChevronRight,
   Loader2,
   Activity,
-  Printer,
   Shield,
   UserPlus,
   List,
   Brain,
   Cpu,
   Lightbulb,
+  Power,
+  Timer,
+  RotateCw,
+  Lock,
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -29,25 +36,35 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isRateLimited } = useRateLimit(800);
-  const [step, setStep] = useState<"password" | "menu" | "create-admin">("password");
-  const [password, setPassword] = useState("");
+  const [step, setStep] = useState<"password" | "menu" | "create-admin" | "edit-account">("password");
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [error, setError] = useState("");
   const [activeSubmenu, setActiveSubmenu] = useState<
-    "logs" | "database" | "admin-accounts" | "ai-integration" | null
+    "logs" | "database" | "accounts" | "ai-integration" | "idle-timeout" | null
   >(null);
   const [showSensors, setShowSensors] = useState(false);
 
-  const [adminName, setAdminName] = useState("");
-  const [adminPasscode, setAdminPasscode] = useState("");
-  const [adminRetryPasscode, setAdminRetryPasscode] = useState("");
+  const [creatingRole, setCreatingRole] = useState<"superadmin" | "admin">("admin");
+  const [editingAccount, setEditingAccount] = useState<{ id: number; username: string; role: string } | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
+
+  const [adminUsername, setAdminUsername] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminRetryPassword, setAdminRetryPassword] = useState("");
   const [adminActiveField, setAdminActiveField] = useState<"passcode" | "retry">("passcode");
   const [adminError, setAdminError] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showAdminRetryPassword, setShowAdminRetryPassword] = useState(false);
+  const [showActionPassword, setShowActionPassword] = useState(false);
 
   const [pendingAction, setPendingAction] = useState<"export" | "import" | "delete" | null>(null);
-  const [actionPasscode, setActionPasscode] = useState("");
+  const [actionPassword, setActionPassword] = useState("");
   const [actionError, setActionError] = useState("");
   const [verifyingPassword, setVerifyingPassword] = useState(false);
   const [verifyingAction, setVerifyingAction] = useState(false);
+  const [timeoutCooldown, setTimeoutCooldown] = useState(false);
 
   const { data: sensorStatus, isLoading: statusLoading } = useQuery({
     queryKey: ["sensor-status"],
@@ -62,7 +79,9 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   const { data: activityLogs, isLoading: logsLoading } = useQuery({
     queryKey: ["activity-logs"],
     queryFn: async () => {
-      const res = await fetch("/api/settings/logs");
+      let url = "/api/settings/logs";
+      if (account) url += `?accountId=${account.id}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -70,13 +89,15 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   });
 
   const { data: adminAccounts, isLoading: accountsLoading } = useQuery({
-    queryKey: ["admin-accounts"],
+    queryKey: ["accounts"],
     queryFn: async () => {
-      const res = await fetch("/api/settings/accounts");
+      let url = "/api/settings/accounts";
+      if (account) url += `?accountId=${account.id}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch accounts");
-      return res.json() as Promise<{ id: number; name: string; passcode: string; created_at: string }[]>;
+      return res.json() as Promise<{ id: number; username: string; role: string; created_at: string }[]>;
     },
-    enabled: activeSubmenu === "admin-accounts",
+    enabled: activeSubmenu === "accounts",
   });
 
   const { data: aiMode, isLoading: aiModeLoading } = useQuery({
@@ -104,7 +125,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     mutationFn: async (enabled: boolean) => {
       let url = "/api/settings/recommendation";
       if (account) {
-        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.name)}`;
+        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.username)}`;
       }
       const res = await fetch(url, {
         method: "POST",
@@ -127,7 +148,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     mutationFn: async (mode: string) => {
       let url = "/api/settings/ai-mode";
       if (account) {
-        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.name)}`;
+        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.username)}`;
       }
       const res = await fetch(url, {
         method: "POST",
@@ -146,31 +167,121 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     },
   });
 
-  const [account, setAccount] = useState<{ id: number; name: string } | null>(null);
+  const { data: idleTimeoutSeconds, isLoading: timeoutLoading } = useQuery({
+    queryKey: ["idle-timeout"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/idle-timeout");
+      if (!res.ok) throw new Error("Failed to fetch idle timeout");
+      const data = await res.json();
+      return (data.seconds ?? 120) as number;
+    },
+    enabled: activeSubmenu === "idle-timeout",
+  });
 
-  const printTestMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/print/test", { method: "POST" });
-      if (!res.ok) throw new Error("Print test failed");
+  const setIdleTimeoutMutation = useMutation({
+    mutationFn: async (seconds: number) => {
+      let url = "/api/settings/idle-timeout";
+      if (account) {
+        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.username)}`;
+      }
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seconds }),
+      });
+      if (!res.ok) throw new Error("Failed to set idle timeout");
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Print test sent", description: "Test page sent to printer" });
+      queryClient.invalidateQueries({ queryKey: ["idle-timeout"] });
+      toast({ title: "Idle timeout updated" });
     },
     onError: () => {
-      toast({ title: "Print test failed", description: "Could not connect to printer", variant: "destructive" });
+      toast({ title: "Failed to update idle timeout", variant: "destructive" });
+    },
+  });
+
+  const [account, setAccount] = useState<{ id: number; username: string; role: string } | null>(null);
+  const isSuperadmin = account?.role === "superadmin";
+
+  const [showPowerModal, setShowPowerModal] = useState(false);
+  const [powerAction, setPowerAction] = useState<
+    "shutdown" | "restart" | "lock" | null
+  >(null);
+  const powerMutation = useMutation({
+    mutationFn: async (action: "shutdown" | "restart" | "lock") => {
+      let url = "/api/settings/power";
+      if (account) {
+        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.username)}`;
+      }
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error("Power command failed");
+      return res.json();
+    },
+    onSuccess: (_data, action) => {
+      const label = action.charAt(0).toUpperCase() + action.slice(1);
+      toast({ title: label, description: `${label} command sent to system` });
+      setShowPowerModal(false);
+      setPowerAction(null);
+    },
+    onError: () => {
+      toast({ title: "Power command failed", description: "Could not send command", variant: "destructive" });
     },
   });
 
   const createAdminMutation = useMutation({
-    mutationFn: async (data: { name: string; passcode: string }) => {
-      const res = await fetch("/api/settings/register", {
+    mutationFn: async (data: { username: string; password: string; role: "superadmin" | "admin" }) => {
+      let url = "/api/settings/register";
+      if (account) {
+        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.username)}`;
+      }
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.name, passcode: data.passcode, role: "admin" }),
+        body: JSON.stringify({ username: data.username, password: data.password, role: data.role }),
       });
       if (!res.ok) {
-        let msg = "Failed to create admin";
+        let msg = data.role === "admin" ? "Failed to create admin" : "Failed to create super admin";
+        try {
+          const err = await res.json();
+          msg = err.error || err.message || msg;
+        } catch {
+          msg = `Server error (${res.status})`;
+        }
+        throw new Error(msg);
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      toast({ title: vars.role === "superadmin" ? "Super admin created" : "Admin created", description: "New account has been created" });
+      setAdminUsername("");
+      setAdminPassword("");
+      setAdminRetryPassword("");
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      setStep("menu");
+    },
+    onError: (err: Error) => {
+      setAdminError(err.message);
+    },
+  });
+
+  const updateAccountMutation = useMutation({
+    mutationFn: async (data: { id: number; username: string; password: string; role: string }) => {
+      let url = `/api/settings/accounts/${data.id}`;
+      if (account) {
+        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.username)}`;
+      }
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: data.username, password: data.password, role: data.role }),
+      });
+      if (!res.ok) {
+        let msg = "Failed to update account";
         try {
           const err = await res.json();
           msg = err.error || err.message || msg;
@@ -182,10 +293,14 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Admin created", description: "New admin account has been created" });
-      setAdminName("");
-      setAdminPasscode("");
-      setAdminRetryPasscode("");
+      toast({ title: "Account updated", description: "Changes saved" });
+      setAdminUsername("");
+      setAdminPassword("");
+      setAdminRetryPassword("");
+      setEditingAccount(null);
+      setAdminError("");
+      setAdminActiveField("passcode");
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
       setStep("menu");
     },
     onError: (err: Error) => {
@@ -193,14 +308,42 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     },
   });
 
-  const handlePasswordSubmit = async () => {
-    if (password.length !== 6 || verifyingPassword) return;
+  const removeAccountMutation = useMutation({
+    mutationFn: async (id: number) => {
+      let url = `/api/settings/accounts/${id}`;
+      if (account) {
+        url += `?accountId=${account.id}&accountName=${encodeURIComponent(account.username)}`;
+      }
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) {
+        let msg = "Failed to remove account";
+        try {
+          const err = await res.json();
+          msg = err.error || err.message || msg;
+        } catch {
+          msg = `Server error (${res.status})`;
+        }
+        throw new Error(msg);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Account removed", description: "Account deleted" });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to remove account", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleLoginSubmit = async () => {
+    if (!loginUsername.trim() || !loginPassword || verifyingPassword) return;
     try {
       setVerifyingPassword(true);
-      const res = await fetch("/api/settings/verify-passcode", {
+      const res = await fetch("/api/settings/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passcode: password }),
+        body: JSON.stringify({ username: loginUsername.trim(), password: loginPassword }),
       });
 
       const data = await res.json();
@@ -208,84 +351,132 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       if (data.success) {
         setAccount(data.account);
         setStep("menu");
-        setPassword("");
+        setLoginPassword("");
         setError("");
       } else {
-        setError("Incorrect passcode");
-        setPassword("");
+        setError(data.error || "Invalid username or password");
+        setLoginPassword("");
       }
     } catch (e) {
-      setError("Failed to verify passcode");
+      setError("Failed to login");
     } finally {
       setVerifyingPassword(false);
     }
   };
 
-  const handleKeyPress = (num: string) => {
-    if (password.length < 6) {
-      setPassword((prev) => prev + num);
-      setError("");
-    }
-  };
-
-  const handlePasswordDelete = () => {
-    setPassword((prev) => prev.slice(0, -1));
-    setError("");
-  };
-
-  const handleAdminKeyPress = (num: string) => {
+  const handleAdminValueChange = (value: string) => {
     setAdminError("");
-    if (adminActiveField === "passcode" && adminPasscode.length < 6) {
-      setAdminPasscode((prev) => prev + num);
-    } else if (adminActiveField === "retry" && adminRetryPasscode.length < 6) {
-      setAdminRetryPasscode((prev) => prev + num);
-    }
-  };
-
-  const handleAdminDelete = () => {
-    setAdminError("");
-    if (adminActiveField === "passcode") {
-      setAdminPasscode((prev) => prev.slice(0, -1));
-    } else {
-      setAdminRetryPasscode((prev) => prev.slice(0, -1));
-    }
+    if (adminActiveField === "passcode") setAdminPassword(value);
+    else setAdminRetryPassword(value);
   };
 
   const handleCreateAdmin = () => {
-    if (!adminName.trim()) {
-      setAdminError("Name is required");
+    if (!adminUsername.trim()) {
+      setAdminError("Username is required");
       return;
     }
-    if (adminPasscode.length !== 6) {
-      setAdminError("Passcode must be 6 digits");
+    if (adminPassword.length < 4) {
+      setAdminError("Password must be at least 4 characters");
       return;
     }
-    if (adminPasscode !== adminRetryPasscode) {
-      setAdminError("Passcodes do not match");
+    if (adminPassword !== adminRetryPassword) {
+      setAdminError("Passwords do not match");
       return;
     }
     setAdminError("");
-    createAdminMutation.mutate({ name: adminName.trim(), passcode: adminPasscode });
+    createAdminMutation.mutate({ username: adminUsername.trim(), password: adminPassword, role: creatingRole });
+  };
+
+  const handleAdminPasscodeSubmit = (value: string) => {
+    if (adminActiveField === "passcode") {
+      if (!adminUsername.trim()) {
+        setAdminError("Username is required");
+        return;
+      }
+      if (adminPassword.length < 4) {
+        setAdminError("Password must be at least 4 characters");
+        return;
+      }
+      setAdminError("");
+      setAdminActiveField("retry");
+    } else {
+      handleCreateAdmin();
+    }
+  };
+
+  const handleEditAccount = () => {
+    if (!editingAccount) return;
+    if (!adminUsername.trim()) {
+      setAdminError("Username is required");
+      return;
+    }
+    if (adminPassword && adminPassword !== adminRetryPassword) {
+      setAdminError("Passwords do not match");
+      return;
+    }
+    if (adminPassword && adminPassword.length < 4) {
+      setAdminError("Password must be at least 4 characters");
+      return;
+    }
+    if (!adminPassword && adminRetryPassword) {
+      setAdminError("Passwords do not match");
+      return;
+    }
+    setAdminError("");
+    updateAccountMutation.mutate({
+      id: editingAccount.id,
+      username: adminUsername.trim(),
+      password: adminPassword,
+      role: creatingRole,
+    });
+  };
+
+  const openEditAccount = (acc: { id: number; username: string; role: string }) => {
+    setEditingAccount(acc);
+    setCreatingRole(acc.role === "superadmin" ? "superadmin" : "admin");
+    setAdminUsername(acc.username);
+    setAdminPassword("");
+    setAdminRetryPassword("");
+    setAdminActiveField("passcode");
+    setAdminError("");
+    setStep("edit-account");
+  };
+
+  const handleRemoveAccount = (id: number) => {
+    if (isRateLimited("remove-account-" + id)) return;
+    if (confirmRemoveId !== id) {
+      setConfirmRemoveId(id);
+      return;
+    }
+    setConfirmRemoveId(null);
+    removeAccountMutation.mutate(id);
   };
 
   const handleClose = () => {
     setStep("password");
-    setPassword("");
+    setLoginUsername("");
+    setLoginPassword("");
     setError("");
-    setAdminName("");
-    setAdminPasscode("");
-    setAdminRetryPasscode("");
+    setAdminUsername("");
+    setAdminPassword("");
+    setAdminRetryPassword("");
     setAdminError("");
+    setAdminActiveField("passcode");
+    setCreatingRole("admin");
+    setEditingAccount(null);
+    setConfirmRemoveId(null);
     setActiveSubmenu(null);
     setShowSensors(false);
+    setShowPowerModal(false);
+    setPowerAction(null);
     setPendingAction(null);
-    setActionPasscode("");
+    setActionPassword("");
     setActionError("");
     onClose();
   };
 
-  const handleAdminAccounts = () => {
-    setActiveSubmenu("admin-accounts");
+  const handleAccounts = () => {
+    setActiveSubmenu("accounts");
   };
 
   const handleActivityLogs = () => {
@@ -300,36 +491,43 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     setActiveSubmenu("ai-integration");
   };
 
+  const handleIdleTimeout = () => {
+    setActiveSubmenu("idle-timeout");
+  };
+
+  const handleIdleTimeoutSelect = (seconds: number) => {
+    if (isRateLimited("idle-timeout")) {
+      setTimeoutCooldown(true);
+      setTimeout(() => setTimeoutCooldown(false), 1000);
+      return;
+    }
+    setTimeoutCooldown(false);
+    setIdleTimeoutMutation.mutate(seconds);
+  };
+
   const handleActionPrompt = (action: "export" | "import" | "delete") => {
     setPendingAction(action);
-    setActionPasscode("");
+    setActionPassword("");
     setActionError("");
   };
 
-  const handleActionPasscodePress = (num: string) => {
-    if (actionPasscode.length < 6) {
-      setActionPasscode((prev) => prev + num);
-      setActionError("");
-    }
-  };
-
-  const handleActionPasscodeDelete = () => {
-    setActionPasscode((prev) => prev.slice(0, -1));
+  const handleActionValueChange = (value: string) => {
     setActionError("");
+    setActionPassword(value);
   };
 
   const handleExport = async () => {
     const url = new URL("/api/settings/export", window.location.origin);
     if (account) {
       url.searchParams.set("accountId", account.id.toString());
-      url.searchParams.set("accountName", account.name);
+      url.searchParams.set("accountName", account.username);
     }
     const a = document.createElement("a");
     a.href = url.toString();
     a.download = `risecare-backup-${Date.now()}.db`;
     a.click();
     setPendingAction(null);
-    setActionPasscode("");
+    setActionPassword("");
   };
 
   const handleImport = async () => {
@@ -344,7 +542,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       formData.append("file", file);
       if (account) {
         formData.append("accountId", account.id.toString());
-        formData.append("accountName", account.name);
+        formData.append("accountName", account.username);
       }
 
       try {
@@ -364,14 +562,14 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     };
     input.click();
     setPendingAction(null);
-    setActionPasscode("");
+    setActionPassword("");
   };
 
   const handleDeleteRecords = async () => {
     const url = new URL("/api/settings/delete", window.location.origin);
     if (account) {
       url.searchParams.set("accountId", account.id.toString());
-      url.searchParams.set("accountName", account.name);
+      url.searchParams.set("accountName", account.username);
     }
     try {
       const res = await fetch(url.toString(), { method: "POST" });
@@ -384,29 +582,29 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       toast({ title: "Delete failed", description: "Failed to delete records", variant: "destructive" });
     }
     setPendingAction(null);
-    setActionPasscode("");
+    setActionPassword("");
   };
 
-  const handleActionVerify = async () => {
-    if (actionPasscode.length !== 6) {
-      setActionError("Passcode must be 6 digits");
+  const handleActionVerify = async (password: string) => {
+    if (!password || password.length < 4) {
+      setActionError("Enter your password");
       return;
     }
     try {
       setVerifyingAction(true);
-      const res = await fetch("/api/settings/verify-passcode", {
+      const res = await fetch("/api/settings/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passcode: actionPasscode }),
+        body: JSON.stringify({ username: account?.username, password }),
       });
       const data = await res.json();
       if (!data.success) {
-        setActionError("Incorrect passcode");
-        setActionPasscode("");
+        setActionError("Incorrect password");
+        setActionPassword("");
         return;
       }
     } catch {
-      setActionError("Failed to verify passcode");
+      setActionError("Failed to verify password");
       return;
     } finally {
       setVerifyingAction(false);
@@ -421,48 +619,58 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     <>
       <>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-            <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50 max-h-[90vh] overflow-y-auto"
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+            style={{ paddingBottom: "calc(1rem + var(--vk-height, 0px))" }}
+          >
+            <div className="bg-card rounded-3xl shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
                 <button
                   onClick={() => {
                     if (pendingAction) {
                       setPendingAction(null);
-                      setActionPasscode("");
+                      setActionPassword("");
                       setActionError("");
-                    } else if (step === "create-admin") {
+                    } else if (step === "create-admin" || step === "edit-account") {
                       setStep("menu");
-                      setActiveSubmenu("admin-accounts");
-                      setAdminName(""); setAdminPasscode(""); setAdminRetryPasscode(""); setAdminError("");
+                      setActiveSubmenu("accounts");
+                      setEditingAccount(null);
+                      setAdminUsername(""); setAdminPassword(""); setAdminRetryPassword(""); setAdminError("");
                     } else if (activeSubmenu) setActiveSubmenu(null);
                     else handleClose();
                   }}
                   className="p-2 rounded-full hover:bg-muted"
                 >
-                  {activeSubmenu || step === "create-admin" || pendingAction ? (
+                  {activeSubmenu || step === "create-admin" || step === "edit-account" || pendingAction ? (
                     <ChevronRight className="w-6 h-6 rotate-180" />
                   ) : (
                     <X className="w-6 h-6" />
                   )}
                 </button>
-                <h2 className="text-2xl font-bold">
+                <h2 className="text-3xl font-bold">
                   {pendingAction === "delete"
                     ? "Verify to Delete"
                     : pendingAction
                       ? "Verify to Continue"
                       : step === "create-admin"
-                        ? "Create Admin"
-                        : activeSubmenu === "logs"
+                        ? creatingRole === "superadmin"
+                          ? "Create Super Admin"
+                          : "Create Admin"
+                        : step === "edit-account"
+                          ? "Edit Account"
+                          : activeSubmenu === "logs"
                           ? "Activity Logs"
                           : activeSubmenu === "database"
                             ? "Database"
-                            : activeSubmenu === "admin-accounts"
-                              ? "Admin Accounts"
-                              : activeSubmenu === "ai-integration"
-                                ? "AI Integration"
+                            : activeSubmenu === "accounts"
+                              ? "Accounts"
+                            : activeSubmenu === "ai-integration"
+                              ? "AI Integration"
+                              : activeSubmenu === "idle-timeout"
+                                ? "Idle Timeout"
                                 : step === "password"
-                                  ? "Enter Password"
+                                  ? "Login"
                                   : "Settings"}
                 </h2>
                 <div className="w-10" />
@@ -470,140 +678,191 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
 
               {step === "password" ? (
                 <>
-                  <p className="text-center text-muted-foreground mb-4">
-                    Enter 6-digit passcode
-                  </p>
-                  <div className="flex justify-center gap-2 mb-6">
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <div
-                        key={i}
-                        className="w-12 h-14 border-2 border-border rounded-lg flex items-center justify-center text-2xl font-bold"
-                      >
-                        {password[i] ? "•" : ""}
-                      </div>
-                    ))}
-                  </div>
-
                   {error && (
-                    <p className="text-red-500 text-center mb-4">{error}</p>
+                    <p className="text-red-500 text-center text-sm mb-3">{error}</p>
                   )}
-
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                      <button
-                        key={num}
-                        onClick={() => { if (isRateLimited("pw-" + num)) return; handleKeyPress(num.toString()); }}
-                        className="h-16 text-2xl font-semibold bg-secondary rounded-xl "
-                      >
-                        {num}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => { if (isRateLimited("pw-del")) return; handlePasswordDelete(); }}
-                      className="h-16 flex items-center justify-center bg-muted rounded-xl "
-                    >
-                      <X className="w-6 h-6" />
-                    </button>
-                    <button
-                      onClick={() => { if (isRateLimited("pw-0")) return; handleKeyPress("0"); }}
-                      className="h-16 text-2xl font-semibold bg-secondary rounded-xl "
-                    >
-                      0
-                    </button>
-                    <button
-                      onClick={() => { if (isRateLimited("pw-submit")) return; handlePasswordSubmit(); }}
-                      disabled={password.length !== 6 || verifyingPassword}
-                      className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
-                    >
-                      {verifyingPassword ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
-                    </button>
-                  </div>
-                </>
-              ) : step === "create-admin" ? (
-                <>
-                  <div className="space-y-4 mb-6">
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-foreground">Admin Name</label>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-foreground">Username</label>
                       <input
                         type="text"
-                        value={adminName}
-                        onChange={(e) => { setAdminName(e.target.value); setAdminError(""); }}
-                        placeholder="Enter admin name"
-                        className="w-full h-12 px-4 text-lg rounded-xl bg-background border-2 border-border outline-none"
+                        value={loginUsername}
+                        onChange={(e) => { setError(""); setLoginUsername(e.target.value); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleLoginSubmit(); }}
+                        placeholder="Enter username"
+                        className="w-full h-14 px-5 text-xl rounded-xl bg-background border-2 border-border outline-none"
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-foreground">Passcode (6 digits)</label>
-                      <div className="flex gap-2">
-                        <div
-                          onClick={() => setAdminActiveField("passcode")}
-                          className={`flex-1 flex items-center justify-center h-14 rounded-xl border-2 ${
-                            adminActiveField === "passcode" ? "border-primary bg-primary/5" : "border-border"
-                          }`}
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-foreground">Password</label>
+                      <div className="relative">
+                        <input
+                          type={showLoginPassword ? "text" : "password"}
+                          value={loginPassword}
+                          onChange={(e) => { setError(""); setLoginPassword(e.target.value); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleLoginSubmit(); }}
+                          placeholder="Enter password"
+                          className="w-full h-14 px-5 pr-16 text-xl rounded-xl bg-background border-2 border-border outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-muted-foreground hover:text-foreground"
+                          aria-label={showLoginPassword ? "Hide password" : "Show password"}
                         >
-                          <span className="text-2xl font-bold tracking-widest">
-                            {adminPasscode ? "•".repeat(adminPasscode.length) : <span className="text-muted-foreground/30">000000</span>}
-                          </span>
-                        </div>
+                          {showLoginPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+                        </button>
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-foreground">Retry Passcode</label>
-                      <div className="flex gap-2">
-                        <div
-                          onClick={() => setAdminActiveField("retry")}
-                          className={`flex-1 flex items-center justify-center h-14 rounded-xl border-2 ${
-                            adminActiveField === "retry" ? "border-primary bg-primary/5" : "border-border"
-                          }`}
-                        >
-                          <span className="text-2xl font-bold tracking-widest">
-                            {adminRetryPasscode ? "•".repeat(adminRetryPasscode.length) : <span className="text-muted-foreground/30">000000</span>}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {adminError && (
-                    <p className="text-red-500 text-center mb-4 text-sm">{adminError}</p>
-                  )}
-
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                      <button
-                        key={num}
-                        onClick={() => { if (isRateLimited("admin-" + num)) return; handleAdminKeyPress(num.toString()); }}
-                        className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
-                      >
-                        {num}
-                      </button>
-                    ))}
                     <button
-                      onClick={() => { if (isRateLimited("admin-del")) return; handleAdminDelete(); }}
-                      className="h-16 flex items-center justify-center bg-muted rounded-xl"
+                      onClick={handleLoginSubmit}
+                      disabled={!loginUsername.trim() || !loginPassword || verifyingPassword}
+                      className="w-full h-16 rounded-2xl bg-primary text-primary-foreground text-2xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      <X className="w-6 h-6" />
-                    </button>
-                    <button
-                      onClick={() => { if (isRateLimited("admin-0")) return; handleAdminKeyPress("0"); }}
-                      className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
-                    >
-                      0
-                    </button>
-                    <button
-                      onClick={() => { if (isRateLimited("admin-create")) return; handleCreateAdmin(); }}
-                      disabled={createAdminMutation.isPending}
-                      className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
-                    >
-                      {createAdminMutation.isPending ? (
-                        <Loader2 className="w-6 h-6" />
+                      {verifyingPassword ? (
+                        <Loader2 className="w-7 h-7 animate-spin" />
                       ) : (
-                        <Check className="w-6 h-6" />
+                        "Enter"
                       )}
                     </button>
                   </div>
+                </>
+              ) : step === "create-admin" || step === "edit-account" ? (
+                <>
+                  <div className="space-y-5 mb-6">
+                    <div className="space-y-2">
+                      <label className="text-lg font-semibold text-foreground">Role</label>
+                      <select
+                        value={creatingRole}
+                        onChange={(e) => { setCreatingRole(e.target.value as "superadmin" | "admin"); setAdminError(""); }}
+                        className="w-full h-16 px-5 text-2xl rounded-xl bg-background border-2 border-border outline-none"
+                      >
+                        <option value="superadmin">Super Admin</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-lg font-semibold text-foreground">Username</label>
+                      <input
+                        type="text"
+                        value={adminUsername}
+                        onChange={(e) => { setAdminUsername(e.target.value); setAdminError(""); }}
+                        placeholder="Enter username"
+                        className="w-full h-16 px-5 text-2xl rounded-xl bg-background border-2 border-border outline-none"
+                      />
+                    </div>
+
+                    {step === "edit-account" ? (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-lg font-semibold text-foreground">New Password</label>
+                          <div className="relative">
+                            <input
+                              type={showAdminPassword ? "text" : "password"}
+                              value={adminPassword}
+                              onChange={(e) => { setAdminError(""); setAdminPassword(e.target.value); }}
+                              placeholder="Leave blank to keep current password"
+                              className="w-full h-16 px-5 pr-16 text-2xl rounded-xl bg-background border-2 border-primary/50 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowAdminPassword((v) => !v)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-muted-foreground hover:text-foreground"
+                              aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                            >
+                              {showAdminPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-lg font-semibold text-foreground">Re-enter New Password</label>
+                          <div className="relative">
+                            <input
+                              type={showAdminRetryPassword ? "text" : "password"}
+                              value={adminRetryPassword}
+                              onChange={(e) => { setAdminError(""); setAdminRetryPassword(e.target.value); }}
+                              placeholder="Re-enter new password"
+                              className="w-full h-16 px-5 pr-16 text-2xl rounded-xl bg-background border-2 border-primary/50 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowAdminRetryPassword((v) => !v)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-muted-foreground hover:text-foreground"
+                              aria-label={showAdminRetryPassword ? "Hide password" : "Show password"}
+                            >
+                              {showAdminRetryPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="text-lg font-semibold text-foreground">
+                          {adminActiveField === "retry" ? "Retry Password" : "Password"}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showAdminPassword ? "text" : "password"}
+                            value={adminActiveField === "passcode" ? adminPassword : adminRetryPassword}
+                            onChange={(e) => handleAdminValueChange(e.target.value)}
+                            placeholder={adminActiveField === "retry" ? "Re-enter password" : "Enter password"}
+                            className="w-full h-16 px-5 pr-16 text-2xl rounded-xl bg-background border-2 border-primary/50 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowAdminPassword((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-muted-foreground hover:text-foreground"
+                            aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                          >
+                            {showAdminPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {adminError && (
+                    <p className="text-red-500 text-center mb-4 text-base">{adminError}</p>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      if (step === "edit-account") {
+                        handleEditAccount();
+                      } else {
+                        handleAdminPasscodeSubmit(adminActiveField === "passcode" ? adminPassword : adminRetryPassword);
+                      }
+                    }}
+                    disabled={
+                      createAdminMutation.isPending ||
+                      updateAccountMutation.isPending ||
+                      !adminUsername.trim() ||
+                      (step === "edit-account"
+                        ? (adminPassword.length > 0 && adminPassword.length < 4) ||
+                          (adminRetryPassword.length > 0 && adminRetryPassword.length < 4)
+                        : adminActiveField === "passcode"
+                          ? adminPassword.length < 4
+                          : adminRetryPassword.length < 4)
+                    }
+                    className="w-full h-16 rounded-2xl bg-primary text-primary-foreground text-2xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {step === "edit-account" ? (
+                      updateAccountMutation.isPending ? (
+                        <Loader2 className="w-7 h-7 animate-spin" />
+                      ) : (
+                        "Save Changes"
+                      )
+                    ) : createAdminMutation.isPending ? (
+                      <Loader2 className="w-7 h-7 animate-spin" />
+                    ) : adminActiveField === "retry" ? (
+                      "Create Account"
+                    ) : (
+                      "Continue"
+                    )}
+                  </button>
                 </>
               ) : activeSubmenu === "logs" ? (
                 <div>
@@ -612,27 +871,27 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                       <Loader2 className="w-8 h-8" />
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                    <div className="space-y-2 max-h-[55vh] overflow-y-auto">
                       {activityLogs?.length > 0 ? (
                         activityLogs.map((log: any, i: number) => (
                           <div
                             key={i}
-                            className="p-3 rounded-lg bg-secondary text-sm"
+                            className="p-4 rounded-lg bg-secondary text-base"
                           >
-                            <div className="flex justify-between items-start">
+                            <div className="flex justify-between items-start gap-3">
                               <p className="font-semibold">
                                 {log.action || "Unknown action"}
                               </p>
-                              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                              <span className="text-sm bg-primary/10 text-primary px-3 py-1 rounded-full shrink-0">
                                 {log.account_name || "Unknown"}
                               </span>
                             </div>
                             {log.details && (
-                              <p className="text-muted-foreground text-xs mt-1">
+                              <p className="text-muted-foreground text-sm mt-1.5">
                                 {log.details}
                               </p>
                             )}
-                            <p className="text-muted-foreground text-xs mt-1">
+                            <p className="text-muted-foreground text-sm mt-1.5">
                               {log.created_at
                                 ? new Date(log.created_at).toLocaleString()
                                 : "Unknown time"}
@@ -640,7 +899,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                           </div>
                         ))
                       ) : (
-                        <p className="text-center text-muted-foreground py-8">
+                        <p className="text-center text-muted-foreground py-10">
                           No activity logs found
                         </p>
                       )}
@@ -651,52 +910,40 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                 <>
                   <p className="text-center text-muted-foreground mb-4">
                     {pendingAction === "delete"
-                      ? "Enter admin passcode to delete all records"
-                      : `Enter admin passcode to ${pendingAction} the database`}
+                      ? "Enter your password to delete all records"
+                      : `Enter your password to ${pendingAction} the database`}
                   </p>
-                  <div className="flex justify-center gap-2 mb-6">
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <div
-                        key={i}
-                        className="w-12 h-14 border-2 border-border rounded-lg flex items-center justify-center text-2xl font-bold"
-                      >
-                        {actionPasscode[i] ? "•" : ""}
-                      </div>
-                    ))}
-                  </div>
-
-                  {actionError && (
-                    <p className="text-red-500 text-center mb-4">{actionError}</p>
-                  )}
-
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <input
+                        type={showActionPassword ? "text" : "password"}
+                        value={actionPassword}
+                        onChange={(e) => handleActionValueChange(e.target.value)}
+                        placeholder="Enter password"
+                        className="w-full h-14 px-5 pr-16 text-xl rounded-xl bg-background border-2 border-border outline-none"
+                      />
                       <button
-                        key={num}
-                        onClick={() => { if (isRateLimited("action-" + num)) return; handleActionPasscodePress(num.toString()); }}
-                        className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
+                        type="button"
+                        onClick={() => setShowActionPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-muted-foreground hover:text-foreground"
+                        aria-label={showActionPassword ? "Hide password" : "Show password"}
                       >
-                        {num}
+                        {showActionPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
                       </button>
-                    ))}
+                    </div>
+                    {actionError && (
+                      <p className="text-red-500 text-center text-sm">{actionError}</p>
+                    )}
                     <button
-                      onClick={() => { if (isRateLimited("action-del")) return; handleActionPasscodeDelete(); }}
-                      className="h-16 flex items-center justify-center bg-muted rounded-xl"
+                      onClick={() => handleActionVerify(actionPassword)}
+                      disabled={!actionPassword || verifyingAction}
+                      className="w-full h-14 rounded-xl bg-red-600 text-white text-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      <X className="w-6 h-6" />
-                    </button>
-                    <button
-                      onClick={() => { if (isRateLimited("action-0")) return; handleActionPasscodePress("0"); }}
-                      className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
-                    >
-                      0
-                    </button>
-                    <button
-                      onClick={() => { if (isRateLimited("action-verify")) return; handleActionVerify(); }}
-                      disabled={actionPasscode.length !== 6 || verifyingAction}
-                      className="h-16 flex items-center justify-center bg-red-600 text-white rounded-xl disabled:opacity-50"
-                    >
-                      {verifyingAction ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
+                      {verifyingAction ? (
+                        <Loader2 className="w-7 h-7 animate-spin" />
+                      ) : (
+                        "Verify"
+                      )}
                     </button>
                   </div>
                 </>
@@ -706,35 +953,35 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     onClick={() => { if (isRateLimited("export")) return; handleActionPrompt("export"); }}
                     className="w-full flex items-center gap-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80  text-left"
                   >
-                    <FileText className="w-5 h-5" />
-                    <span className="text-lg font-semibold">Export Database</span>
+                    <FileText className="w-6 h-6" />
+                    <span className="text-xl font-semibold">Export Database</span>
                   </button>
                   <button
                     onClick={() => { if (isRateLimited("import")) return; handleActionPrompt("import"); }}
                     className="w-full flex items-center gap-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80  text-left"
                   >
-                    <Database className="w-5 h-5" />
-                    <span className="text-lg font-semibold">Import Database</span>
+                    <Database className="w-6 h-6" />
+                    <span className="text-xl font-semibold">Import Database</span>
                   </button>
                   <button
                     onClick={() => { if (isRateLimited("delete-records")) return; handleActionPrompt("delete"); }}
                     className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-100 hover:bg-red-200 text-red-700  text-left"
                   >
-                    <FileText className="w-5 h-5" />
-                    <span className="text-lg font-semibold">Delete Records</span>
+                    <FileText className="w-6 h-6" />
+                    <span className="text-xl font-semibold">Delete Records</span>
                   </button>
                 </div>
-              ) : activeSubmenu === "admin-accounts" ? (
+              ) : activeSubmenu === "accounts" ? (
                 <div className="space-y-3">
                   <button
-                    onClick={() => { if (isRateLimited("create-admin")) return; setStep("create-admin"); setAdminError(""); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
+                    onClick={() => { if (isRateLimited("create-admin")) return; setCreatingRole("admin"); setAdminActiveField("passcode"); setStep("create-admin"); setAdminError(""); }}
+                    className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
-                      <UserPlus className="w-5 h-5" />
-                      <span className="text-lg font-semibold">Create Admin</span>
+                      <UserPlus className="w-6 h-6" />
+                      <span className="text-xl font-semibold">Create Account</span>
                     </div>
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-6 h-6" />
                   </button>
 
                   {accountsLoading ? (
@@ -742,29 +989,71 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                       <Loader2 className="w-8 h-8" />
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                    <div className="space-y-3 max-h-[50vh] overflow-y-auto">
                       <div className="flex items-center gap-2 px-2 py-2">
-                        <List className="w-5 h-5" />
-                        <span className="text-lg font-semibold">Registered Admins</span>
-                        <span className="text-sm text-muted-foreground ml-auto">({adminAccounts?.length ?? 0})</span>
+                        <List className="w-7 h-7" />
+                        <span className="text-2xl font-semibold">Registered Accounts</span>
+                        <span className="text-base text-muted-foreground ml-auto">({adminAccounts?.length ?? 0})</span>
                       </div>
-                      {adminAccounts?.length > 0 ? (
+                      {adminAccounts && adminAccounts.length > 0 ? (
                         adminAccounts.map((acc) => (
                           <div
                             key={acc.id}
-                            className="p-3 rounded-lg bg-secondary text-sm"
+                            className="p-4 rounded-lg bg-secondary"
                           >
-                            <div className="flex justify-between items-center">
-                              <span className="font-semibold">{acc.name}</span>
-                              <span className="text-xs text-muted-foreground">
+                            <div className="flex justify-between items-center gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="text-xl font-semibold truncate">{acc.username}</span>
+                                {account?.id === acc.id && (
+                                  <span className="text-sm text-muted-foreground shrink-0">(you)</span>
+                                )}
+                                <span className={`text-sm px-3 py-1 rounded-full shrink-0 ${acc.role === "superadmin" ? "bg-primary/10 text-primary" : "bg-yellow-500/10 text-yellow-700"}`}>
+                                  {acc.role === "superadmin" ? "Super Admin" : "Admin"}
+                                </span>
+                              </div>
+                              <span className="text-base text-muted-foreground shrink-0">
                                 {new Date(acc.created_at).toLocaleDateString()}
                               </span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-3">
+                              <button
+                                onClick={() => { if (isRateLimited("edit-account-" + acc.id)) return; openEditAccount(acc); }}
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary/10 text-primary text-lg font-semibold"
+                              >
+                                <Pencil className="w-5 h-5" />
+                                Edit
+                              </button>
+                              {account?.id === acc.id ? null : confirmRemoveId === acc.id ? (
+                                <>
+                                  <button
+                                    onClick={() => handleRemoveAccount(acc.id)}
+                                    disabled={removeAccountMutation.isPending}
+                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 text-white text-lg font-semibold"
+                                  >
+                                    Confirm
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmRemoveId(null)}
+                                    className="flex items-center px-5 py-2.5 rounded-xl bg-muted text-lg font-semibold"
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => handleRemoveAccount(acc.id)}
+                                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-100 text-red-700 text-lg font-semibold"
+                                >
+                                  <Trash2 className="w-5 h-5" />
+                                  Remove
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))
                       ) : (
-                        <p className="text-center text-muted-foreground py-6 text-sm">
-                          No admin accounts
+                        <p className="text-center text-muted-foreground py-6 text-lg">
+                          No accounts
                         </p>
                       )}
                     </div>
@@ -776,7 +1065,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                   <div className="p-4 rounded-xl bg-secondary">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <Lightbulb className="w-5 h-5" />
+                        <Lightbulb className="w-6 h-6" />
                         <div>
                           <span className="text-lg font-semibold block">Enable Recommendations</span>
                           <span className="text-sm text-muted-foreground">
@@ -824,7 +1113,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                             : "bg-secondary"
                         }`}
                       >
-                        <Brain className="w-5 h-5" />
+                        <Brain className="w-6 h-6" />
                         <div>
                           <span className="text-lg font-semibold block">Integrated AI</span>
                           <span className="text-sm text-muted-foreground">
@@ -845,7 +1134,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                             : "bg-secondary"
                         }`}
                       >
-                        <Cpu className="w-5 h-5" />
+                        <Cpu className="w-6 h-6" />
                         <div>
                           <span className="text-lg font-semibold block">Rule-Based AI</span>
                           <span className="text-sm text-muted-foreground">
@@ -857,77 +1146,144 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                     </>
                   )}
                 </div>
+               ) : activeSubmenu === "idle-timeout" ? (
+                <div className="space-y-3">
+                  <div className="p-4 rounded-xl bg-secondary">
+                    <div className="flex items-center gap-3">
+                      <Timer className="w-6 h-6" />
+                      <div>
+                        <span className="text-lg font-semibold block">Idle Timeout</span>
+                        {timeoutLoading ? (
+                          <span className="text-sm text-muted-foreground flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+                          </span>
+                        ) : setIdleTimeoutMutation.isPending ? (
+                          <span className="text-sm text-muted-foreground flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                          </span>
+                        ) : timeoutCooldown ? (
+                          <span className="text-sm text-muted-foreground">
+                            Please wait a moment before changing again...
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            Returns to home after {idleTimeoutSeconds} seconds of inactivity
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Select how long to wait with no interaction before returning to the home screen:
+                  </p>
+
+                  {[30, 60, 120, 300, 600].map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => handleIdleTimeoutSelect(opt)}
+                      disabled={setIdleTimeoutMutation.isPending || timeoutCooldown}
+                      className={`w-full flex items-center gap-3 p-4 rounded-xl text-left ${
+                        idleTimeoutSeconds === opt
+                          ? "bg-primary/10 border-2 border-primary"
+                          : "bg-secondary"
+                      } disabled:opacity-50`}
+                    >
+                      <Timer className="w-6 h-6" />
+                      <div>
+                        <span className="text-lg font-semibold block">
+                          {opt < 60 ? `${opt} seconds` : `${opt / 60} minute${opt === 60 ? "" : "s"}`}
+                        </span>
+                      </div>
+                      {setIdleTimeoutMutation.isPending && idleTimeoutSeconds === opt ? (
+                        <Loader2 className="w-5 h-5 ml-auto animate-spin text-primary" />
+                      ) : (
+                        idleTimeoutSeconds === opt && <Check className="w-5 h-5 ml-auto text-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
               ) : (
                 <div className="space-y-3">
                   <button
                     onClick={() => { if (isRateLimited("sensors")) return; setShowSensors(true); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
+                    className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
-                      <Activity className="w-5 h-5" />
-                      <span className="text-lg font-semibold">Sensors</span>
+                      <Activity className="w-6 h-6" />
+                      <span className="text-xl font-semibold">Sensors/Print Test</span>
                     </div>
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-6 h-6" />
                   </button>
 
-                  <button
-                    onClick={() => { if (isRateLimited("activity-log")) return; handleActivityLogs(); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5" />
-                      <span className="text-lg font-semibold">Activity Log</span>
-                    </div>
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
+                  {isSuperadmin && (
+                    <button
+                      onClick={() => { if (isRateLimited("activity-log")) return; handleActivityLogs(); }}
+                      className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-6 h-6" />
+                        <span className="text-xl font-semibold">Activity Log</span>
+                      </div>
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+                  )}
 
                   <button
                     onClick={() => { if (isRateLimited("database")) return; handleDatabase(); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
+                    className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
-                      <Database className="w-5 h-5" />
-                      <span className="text-lg font-semibold">Database</span>
+                      <Database className="w-6 h-6" />
+                      <span className="text-xl font-semibold">Database</span>
                     </div>
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-
-                  <button
-                    onClick={() => { if (isRateLimited("print-test")) return; printTestMutation.mutate(); }}
-                    disabled={printTestMutation.isPending}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
-                  >
-                    <div className="flex items-center gap-3">
-                      <Printer className="w-5 h-5" />
-                      <span className="text-lg font-semibold">Print Test</span>
-                    </div>
-                    {printTestMutation.isPending ? (
-                      <Loader2 className="w-5 h-5" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5" />
-                    )}
+                    <ChevronRight className="w-6 h-6" />
                   </button>
 
                   <button
                     onClick={() => { if (isRateLimited("ai-integration-menu")) return; handleAIIntegration(); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
+                    className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
-                      <Brain className="w-5 h-5" />
-                      <span className="text-lg font-semibold">AI Integration</span>
+                      <Brain className="w-6 h-6" />
+                      <span className="text-xl font-semibold">AI Integration</span>
                     </div>
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-6 h-6" />
                   </button>
 
                   <button
-                    onClick={() => { if (isRateLimited("admin-accounts-menu")) return; handleAdminAccounts(); }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary hover:bg-secondary/80 "
+                    onClick={() => { if (isRateLimited("idle-timeout-menu")) return; handleIdleTimeout(); }}
+                    className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
                   >
                     <div className="flex items-center gap-3">
-                      <Shield className="w-5 h-5" />
-                      <span className="text-lg font-semibold">Admin Accounts</span>
+                      <Timer className="w-6 h-6" />
+                      <span className="text-xl font-semibold">Idle Timeout</span>
                     </div>
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+
+                  {isSuperadmin && (
+                    <button
+                      onClick={() => { if (isRateLimited("accounts-menu")) return; handleAccounts(); }}
+                      className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
+                    >
+                      <div className="flex items-center gap-3">
+                        <Shield className="w-6 h-6" />
+                        <span className="text-xl font-semibold">Accounts</span>
+                      </div>
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => { if (isRateLimited("power-menu")) return; setShowPowerModal(true); }}
+                    className="w-full flex items-center justify-between p-5 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Power className="w-6 h-6" />
+                      <span className="text-xl font-semibold">Power</span>
+                    </div>
+                    <ChevronRight className="w-6 h-6" />
                   </button>
                 </div>
               )}
@@ -940,6 +1296,93 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
         isOpen={showSensors}
         onClose={() => setShowSensors(false)}
       />
+
+      {showPowerModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
+          <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50">
+            {powerAction === null ? (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-3xl font-bold">Power Options</h2>
+                  <button
+                    onClick={() => setShowPowerModal(false)}
+                    className="p-2 rounded-full hover:bg-muted"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => { if (isRateLimited("power-shutdown")) return; setPowerAction("shutdown"); }}
+                    className="w-full flex items-center gap-3 p-5 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-left"
+                  >
+                    <Power className="w-6 h-6" />
+                    <span className="text-xl font-semibold">Shutdown</span>
+                  </button>
+                  <button
+                    onClick={() => { if (isRateLimited("power-restart")) return; setPowerAction("restart"); }}
+                    className="w-full flex items-center gap-3 p-5 rounded-xl bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-700 text-left"
+                  >
+                    <RotateCw className="w-6 h-6" />
+                    <span className="text-xl font-semibold">Restart</span>
+                  </button>
+                  <button
+                    onClick={() => { if (isRateLimited("power-lock")) return; setPowerAction("lock"); }}
+                    className="w-full flex items-center gap-3 p-5 rounded-xl bg-secondary hover:bg-secondary/80 text-left"
+                  >
+                    <Lock className="w-6 h-6" />
+                    <span className="text-xl font-semibold">Lock</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <button
+                    onClick={() => setPowerAction(null)}
+                    className="p-2 rounded-full hover:bg-muted"
+                  >
+                    <ChevronRight className="w-6 h-6 rotate-180" />
+                  </button>
+                  <h2 className="text-3xl font-bold">Confirm</h2>
+                  <div className="w-10" />
+                </div>
+                <p className="text-center text-muted-foreground mb-6">
+                  Are you sure you want to{" "}
+                  {powerAction === "lock"
+                    ? "lock the screen"
+                    : powerAction === "restart"
+                      ? "restart the system"
+                      : "shut down the system"}
+                  ?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (isRateLimited("power-confirm")) return;
+                      powerMutation.mutate(powerAction);
+                    }}
+                    disabled={powerMutation.isPending}
+                    className="flex-1 h-14 rounded-xl bg-primary text-primary-foreground text-lg font-semibold flex items-center justify-center gap-2"
+                  >
+                    {powerMutation.isPending ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      "Confirm"
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setPowerAction(null)}
+                    className="flex-1 h-14 rounded-xl bg-secondary text-lg font-semibold"
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

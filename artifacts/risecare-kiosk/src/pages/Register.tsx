@@ -28,8 +28,17 @@ export default function Register() {
   const phoneDigits = phoneRaw.replace(/\D/g, "");
   const phoneValid = phoneDigits.length === 10 && phoneDigits[0] === "9";
   const phoneDisplay = formatPhoneDisplay(phoneRaw);
-  const phoneError = phoneDigits.length > 0 && !phoneValid && phoneDigits.length >= 10 ? "Phone must start with 9 and be 10 digits" : "";
-  const allFilled = name && phoneValid && age && gender;
+  const phoneError = phoneDigits.length > 0 && !phoneValid ? "Phone must start with 9 and be 10 digits" : "";
+
+  const nameTrimmed = name.trim();
+  const nameValid = nameTrimmed.length >= 2;
+  const nameError = nameTrimmed.length > 0 && nameTrimmed.length < 2 ? "Name must be at least 2 characters" : "";
+
+  const ageNum = parseInt(age, 10);
+  const ageValid = age.length > 0 && !Number.isNaN(ageNum) && ageNum >= 1 && ageNum <= 120;
+  const ageError = age.length > 0 && !Number.isNaN(ageNum) && (ageNum < 1 || ageNum > 120) ? "Age must be between 1 and 120" : "";
+
+  const allFilled = nameValid && phoneValid && ageValid && gender;
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "").slice(0, 10);
@@ -37,8 +46,7 @@ export default function Register() {
   };
 
   const handleStart = () => {
-    if (!name || !phoneRaw || !age || !gender) return;
-    if (!phoneValid) return;
+    if (!nameValid || !phoneValid || !ageValid || !gender) return;
 
     createSession.mutate(
       {
@@ -66,7 +74,7 @@ export default function Register() {
           keyboardVisible ? "items-start pt-3 pb-80" : "items-center"
         }`}
       >
-        <div className="w-full max-w-xl bg-card rounded-xl shadow-xl border border-border/50 overflow-hidden">
+        <div className="w-full max-w-2xl bg-card rounded-xl shadow-xl border border-border/50 overflow-hidden">
           <div className={keyboardVisible ? "p-5" : "p-6"}>
             <div
               className={
@@ -103,8 +111,9 @@ export default function Register() {
                   value={name}
                   onChange={(e) => setName(e.target.value.replace(/[0-9]/g, ""))}
                   placeholder="Tap to enter patient name"
-                  className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground"
+                  className={`w-full h-12 px-4 text-xl rounded-lg bg-background border-2 ${nameError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground`}
                 />
+                {nameError && <p className="text-destructive text-sm mt-1">{nameError}</p>}
               </div>
 
               <div className="space-y-2.5">
@@ -124,11 +133,10 @@ export default function Register() {
                     placeholder="912 345 6789"
                     className={`no-spinner w-full h-12 pl-16 pr-4 text-xl rounded-lg bg-background border-2 ${phoneError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground`}
                   />
-                  {phoneError && <p className="text-destructive text-sm mt-1">{phoneError}</p>}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 portrait:grid-cols-1 gap-4">
                 <div className="space-y-2.5">
                   <label className="text-xl font-semibold text-foreground flex items-center gap-2">
                     Age <span className="text-destructive">*</span>
@@ -139,8 +147,9 @@ export default function Register() {
                     value={age}
                     onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
                     placeholder="Years"
-                    className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                    className={`no-spinner w-full h-12 px-4 text-xl rounded-lg bg-background border-2 ${ageError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none`}
                   />
+                  {ageError && <p className="text-destructive text-sm mt-1">{ageError}</p>}
                 </div>
 
                 <div className="space-y-2.5">
@@ -171,7 +180,7 @@ export default function Register() {
                 handleStart();
               }}
               disabled={
-                !name || !phoneValid || !age || !gender || createSession.isPending
+                !nameValid || !phoneValid || !ageValid || !gender || createSession.isPending
               }
               className="h-12 px-6 text-xl font-bold bg-primary text-primary-foreground rounded-lg shadow-xl shadow-primary/25 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
             >

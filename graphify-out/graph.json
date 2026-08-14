@@ -1005,6 +1005,17 @@
       "norm_label": "sensoravailability"
     },
     {
+      "label": "completeTestAll()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/routes/sensors.ts",
+      "source_location": "L147",
+      "_origin": "ast",
+      "id": "artifacts_api_server_src_routes_sensors_completetestall",
+      "community": 1,
+      "community_name": "db/src/index.ts",
+      "norm_label": "completetestall()"
+    },
+    {
       "label": "routes/sessions.ts",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/sessions.ts",
@@ -1041,7 +1052,7 @@
       "label": "findWorkspaceRoot()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L6",
+      "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_settings_findworkspaceroot",
       "community": 1,
@@ -1052,7 +1063,7 @@
       "label": "getDbPath()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L19",
+      "source_location": "L20",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_settings_getdbpath",
       "community": 1,
@@ -1063,7 +1074,7 @@
       "label": "dbPath",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L32",
+      "source_location": "L33",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_settings_dbpath",
       "community": 1,
@@ -1074,12 +1085,34 @@
       "label": "router",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L34",
+      "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_settings_router",
       "community": 1,
       "community_name": "db/src/index.ts",
       "norm_label": "router"
+    },
+    {
+      "label": "getAccountRole()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L37",
+      "_origin": "ast",
+      "id": "artifacts_api_server_src_routes_settings_getaccountrole",
+      "community": 1,
+      "community_name": "db/src/index.ts",
+      "norm_label": "getaccountrole()"
+    },
+    {
+      "label": "sendPowerCommand()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L415",
+      "_origin": "ast",
+      "id": "artifacts_api_server_src_routes_settings_sendpowercommand",
+      "community": 1,
+      "community_name": "db/src/index.ts",
+      "norm_label": "sendpowercommand()"
     },
     {
       "label": "routes/vitals.ts",
@@ -1583,7 +1616,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_package_dependencies_radix_ui_react_alert_dialog",
-      "community": 75,
+      "community": 91,
       "community_name": "@radix-ui/react-alert-dialog",
       "norm_label": "@radix-ui/react-alert-dialog"
     },
@@ -1594,7 +1627,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "radix_ui_react_alert_dialog",
-      "community": 75,
+      "community": 91,
       "community_name": "@radix-ui/react-alert-dialog",
       "norm_label": "@radix-ui/react-alert-dialog"
     },
@@ -1957,7 +1990,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_package_dependencies_radix_ui_react_separator",
-      "community": 90,
+      "community": 5,
       "community_name": "@radix-ui/react-separator",
       "norm_label": "@radix-ui/react-separator"
     },
@@ -1968,7 +2001,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "radix_ui_react_separator",
-      "community": 90,
+      "community": 5,
       "community_name": "@radix-ui/react-separator",
       "norm_label": "@radix-ui/react-separator"
     },
@@ -2980,7 +3013,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_app",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "app.tsx"
     },
@@ -2988,10 +3021,10 @@
       "label": "queryClient",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L15",
+      "source_location": "L16",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_app_queryclient",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "queryclient"
     },
@@ -2999,10 +3032,10 @@
       "label": "Router()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L24",
+      "source_location": "L25",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_app_router",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "router()"
     },
@@ -3010,12 +3043,45 @@
       "label": "App()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L40",
+      "source_location": "L42",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_app_app",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "app()"
+    },
+    {
+      "label": "IdleTimeout.tsx",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/IdleTimeout.tsx",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_idletimeout",
+      "community": 45,
+      "community_name": "App.tsx",
+      "norm_label": "idletimeout.tsx"
+    },
+    {
+      "label": "ACTIVITY_EVENTS",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/IdleTimeout.tsx",
+      "source_location": "L6",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_idletimeout_activity_events",
+      "community": 45,
+      "community_name": "App.tsx",
+      "norm_label": "activity_events"
+    },
+    {
+      "label": "IdleTimeout()",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/IdleTimeout.tsx",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_idletimeout_idletimeout",
+      "community": 45,
+      "community_name": "App.tsx",
+      "norm_label": "idletimeout()"
     },
     {
       "label": "InstructionModal.tsx",
@@ -3024,8 +3090,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_instructionmodal",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 78,
+      "community_name": "InstructionModal.tsx",
       "norm_label": "instructionmodal.tsx"
     },
     {
@@ -3035,8 +3101,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_instructionmodal_instructionmodalprops",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 78,
+      "community_name": "InstructionModal.tsx",
       "norm_label": "instructionmodalprops"
     },
     {
@@ -3046,8 +3112,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_instructionmodal_instructionmodal",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 78,
+      "community_name": "InstructionModal.tsx",
       "norm_label": "instructionmodal()"
     },
     {
@@ -3057,8 +3123,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_keypaddialog",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "keypaddialog.tsx"
     },
     {
@@ -3068,8 +3134,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_keypaddialog_keypaddialogprops",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "keypaddialogprops"
     },
     {
@@ -3079,8 +3145,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_keypaddialog_keypaddialog",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "keypaddialog()"
     },
     {
@@ -3090,8 +3156,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_kioskheader",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "kioskheader.tsx"
     },
     {
@@ -3101,8 +3167,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_kioskheader_kioskheaderprops",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "kioskheaderprops"
     },
     {
@@ -3112,9 +3178,42 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_kioskheader_kioskheader",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "kioskheader()"
+    },
+    {
+      "label": "LoginDialog.tsx",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/LoginDialog.tsx",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_logindialog",
+      "community": 19,
+      "community_name": "command.tsx",
+      "norm_label": "logindialog.tsx"
+    },
+    {
+      "label": "LoginDialogProps",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/LoginDialog.tsx",
+      "source_location": "L5",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_logindialog_logindialogprops",
+      "community": 19,
+      "community_name": "command.tsx",
+      "norm_label": "logindialogprops"
+    },
+    {
+      "label": "LoginDialog()",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/LoginDialog.tsx",
+      "source_location": "L15",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_logindialog_logindialog",
+      "community": 19,
+      "community_name": "command.tsx",
+      "norm_label": "logindialog()"
     },
     {
       "label": "SensorsDialog.tsx",
@@ -3123,52 +3222,52 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_sensorsdialog",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "sensorsdialog.tsx"
     },
     {
       "label": "SensorsDialogProps",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L8",
+      "source_location": "L10",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_sensorsdialog_sensorsdialogprops",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "sensorsdialogprops"
     },
     {
       "label": "sensors",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L13",
+      "source_location": "L15",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_sensorsdialog_sensors",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "sensors"
     },
     {
       "label": "Feedback",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L20",
+      "source_location": "L22",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_sensorsdialog_feedback",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "feedback"
     },
     {
       "label": "SensorsDialog()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L31",
+      "source_location": "L33",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_sensorsdialog_sensorsdialog",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "sensorsdialog()"
     },
     {
@@ -3178,31 +3277,64 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_settingsdialog",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "settingsdialog.tsx"
     },
     {
       "label": "SettingsDialogProps",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L23",
+      "source_location": "L30",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_settingsdialog_settingsdialogprops",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "settingsdialogprops"
     },
     {
       "label": "SettingsDialog()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L28",
+      "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_settingsdialog_settingsdialog",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "settingsdialog()"
+    },
+    {
+      "label": "TermsAgreementDialog.tsx",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "community": 19,
+      "community_name": "command.tsx",
+      "norm_label": "termsagreementdialog.tsx"
+    },
+    {
+      "label": "TermsAgreementDialogProps",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_termsagreementdialog_termsagreementdialogprops",
+      "community": 19,
+      "community_name": "command.tsx",
+      "norm_label": "termsagreementdialogprops"
+    },
+    {
+      "label": "TermsAgreementDialog()",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L19",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_termsagreementdialog_termsagreementdialog",
+      "community": 19,
+      "community_name": "command.tsx",
+      "norm_label": "termsagreementdialog()"
     },
     {
       "label": "VirtualKeyboard.tsx",
@@ -3211,8 +3343,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "virtualkeyboard.tsx"
     },
     {
@@ -3222,8 +3354,8 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_input_tags",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "input_tags"
     },
     {
@@ -3233,8 +3365,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_isinputelement",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "isinputelement()"
     },
     {
@@ -3244,8 +3376,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_shouldshowkeyboard",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "shouldshowkeyboard()"
     },
     {
@@ -3255,8 +3387,8 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_isnumeric",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "isnumeric()"
     },
     {
@@ -3266,8 +3398,8 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_layout",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "layout"
     },
     {
@@ -3277,8 +3409,8 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_qwerty_rows",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "qwerty_rows"
     },
     {
@@ -3288,8 +3420,8 @@
       "source_location": "L36",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_numeric_rows",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "numeric_rows"
     },
     {
@@ -3299,8 +3431,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_inserttextatcursor",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "inserttextatcursor()"
     },
     {
@@ -3310,8 +3442,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_backspaceatcursor",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "backspaceatcursor()"
     },
     {
@@ -3321,8 +3453,8 @@
       "source_location": "L78",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_clearvalue",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "clearvalue()"
     },
     {
@@ -3332,8 +3464,8 @@
       "source_location": "L88",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_virtualkeyboard_virtualkeyboard",
-      "community": 5,
-      "community_name": "App.tsx",
+      "community": 60,
+      "community_name": "VirtualKeyboard.tsx",
       "norm_label": "virtualkeyboard()"
     },
     {
@@ -3344,7 +3476,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_vitalcard",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "vitalcard.tsx"
     },
     {
@@ -3355,7 +3487,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_vitalcard_vitalcardprops",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "vitalcardprops"
     },
     {
@@ -3366,7 +3498,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_vitalcard_vitalcard",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "vitalcard()"
     },
     {
@@ -3420,7 +3552,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alert-dialog.tsx"
     },
@@ -3431,7 +3563,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog_alertdialogoverlay",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alertdialogoverlay"
     },
@@ -3442,7 +3574,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog_alertdialogcontent",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alertdialogcontent"
     },
@@ -3453,7 +3585,7 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog_alertdialogheader",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alertdialogheader()"
     },
@@ -3464,7 +3596,7 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog_alertdialogfooter",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alertdialogfooter()"
     },
@@ -3475,7 +3607,7 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog_alertdialogtitle",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alertdialogtitle"
     },
@@ -3486,7 +3618,7 @@
       "source_location": "L86",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog_alertdialogdescription",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alertdialogdescription"
     },
@@ -3497,7 +3629,7 @@
       "source_location": "L99",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog_alertdialogaction",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alertdialogaction"
     },
@@ -3508,7 +3640,7 @@
       "source_location": "L111",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_dialog_alertdialogcancel",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "alertdialogcancel"
     },
@@ -3519,7 +3651,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert",
-      "community": 54,
+      "community": 55,
       "community_name": "alert.tsx",
       "norm_label": "alert.tsx"
     },
@@ -3530,7 +3662,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_alertvariants",
-      "community": 54,
+      "community": 55,
       "community_name": "alert.tsx",
       "norm_label": "alertvariants"
     },
@@ -3541,7 +3673,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_alert",
-      "community": 54,
+      "community": 55,
       "community_name": "alert.tsx",
       "norm_label": "alert"
     },
@@ -3552,7 +3684,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_alerttitle",
-      "community": 54,
+      "community": 55,
       "community_name": "alert.tsx",
       "norm_label": "alerttitle"
     },
@@ -3563,7 +3695,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_alert_alertdescription",
-      "community": 54,
+      "community": 55,
       "community_name": "alert.tsx",
       "norm_label": "alertdescription"
     },
@@ -3585,8 +3717,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_avatar",
-      "community": 19,
-      "community_name": "avatar.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "avatar.tsx"
     },
     {
@@ -3596,8 +3728,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_avatar_avatar",
-      "community": 19,
-      "community_name": "avatar.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "avatar"
     },
     {
@@ -3607,8 +3739,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_avatar_avatarimage",
-      "community": 19,
-      "community_name": "avatar.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "avatarimage"
     },
     {
@@ -3618,8 +3750,8 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_avatar_avatarfallback",
-      "community": 19,
-      "community_name": "avatar.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "avatarfallback"
     },
     {
@@ -3629,8 +3761,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_badge",
-      "community": 60,
-      "community_name": "badge.tsx",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "badge.tsx"
     },
     {
@@ -3640,8 +3772,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_badge_badgevariants",
-      "community": 60,
-      "community_name": "badge.tsx",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "badgevariants"
     },
     {
@@ -3651,8 +3783,8 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_badge_badgeprops",
-      "community": 60,
-      "community_name": "badge.tsx",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "badgeprops"
     },
     {
@@ -3662,8 +3794,8 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_badge_badge",
-      "community": 60,
-      "community_name": "badge.tsx",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "badge()"
     },
     {
@@ -3817,7 +3949,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_button",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "button.tsx"
     },
     {
@@ -3828,7 +3960,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_button_buttonvariants",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "buttonvariants"
     },
     {
@@ -3839,7 +3971,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_button_buttonprops",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "buttonprops"
     },
     {
@@ -3850,7 +3982,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_button_button",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "button"
     },
     {
@@ -3861,7 +3993,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_calendar",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "calendar.tsx"
     },
     {
@@ -3872,7 +4004,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_calendar_calendar",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "calendar()"
     },
     {
@@ -3883,7 +4015,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_calendar_calendardaybutton",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "calendardaybutton()"
     },
     {
@@ -3893,8 +4025,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_card",
-      "community": 50,
-      "community_name": "card.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "card.tsx"
     },
     {
@@ -3904,8 +4036,8 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_card_card",
-      "community": 50,
-      "community_name": "card.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "card"
     },
     {
@@ -3915,8 +4047,8 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_card_cardheader",
-      "community": 50,
-      "community_name": "card.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "cardheader"
     },
     {
@@ -3926,8 +4058,8 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_card_cardtitle",
-      "community": 50,
-      "community_name": "card.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "cardtitle"
     },
     {
@@ -3937,8 +4069,8 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_card_carddescription",
-      "community": 50,
-      "community_name": "card.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "carddescription"
     },
     {
@@ -3948,8 +4080,8 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_card_cardcontent",
-      "community": 50,
-      "community_name": "card.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "cardcontent"
     },
     {
@@ -3959,8 +4091,8 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_card_cardfooter",
-      "community": 50,
-      "community_name": "card.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "cardfooter"
     },
     {
@@ -3970,7 +4102,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carousel.tsx"
     },
@@ -3981,7 +4113,7 @@
       "source_location": "L10",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselapi",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselapi"
     },
@@ -3992,7 +4124,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_usecarouselparameters",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "usecarouselparameters"
     },
@@ -4003,7 +4135,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouseloptions",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouseloptions"
     },
@@ -4014,7 +4146,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselplugin",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselplugin"
     },
@@ -4025,7 +4157,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselprops",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselprops"
     },
@@ -4036,7 +4168,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselcontextprops",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselcontextprops"
     },
@@ -4047,7 +4179,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselcontext",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselcontext"
     },
@@ -4058,7 +4190,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_usecarousel",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "usecarousel()"
     },
@@ -4069,7 +4201,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carousel",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carousel"
     },
@@ -4080,7 +4212,7 @@
       "source_location": "L151",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselcontent",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselcontent"
     },
@@ -4091,7 +4223,7 @@
       "source_location": "L173",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselitem",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselitem"
     },
@@ -4102,7 +4234,7 @@
       "source_location": "L195",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselprevious",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselprevious"
     },
@@ -4113,7 +4245,7 @@
       "source_location": "L224",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_carousel_carouselnext",
-      "community": 16,
+      "community": 61,
       "community_name": "carousel.tsx",
       "norm_label": "carouselnext"
     },
@@ -4245,8 +4377,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_checkbox",
-      "community": 6,
-      "community_name": "utils.ts",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "checkbox.tsx"
     },
     {
@@ -4256,8 +4388,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_checkbox_checkbox",
-      "community": 6,
-      "community_name": "utils.ts",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "checkbox"
     },
     {
@@ -4278,8 +4410,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "command.tsx"
     },
     {
@@ -4289,8 +4421,8 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_command",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "command"
     },
     {
@@ -4300,8 +4432,8 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_commanddialog",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "commanddialog()"
     },
     {
@@ -4311,8 +4443,8 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_commandinput",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "commandinput"
     },
     {
@@ -4322,8 +4454,8 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_commandlist",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "commandlist"
     },
     {
@@ -4333,8 +4465,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_commandempty",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "commandempty"
     },
     {
@@ -4344,8 +4476,8 @@
       "source_location": "L83",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_commandgroup",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "commandgroup"
     },
     {
@@ -4355,8 +4487,8 @@
       "source_location": "L99",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_commandseparator",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "commandseparator"
     },
     {
@@ -4366,8 +4498,8 @@
       "source_location": "L111",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_commanditem",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "commanditem"
     },
     {
@@ -4377,8 +4509,8 @@
       "source_location": "L127",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_command_commandshortcut",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "commandshortcut()"
     },
     {
@@ -4498,8 +4630,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_dialog",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "dialog.tsx"
     },
     {
@@ -4509,63 +4641,74 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogoverlay",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "dialogoverlay"
+    },
+    {
+      "label": "isVirtualKeyboardEvent()",
+      "file_type": "code",
+      "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
+      "source_location": "L30",
+      "_origin": "ast",
+      "id": "artifacts_risecare_kiosk_src_components_ui_dialog_isvirtualkeyboardevent",
+      "community": 19,
+      "community_name": "command.tsx",
+      "norm_label": "isvirtualkeyboardevent()"
     },
     {
       "label": "DialogContent",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L30",
+      "source_location": "L36",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogcontent",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "dialogcontent"
     },
     {
       "label": "DialogHeader()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L54",
+      "source_location": "L62",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogheader",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "dialogheader()"
     },
     {
       "label": "DialogFooter()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L68",
+      "source_location": "L76",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogfooter",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "dialogfooter()"
     },
     {
       "label": "DialogTitle",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L82",
+      "source_location": "L90",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogtitle",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "dialogtitle"
     },
     {
       "label": "DialogDescription",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L97",
+      "source_location": "L105",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogdescription",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "dialogdescription"
     },
     {
@@ -5246,8 +5389,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_input_otp",
-      "community": 55,
-      "community_name": "input-otp.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "input-otp.tsx"
     },
     {
@@ -5257,8 +5400,8 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_input_otp_inputotp",
-      "community": 55,
-      "community_name": "input-otp.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "inputotp"
     },
     {
@@ -5268,8 +5411,8 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_input_otp_inputotpgroup",
-      "community": 55,
-      "community_name": "input-otp.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "inputotpgroup"
     },
     {
@@ -5279,8 +5422,8 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_input_otp_inputotpslot",
-      "community": 55,
-      "community_name": "input-otp.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "inputotpslot"
     },
     {
@@ -5290,8 +5433,8 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_input_otp_inputotpseparator",
-      "community": 55,
-      "community_name": "input-otp.tsx",
+      "community": 6,
+      "community_name": "utils.ts",
       "norm_label": "inputotpseparator"
     },
     {
@@ -5719,8 +5862,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_navigation_menu",
-      "community": 44,
-      "community_name": "navigation-menu.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "navigation-menu.tsx"
     },
     {
@@ -5730,8 +5873,8 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_navigation_menu_navigationmenu",
-      "community": 44,
-      "community_name": "navigation-menu.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "navigationmenu"
     },
     {
@@ -5741,8 +5884,8 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_navigation_menu_navigationmenulist",
-      "community": 44,
-      "community_name": "navigation-menu.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "navigationmenulist"
     },
     {
@@ -5752,8 +5895,8 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_navigation_menu_navigationmenutriggerstyle",
-      "community": 44,
-      "community_name": "navigation-menu.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "navigationmenutriggerstyle"
     },
     {
@@ -5763,8 +5906,8 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_navigation_menu_navigationmenutrigger",
-      "community": 44,
-      "community_name": "navigation-menu.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "navigationmenutrigger"
     },
     {
@@ -5774,8 +5917,8 @@
       "source_location": "L65",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_navigation_menu_navigationmenucontent",
-      "community": 44,
-      "community_name": "navigation-menu.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "navigationmenucontent"
     },
     {
@@ -5785,8 +5928,8 @@
       "source_location": "L82",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_navigation_menu_navigationmenuviewport",
-      "community": 44,
-      "community_name": "navigation-menu.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "navigationmenuviewport"
     },
     {
@@ -5796,8 +5939,8 @@
       "source_location": "L100",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_navigation_menu_navigationmenuindicator",
-      "community": 44,
-      "community_name": "navigation-menu.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "navigationmenuindicator"
     },
     {
@@ -5808,7 +5951,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "pagination.tsx"
     },
     {
@@ -5819,7 +5962,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination_pagination",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "pagination()"
     },
     {
@@ -5830,7 +5973,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination_paginationcontent",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "paginationcontent"
     },
     {
@@ -5841,7 +5984,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination_paginationitem",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "paginationitem"
     },
     {
@@ -5852,7 +5995,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination_paginationlinkprops",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "paginationlinkprops"
     },
     {
@@ -5863,7 +6006,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination_paginationlink",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "paginationlink()"
     },
     {
@@ -5874,7 +6017,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination_paginationprevious",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "paginationprevious()"
     },
     {
@@ -5885,7 +6028,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination_paginationnext",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "paginationnext()"
     },
     {
@@ -5896,7 +6039,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_pagination_paginationellipsis",
       "community": 16,
-      "community_name": "carousel.tsx",
+      "community_name": "pagination.tsx",
       "norm_label": "paginationellipsis()"
     },
     {
@@ -6016,8 +6159,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_scroll_area",
-      "community": 6,
-      "community_name": "utils.ts",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "scroll-area.tsx"
     },
     {
@@ -6027,8 +6170,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_scroll_area_scrollarea",
-      "community": 6,
-      "community_name": "utils.ts",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "scrollarea"
     },
     {
@@ -6038,8 +6181,8 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_scroll_area_scrollbar",
-      "community": 6,
-      "community_name": "utils.ts",
+      "community": 19,
+      "community_name": "command.tsx",
       "norm_label": "scrollbar"
     },
     {
@@ -6049,8 +6192,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_select",
-      "community": 45,
-      "community_name": "select.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "select.tsx"
     },
     {
@@ -6060,8 +6203,8 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_select_selecttrigger",
-      "community": 45,
-      "community_name": "select.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "selecttrigger"
     },
     {
@@ -6071,8 +6214,8 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_select_selectscrollupbutton",
-      "community": 45,
-      "community_name": "select.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "selectscrollupbutton"
     },
     {
@@ -6082,8 +6225,8 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_select_selectscrolldownbutton",
-      "community": 45,
-      "community_name": "select.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "selectscrolldownbutton"
     },
     {
@@ -6093,8 +6236,8 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_select_selectcontent",
-      "community": 45,
-      "community_name": "select.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "selectcontent"
     },
     {
@@ -6104,8 +6247,8 @@
       "source_location": "L102",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_select_selectlabel",
-      "community": 45,
-      "community_name": "select.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "selectlabel"
     },
     {
@@ -6115,8 +6258,8 @@
       "source_location": "L114",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_select_selectitem",
-      "community": 45,
-      "community_name": "select.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "selectitem"
     },
     {
@@ -6126,8 +6269,8 @@
       "source_location": "L136",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_select_selectseparator",
-      "community": 45,
-      "community_name": "select.tsx",
+      "community": 36,
+      "community_name": "table.tsx",
       "norm_label": "selectseparator"
     },
     {
@@ -6159,7 +6302,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_sheet",
-      "community": 46,
+      "community": 54,
       "community_name": "sheet.tsx",
       "norm_label": "sheet.tsx"
     },
@@ -6170,7 +6313,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_sheet_sheetoverlay",
-      "community": 46,
+      "community": 54,
       "community_name": "sheet.tsx",
       "norm_label": "sheetoverlay"
     },
@@ -6181,7 +6324,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_sheet_sheetvariants",
-      "community": 46,
+      "community": 54,
       "community_name": "sheet.tsx",
       "norm_label": "sheetvariants"
     },
@@ -6192,7 +6335,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_sheet_sheetcontentprops",
-      "community": 46,
+      "community": 54,
       "community_name": "sheet.tsx",
       "norm_label": "sheetcontentprops"
     },
@@ -6203,7 +6346,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_sheet_sheetcontent",
-      "community": 46,
+      "community": 54,
       "community_name": "sheet.tsx",
       "norm_label": "sheetcontent"
     },
@@ -6225,7 +6368,7 @@
       "source_location": "L91",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_sheet_sheetfooter",
-      "community": 46,
+      "community": 54,
       "community_name": "sheet.tsx",
       "norm_label": "sheetfooter()"
     },
@@ -6236,7 +6379,7 @@
       "source_location": "L105",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_sheet_sheettitle",
-      "community": 46,
+      "community": 54,
       "community_name": "sheet.tsx",
       "norm_label": "sheettitle"
     },
@@ -6247,7 +6390,7 @@
       "source_location": "L117",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_sheet_sheetdescription",
-      "community": 46,
+      "community": 54,
       "community_name": "sheet.tsx",
       "norm_label": "sheetdescription"
     },
@@ -6665,8 +6808,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_switch",
-      "community": 6,
-      "community_name": "utils.ts",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "switch.tsx"
     },
     {
@@ -6676,8 +6819,8 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_switch_switch",
-      "community": 6,
-      "community_name": "utils.ts",
+      "community": 75,
+      "community_name": "SensorsDialog.tsx",
       "norm_label": "switch"
     },
     {
@@ -6970,11 +7113,11 @@
       "label": "Toaster()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/toaster.tsx",
-      "source_location": "L11",
+      "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_components_ui_toaster_toaster",
-      "community": 9,
-      "community_name": "use-toast.ts",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "toaster()"
     },
     {
@@ -7083,8 +7226,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_data_sensorguides",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 78,
+      "community_name": "InstructionModal.tsx",
       "norm_label": "sensorguides.ts"
     },
     {
@@ -7094,8 +7237,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_data_sensorguides_sensorguides",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 78,
+      "community_name": "InstructionModal.tsx",
       "norm_label": "sensorguides"
     },
     {
@@ -7127,8 +7270,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_hooks_use_rate_limit",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "use-rate-limit.ts"
     },
     {
@@ -7138,8 +7281,8 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_hooks_use_rate_limit_useratelimit",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "useratelimit()"
     },
     {
@@ -7303,8 +7446,8 @@
       "source_location": "L171",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_hooks_use_toast_usetoast",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "usetoast()"
     },
     {
@@ -7314,7 +7457,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_hooks_use_virtual_keyboard",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "use-virtual-keyboard.tsx"
     },
@@ -7325,7 +7468,7 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_hooks_use_virtual_keyboard_virtualkeyboardcontextvalue",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "virtualkeyboardcontextvalue"
     },
@@ -7336,7 +7479,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_hooks_use_virtual_keyboard_virtualkeyboardcontext",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "virtualkeyboardcontext"
     },
@@ -7347,7 +7490,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_hooks_use_virtual_keyboard_virtualkeyboardprovider",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "virtualkeyboardprovider()"
     },
@@ -7358,7 +7501,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_hooks_use_virtual_keyboard_usevirtualkeyboard",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "usevirtualkeyboard()"
     },
@@ -7392,7 +7535,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "vitals-utils.ts"
     },
     {
@@ -7403,7 +7546,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_vitalstatus",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "vitalstatus"
     },
     {
@@ -7414,7 +7557,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_getbpstatus",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "getbpstatus()"
     },
     {
@@ -7425,7 +7568,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_gethrstatus",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "gethrstatus()"
     },
     {
@@ -7436,7 +7579,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_getspo2status",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "getspo2status()"
     },
     {
@@ -7447,7 +7590,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_gettempstatus",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "gettempstatus()"
     },
     {
@@ -7458,7 +7601,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_calculatebmi",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "calculatebmi()"
     },
     {
@@ -7469,7 +7612,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_getbmistatus",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "getbmistatus()"
     },
     {
@@ -7480,7 +7623,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_getstatuscolor",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "getstatuscolor()"
     },
     {
@@ -7491,7 +7634,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_lib_vitals_utils_getstatustext",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "getstatustext()"
     },
     {
@@ -7501,7 +7644,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_main",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "main.tsx"
     },
@@ -7512,7 +7655,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_dashboard",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "dashboard.tsx"
     },
@@ -7520,10 +7663,10 @@
       "label": "Session",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L7",
+      "source_location": "L8",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_dashboard_session",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "session"
     },
@@ -7531,10 +7674,10 @@
       "label": "VitalType",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L40",
+      "source_location": "L41",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_dashboard_vitaltype",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "vitaltype"
     },
@@ -7542,10 +7685,10 @@
       "label": "vitalToSensorId",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L49",
+      "source_location": "L50",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_dashboard_vitaltosensorid",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "vitaltosensorid"
     },
@@ -7553,11 +7696,11 @@
       "label": "Dashboard()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L58",
+      "source_location": "L59",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "dashboard()"
     },
     {
@@ -7567,41 +7710,41 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_history",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "history.tsx"
     },
     {
       "label": "readingFields",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L15",
+      "source_location": "L12",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_history_readingfields",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "readingfields"
     },
     {
       "label": "countReadings()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L25",
+      "source_location": "L22",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_history_countreadings",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "countreadings()"
     },
     {
       "label": "History()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L33",
+      "source_location": "L30",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_history_history",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "history()"
     },
     {
@@ -7611,19 +7754,19 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_home",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "home.tsx"
     },
     {
       "label": "Home()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Home.tsx",
-      "source_location": "L14",
+      "source_location": "L12",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_home_home",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 44,
+      "community_name": "useRateLimit",
       "norm_label": "home()"
     },
     {
@@ -7633,7 +7776,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_register",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "register.tsx"
     },
@@ -7644,7 +7787,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_register_formatphonedisplay",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "formatphonedisplay()"
     },
@@ -7655,7 +7798,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_register_register",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "register()"
     },
@@ -7667,7 +7810,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_results",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "results.tsx"
     },
     {
@@ -7678,7 +7821,7 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_results_session",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "session"
     },
     {
@@ -7689,62 +7832,62 @@
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_results_results",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "results()"
     },
     {
       "label": "getBPMessage()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L703",
+      "source_location": "L705",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_results_getbpmessage",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "getbpmessage()"
     },
     {
       "label": "getHRMessage()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L711",
+      "source_location": "L713",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_results_gethrmessage",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "gethrmessage()"
     },
     {
       "label": "getSpO2Message()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L717",
+      "source_location": "L719",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_results_getspo2message",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "getspo2message()"
     },
     {
       "label": "getTempMessage()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L723",
+      "source_location": "L725",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_results_gettempmessage",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "gettempmessage()"
     },
     {
       "label": "getBMIMessage()",
       "file_type": "code",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L730",
+      "source_location": "L732",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_results_getbmimessage",
       "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community_name": "Results.tsx",
       "norm_label": "getbmimessage()"
     },
     {
@@ -7754,7 +7897,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_not_found",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "not-found.tsx"
     },
@@ -7765,7 +7908,7 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_pages_not_found_notfound",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "notfound()"
     },
@@ -7776,8 +7919,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_types_sensorguide",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 78,
+      "community_name": "InstructionModal.tsx",
       "norm_label": "sensorguide.ts"
     },
     {
@@ -7787,8 +7930,8 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_types_sensorguide_sensorguide",
-      "community": 0,
-      "community_name": "Dashboard.tsx",
+      "community": 78,
+      "community_name": "InstructionModal.tsx",
       "norm_label": "sensorguide"
     },
     {
@@ -7798,7 +7941,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_types_vitals",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "types/vitals.ts"
     },
@@ -7809,7 +7952,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_risecare_kiosk_src_types_vitals_vitals",
-      "community": 0,
+      "community": 46,
       "community_name": "Dashboard.tsx",
       "norm_label": "vitals"
     },
@@ -8228,7 +8371,7 @@
       "_origin": "ast",
       "id": "hardware_i2c_bus",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "i2c_bus.py"
     },
     {
@@ -8239,7 +8382,7 @@
       "_origin": "ast",
       "id": "hardware_i2c_bus_init_bus",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "init_bus()"
     },
     {
@@ -8250,7 +8393,7 @@
       "_origin": "ast",
       "id": "hardware_i2c_bus_get_bus",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "get_bus()"
     },
     {
@@ -8261,7 +8404,7 @@
       "_origin": "ast",
       "id": "hardware_i2c_bus_close_bus",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "close_bus()"
     },
     {
@@ -8415,7 +8558,7 @@
       "_origin": "ast",
       "id": "hardware_main",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "main.py"
     },
     {
@@ -8426,29 +8569,40 @@
       "_origin": "ast",
       "id": "hardware_main_publish_calibration_progress",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "publish_calibration_progress()"
+    },
+    {
+      "label": "advertise_sensors()",
+      "file_type": "code",
+      "source_file": "hardware/main.py",
+      "source_location": "L37",
+      "_origin": "ast",
+      "id": "hardware_main_advertise_sensors",
+      "community": 2,
+      "community_name": "main.py",
+      "norm_label": "advertise_sensors()"
     },
     {
       "label": "handle_command()",
       "file_type": "code",
       "source_file": "hardware/main.py",
-      "source_location": "L37",
+      "source_location": "L48",
       "_origin": "ast",
       "id": "hardware_main_handle_command",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "handle_command()"
     },
     {
       "label": "main()",
       "file_type": "code",
       "source_file": "hardware/main.py",
-      "source_location": "L200",
+      "source_location": "L211",
       "_origin": "ast",
       "id": "hardware_main_main",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "main()"
     },
     {
@@ -8459,7 +8613,7 @@
       "_origin": "ast",
       "id": "hardware_max30102",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "max30102.py"
     },
     {
@@ -8469,7 +8623,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "hardware_max30102_max30102",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": "max30102"
     },
@@ -8480,7 +8634,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_init",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".__init__()"
     },
@@ -8491,7 +8645,7 @@
       "source_location": "L56",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_write",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": "._write()"
     },
@@ -8502,7 +8656,7 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_read",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": "._read()"
     },
@@ -8513,7 +8667,7 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_write_reg",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".write_reg()"
     },
@@ -8524,7 +8678,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_read_reg",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".read_reg()"
     },
@@ -8535,7 +8689,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_reset",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".reset()"
     },
@@ -8546,7 +8700,7 @@
       "source_location": "L77",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_setup",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".setup()"
     },
@@ -8557,7 +8711,7 @@
       "source_location": "L85",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_shutdown",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".shutdown()"
     },
@@ -8568,7 +8722,7 @@
       "source_location": "L89",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_read_fifo",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".read_fifo()"
     },
@@ -8579,7 +8733,7 @@
       "source_location": "L97",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_read_sequential",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".read_sequential()"
     },
@@ -8590,7 +8744,7 @@
       "source_location": "L109",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_close",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".close()"
     },
@@ -8601,7 +8755,7 @@
       "source_location": "L120",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_clear_buffer",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".clear_buffer()"
     },
@@ -8612,7 +8766,7 @@
       "source_location": "L126",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_calc_hr_and_spo2",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".calc_hr_and_spo2()"
     },
@@ -8623,7 +8777,7 @@
       "source_location": "L208",
       "_origin": "ast",
       "id": "hardware_max30102_max30102_get_reading",
-      "community": 2,
+      "community": 50,
       "community_name": "MAX30102",
       "norm_label": ".get_reading()"
     },
@@ -8635,7 +8789,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "mlx90614.py"
     },
     {
@@ -8646,7 +8800,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614_mlx90614",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "mlx90614"
     },
     {
@@ -8657,7 +8811,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614_mlx90614_init",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": ".__init__()"
     },
     {
@@ -8668,7 +8822,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614_mlx90614_read_with_retry",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "._read_with_retry()"
     },
     {
@@ -8679,7 +8833,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614_mlx90614_read_reg",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": ".read_reg()"
     },
     {
@@ -8690,7 +8844,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614_mlx90614_read_ambient",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": ".read_ambient()"
     },
     {
@@ -8701,7 +8855,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614_mlx90614_read_object",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": ".read_object()"
     },
     {
@@ -8712,7 +8866,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614_mlx90614_get_temperature",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": ".get_temperature()"
     },
     {
@@ -8723,7 +8877,7 @@
       "_origin": "ast",
       "id": "hardware_mlx90614_mlx90614_close",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": ".close()"
     },
     {
@@ -8844,7 +8998,7 @@
       "_origin": "ast",
       "id": "hardware_printer",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "printer.py"
     },
     {
@@ -8855,7 +9009,7 @@
       "_origin": "ast",
       "id": "hardware_printer_find_printer",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "find_printer()"
     },
     {
@@ -8866,30 +9020,85 @@
       "_origin": "ast",
       "id": "hardware_printer_close_printer",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "close_printer()"
+    },
+    {
+      "label": "printer_status()",
+      "file_type": "code",
+      "source_file": "hardware/printer.py",
+      "source_location": "L47",
+      "_origin": "ast",
+      "id": "hardware_printer_printer_status",
+      "community": 2,
+      "community_name": "main.py",
+      "norm_label": "printer_status()"
     },
     {
       "label": "print_receipt()",
       "file_type": "code",
       "source_file": "hardware/printer.py",
-      "source_location": "L47",
+      "source_location": "L60",
       "_origin": "ast",
       "id": "hardware_printer_print_receipt",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "print_receipt()"
     },
     {
       "label": "test_print()",
       "file_type": "code",
       "source_file": "hardware/printer.py",
-      "source_location": "L146",
+      "source_location": "L159",
       "_origin": "ast",
       "id": "hardware_printer_test_print",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "test_print()"
+    },
+    {
+      "label": "shutdown.py",
+      "file_type": "code",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "hardware_shutdown",
+      "community": 33,
+      "community_name": "mqtt_client.py",
+      "norm_label": "shutdown.py"
+    },
+    {
+      "label": "run()",
+      "file_type": "code",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L9",
+      "_origin": "ast",
+      "id": "hardware_shutdown_run",
+      "community": 33,
+      "community_name": "mqtt_client.py",
+      "norm_label": "run()"
+    },
+    {
+      "label": "on_command()",
+      "file_type": "code",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L16",
+      "_origin": "ast",
+      "id": "hardware_shutdown_on_command",
+      "community": 33,
+      "community_name": "mqtt_client.py",
+      "norm_label": "on_command()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L30",
+      "_origin": "ast",
+      "id": "hardware_shutdown_main",
+      "community": 33,
+      "community_name": "mqtt_client.py",
+      "norm_label": "main()"
     },
     {
       "label": "testport.py",
@@ -8910,7 +9119,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "ultrasonic.py"
     },
     {
@@ -8921,7 +9130,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_setup",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "setup()"
     },
     {
@@ -8932,7 +9141,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_measure_distance",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "measure_distance()"
     },
     {
@@ -8943,7 +9152,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_is_valid_distance",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "_is_valid_distance()"
     },
     {
@@ -8954,7 +9163,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_average_readings",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "_average_readings()"
     },
     {
@@ -8965,7 +9174,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_calibrate_height",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "calibrate_height()"
     },
     {
@@ -8976,7 +9185,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_test_sensor",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "test_sensor()"
     },
     {
@@ -8987,7 +9196,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_get_height",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "get_height()"
     },
     {
@@ -8998,7 +9207,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_reset_calibration",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "reset_calibration()"
     },
     {
@@ -9009,7 +9218,7 @@
       "_origin": "ast",
       "id": "hardware_ultrasonic_load_calibration",
       "community": 2,
-      "community_name": "MAX30102",
+      "community_name": "main.py",
       "norm_label": "load_calibration()"
     },
     {
@@ -9459,7 +9668,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "lib_api_client_react_src_index",
-      "community": 5,
+      "community": 45,
       "community_name": "App.tsx",
       "norm_label": "api-client-react/src/index.ts"
     },
@@ -10314,7 +10523,7 @@
       "label": "saveDb()",
       "file_type": "code",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L71",
+      "source_location": "L92",
       "_origin": "ast",
       "id": "lib_db_src_index_savedb",
       "community": 1,
@@ -10325,7 +10534,7 @@
       "label": "query()",
       "file_type": "code",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L79",
+      "source_location": "L100",
       "_origin": "ast",
       "id": "lib_db_src_index_query",
       "community": 1,
@@ -10336,7 +10545,7 @@
       "label": "run()",
       "file_type": "code",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L90",
+      "source_location": "L111",
       "_origin": "ast",
       "id": "lib_db_src_index_run",
       "community": 1,
@@ -11752,7 +11961,7 @@
       "label": "Tech Stack",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L22",
+      "source_location": "L27",
       "_origin": "ast",
       "id": "readme_tech_stack",
       "community": 13,
@@ -11763,7 +11972,7 @@
       "label": "Frontend (Kiosk UI)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L24",
+      "source_location": "L29",
       "_origin": "ast",
       "id": "readme_frontend_kiosk_ui",
       "community": 13,
@@ -11774,7 +11983,7 @@
       "label": "Backend (API Server)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L35",
+      "source_location": "L40",
       "_origin": "ast",
       "id": "readme_backend_api_server",
       "community": 13,
@@ -11785,7 +11994,7 @@
       "label": "Development",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L43",
+      "source_location": "L48",
       "_origin": "ast",
       "id": "readme_development",
       "community": 13,
@@ -11796,7 +12005,7 @@
       "label": "Project Structure",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L52",
+      "source_location": "L57",
       "_origin": "ast",
       "id": "readme_project_structure",
       "community": 13,
@@ -11807,7 +12016,7 @@
       "label": "Prerequisites",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L82",
+      "source_location": "L89",
       "_origin": "ast",
       "id": "readme_prerequisites",
       "community": 13,
@@ -11818,7 +12027,7 @@
       "label": "Installation",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L89",
+      "source_location": "L96",
       "_origin": "ast",
       "id": "readme_installation",
       "community": 13,
@@ -11829,7 +12038,7 @@
       "label": "Environment Configuration",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L102",
+      "source_location": "L109",
       "_origin": "ast",
       "id": "readme_environment_configuration",
       "community": 13,
@@ -11840,7 +12049,7 @@
       "label": "Running the Application",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L122",
+      "source_location": "L129",
       "_origin": "ast",
       "id": "readme_running_the_application",
       "community": 13,
@@ -11851,7 +12060,7 @@
       "label": "Development Mode",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L124",
+      "source_location": "L131",
       "_origin": "ast",
       "id": "readme_development_mode",
       "community": 13,
@@ -11862,7 +12071,7 @@
       "label": "Production Build",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L140",
+      "source_location": "L147",
       "_origin": "ast",
       "id": "readme_production_build",
       "community": 13,
@@ -11873,7 +12082,7 @@
       "label": "API Endpoints",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L153",
+      "source_location": "L160",
       "_origin": "ast",
       "id": "readme_api_endpoints",
       "community": 13,
@@ -11881,10 +12090,32 @@
       "norm_label": "api endpoints"
     },
     {
+      "label": "Patient Registration Validation",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L191",
+      "_origin": "ast",
+      "id": "readme_patient_registration_validation",
+      "community": 13,
+      "community_name": "RiseCare Health Kiosk",
+      "norm_label": "patient registration validation"
+    },
+    {
+      "label": "Orientation-Responsive Layout",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L206",
+      "_origin": "ast",
+      "id": "readme_orientation_responsive_layout",
+      "community": 13,
+      "community_name": "RiseCare Health Kiosk",
+      "norm_label": "orientation-responsive layout"
+    },
+    {
       "label": "Vital Signs Evaluation",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L170",
+      "source_location": "L216",
       "_origin": "ast",
       "id": "readme_vital_signs_evaluation",
       "community": 13,
@@ -11895,7 +12126,7 @@
       "label": "Database",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L184",
+      "source_location": "L230",
       "_origin": "ast",
       "id": "readme_database",
       "community": 13,
@@ -11906,7 +12137,7 @@
       "label": "MQTT Sensor Integration (Optional)",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L194",
+      "source_location": "L240",
       "_origin": "ast",
       "id": "readme_mqtt_sensor_integration_optional",
       "community": 13,
@@ -11914,10 +12145,21 @@
       "norm_label": "mqtt sensor integration (optional)"
     },
     {
+      "label": "Admin & Security",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L253",
+      "_origin": "ast",
+      "id": "readme_admin_security",
+      "community": 13,
+      "community_name": "RiseCare Health Kiosk",
+      "norm_label": "admin & security"
+    },
+    {
       "label": "Scripts",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L205",
+      "source_location": "L261",
       "_origin": "ast",
       "id": "readme_scripts",
       "community": 13,
@@ -11928,7 +12170,7 @@
       "label": "Support",
       "file_type": "document",
       "source_file": "README.md",
-      "source_location": "L217",
+      "source_location": "L273",
       "_origin": "ast",
       "id": "readme_support",
       "community": 13,
@@ -12700,6 +12942,18 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_settings",
+      "target": "artifacts_api_server_src_mqtt",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
@@ -12736,6 +12990,42 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/sensors.ts",
+      "source_location": "L158",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_sensors_completetestall",
+      "target": "artifacts_api_server_src_mqtt_publish",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_settings",
+      "target": "artifacts_api_server_src_mqtt_publish",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L428",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_settings_sendpowercommand",
+      "target": "artifacts_api_server_src_mqtt_publish",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "imports",
       "context": "import",
       "confidence": "EXTRACTED",
@@ -12745,6 +13035,18 @@
       "_origin": "ast",
       "source": "artifacts_api_server_src_routes_sensors",
       "target": "artifacts_api_server_src_mqtt_subscribe",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/sensors.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_sensors",
+      "target": "artifacts_api_server_src_mqtt_isconnected",
       "confidence_score": 1.0
     },
     {
@@ -13262,6 +13564,17 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/sensors.ts",
+      "source_location": "L147",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_sensors",
+      "target": "artifacts_api_server_src_routes_sensors_completetestall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/sensors.ts",
       "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
@@ -13436,7 +13749,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L32",
+      "source_location": "L33",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_api_server_src_routes_settings",
@@ -13447,7 +13760,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L6",
+      "source_location": "L7",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_api_server_src_routes_settings",
@@ -13458,7 +13771,18 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L19",
+      "source_location": "L37",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_settings",
+      "target": "artifacts_api_server_src_routes_settings_getaccountrole",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L20",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_api_server_src_routes_settings",
@@ -13469,11 +13793,22 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L34",
+      "source_location": "L35",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_api_server_src_routes_settings",
       "target": "artifacts_api_server_src_routes_settings_router",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L415",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_settings",
+      "target": "artifacts_api_server_src_routes_settings_sendpowercommand",
       "confidence_score": 1.0
     },
     {
@@ -13517,11 +13852,35 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/settings.ts",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_api_server_src_routes_settings_getdbpath",
       "target": "artifacts_api_server_src_routes_settings_findworkspaceroot",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L39",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_settings_getaccountrole",
+      "target": "lib_db_src_index_query",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/routes/settings.ts",
+      "source_location": "L425",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_api_server_src_routes_settings_sendpowercommand",
+      "target": "lib_db_src_index_run",
       "confidence_score": 1.0
     },
     {
@@ -15468,7 +15827,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L40",
+      "source_location": "L42",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15479,7 +15838,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L15",
+      "source_location": "L16",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15490,11 +15849,35 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L24",
+      "source_location": "L25",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
       "target": "artifacts_risecare_kiosk_src_app_router",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/App.tsx",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_app",
+      "target": "artifacts_risecare_kiosk_src_components_idletimeout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/App.tsx",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_app",
+      "target": "artifacts_risecare_kiosk_src_components_idletimeout_idletimeout",
       "confidence_score": 1.0
     },
     {
@@ -15586,7 +15969,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L10",
+      "source_location": "L11",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15598,7 +15981,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L12",
+      "source_location": "L13",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15610,7 +15993,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L8",
+      "source_location": "L9",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15618,11 +16001,23 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/App.tsx",
+      "source_location": "L9",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_app",
+      "target": "artifacts_risecare_kiosk_src_pages_home_home",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L13",
+      "source_location": "L14",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15634,7 +16029,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L13",
+      "source_location": "L14",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15646,7 +16041,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L9",
+      "source_location": "L10",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15658,7 +16053,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/App.tsx",
-      "source_location": "L11",
+      "source_location": "L12",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_app",
@@ -15676,6 +16071,40 @@
       "source": "artifacts_risecare_kiosk_src_main",
       "target": "artifacts_risecare_kiosk_src_app",
       "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/IdleTimeout.tsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_idletimeout",
+      "target": "artifacts_risecare_kiosk_src_components_idletimeout_activity_events",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/IdleTimeout.tsx",
+      "source_location": "L13",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_idletimeout",
+      "target": "artifacts_risecare_kiosk_src_components_idletimeout_idletimeout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "artifacts/risecare-kiosk/src/components/IdleTimeout.tsx",
+      "source_location": "L45",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_idletimeout_idletimeout",
+      "target": "artifacts_risecare_kiosk_src_components_idletimeout_activity_events"
     },
     {
       "relation": "contains",
@@ -15752,7 +16181,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L23",
+      "source_location": "L24",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -15834,7 +16263,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L24",
+      "source_location": "L25",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -15858,7 +16287,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L24",
+      "source_location": "L25",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -15940,7 +16369,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L21",
+      "source_location": "L22",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16000,7 +16429,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L21",
+      "source_location": "L22",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16046,8 +16475,78 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/LoginDialog.tsx",
+      "source_location": "L15",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_logindialog",
+      "target": "artifacts_risecare_kiosk_src_components_logindialog_logindialog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/LoginDialog.tsx",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_logindialog",
+      "target": "artifacts_risecare_kiosk_src_components_logindialog_logindialogprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/LoginDialog.tsx",
+      "source_location": "L2",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_logindialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_dialog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/LoginDialog.tsx",
+      "source_location": "L2",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_logindialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogcontent",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
+      "source_location": "L8",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_pages_history",
+      "target": "artifacts_risecare_kiosk_src_components_logindialog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/pages/Home.tsx",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_pages_home",
+      "target": "artifacts_risecare_kiosk_src_components_logindialog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L20",
+      "source_location": "L22",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
@@ -16058,7 +16557,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L13",
+      "source_location": "L15",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
@@ -16069,7 +16568,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L31",
+      "source_location": "L33",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
@@ -16080,11 +16579,35 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L8",
+      "source_location": "L10",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
       "target": "artifacts_risecare_kiosk_src_components_sensorsdialog_sensorsdialogprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
+      "source_location": "L4",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_badge",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
+      "source_location": "L4",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_badge_badge",
       "confidence_score": 1.0
     },
     {
@@ -16116,7 +16639,31 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L6",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_switch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_switch_switch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
+      "source_location": "L8",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
@@ -16128,7 +16675,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L6",
+      "source_location": "L8",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
@@ -16140,7 +16687,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L5",
+      "source_location": "L7",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
@@ -16152,7 +16699,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L5",
+      "source_location": "L7",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog",
@@ -16164,7 +16711,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L21",
+      "source_location": "L28",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog",
@@ -16177,7 +16724,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L33",
+      "source_location": "L35",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog_sensorsdialog",
@@ -16189,7 +16736,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx",
-      "source_location": "L32",
+      "source_location": "L34",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_sensorsdialog_sensorsdialog",
@@ -16200,7 +16747,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L21",
+      "source_location": "L28",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog",
@@ -16211,7 +16758,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L28",
+      "source_location": "L35",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog",
@@ -16222,7 +16769,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L23",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog",
@@ -16234,7 +16781,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L20",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog",
@@ -16246,7 +16793,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L20",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog",
@@ -16258,7 +16805,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L19",
+      "source_location": "L26",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog",
@@ -16270,7 +16817,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L19",
+      "source_location": "L26",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog",
@@ -16283,7 +16830,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L31",
+      "source_location": "L38",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog_settingsdialog",
@@ -16295,11 +16842,153 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx",
-      "source_location": "L29",
+      "source_location": "L36",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_settingsdialog_settingsdialog",
       "target": "artifacts_risecare_kiosk_src_hooks_use_toast_usetoast"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L19",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_termsagreementdialog_termsagreementdialog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L13",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_termsagreementdialog_termsagreementdialogprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L10",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_checkbox",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L10",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_checkbox_checkbox",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_dialog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogcontent",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogdescription",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogheader",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogtitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_scroll_area",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_scroll_area_scrollarea",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/pages/Home.tsx",
+      "source_location": "L8",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_pages_home",
+      "target": "artifacts_risecare_kiosk_src_components_termsagreementdialog",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -16487,7 +17176,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/VirtualKeyboard.tsx",
-      "source_location": "L137",
+      "source_location": "L190",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_virtualkeyboard_virtualkeyboard",
@@ -16499,7 +17188,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/VirtualKeyboard.tsx",
-      "source_location": "L100",
+      "source_location": "L134",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_virtualkeyboard_virtualkeyboard",
@@ -16511,7 +17200,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/VirtualKeyboard.tsx",
-      "source_location": "L105",
+      "source_location": "L139",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_virtualkeyboard_virtualkeyboard",
@@ -16523,7 +17212,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/VirtualKeyboard.tsx",
-      "source_location": "L138",
+      "source_location": "L191",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_virtualkeyboard_virtualkeyboard",
@@ -16535,7 +17224,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/VirtualKeyboard.tsx",
-      "source_location": "L145",
+      "source_location": "L198",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_virtualkeyboard_virtualkeyboard",
@@ -16547,7 +17236,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/VirtualKeyboard.tsx",
-      "source_location": "L157",
+      "source_location": "L233",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_virtualkeyboard_virtualkeyboard",
@@ -16641,7 +17330,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L22",
+      "source_location": "L23",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16677,7 +17366,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L22",
+      "source_location": "L23",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16882,7 +17571,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16894,7 +17583,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16918,7 +17607,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16942,7 +17631,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16954,7 +17643,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16966,7 +17655,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16978,7 +17667,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -16990,7 +17679,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -18499,7 +19188,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L30",
+      "source_location": "L36",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_dialog",
@@ -18510,7 +19199,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L97",
+      "source_location": "L105",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_dialog",
@@ -18521,7 +19210,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L68",
+      "source_location": "L76",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_dialog",
@@ -18532,7 +19221,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L54",
+      "source_location": "L62",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_dialog",
@@ -18554,11 +19243,22 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L82",
+      "source_location": "L90",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_dialog",
       "target": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogtitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
+      "source_location": "L30",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_components_ui_dialog",
+      "target": "artifacts_risecare_kiosk_src_components_ui_dialog_isvirtualkeyboardevent",
       "confidence_score": 1.0
     },
     {
@@ -18586,60 +19286,12 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L8",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "artifacts_risecare_kiosk_src_pages_history",
-      "target": "artifacts_risecare_kiosk_src_components_ui_dialog",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/risecare-kiosk/src/pages/Home.tsx",
-      "source_location": "L7",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "artifacts_risecare_kiosk_src_pages_home",
-      "target": "artifacts_risecare_kiosk_src_components_ui_dialog",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L8",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "artifacts_risecare_kiosk_src_pages_history",
-      "target": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogcontent",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/risecare-kiosk/src/pages/Home.tsx",
-      "source_location": "L7",
-      "weight": 1.0,
-      "_origin": "ast",
-      "source": "artifacts_risecare_kiosk_src_pages_home",
-      "target": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogcontent",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L59",
+      "source_location": "L67",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogheader",
@@ -18651,7 +19303,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/components/ui/dialog.tsx",
-      "source_location": "L73",
+      "source_location": "L81",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_dialog_dialogfooter",
@@ -22893,7 +23545,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/components/ui/toaster.tsx",
-      "source_location": "L11",
+      "source_location": "L13",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_toaster",
@@ -22930,7 +23582,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/components/ui/toaster.tsx",
-      "source_location": "L12",
+      "source_location": "L14",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_components_ui_toaster_toaster",
@@ -23138,7 +23790,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L38",
+      "source_location": "L39",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -23150,7 +23802,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L38",
+      "source_location": "L39",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -23257,7 +23909,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L59",
+      "source_location": "L60",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
@@ -23281,7 +23933,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L34",
+      "source_location": "L31",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_history_history",
@@ -23305,7 +23957,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Home.tsx",
-      "source_location": "L15",
+      "source_location": "L13",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_home_home",
@@ -23517,6 +24169,18 @@
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_pages_dashboard",
+      "target": "artifacts_risecare_kiosk_src_hooks_use_toast",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
       "source_location": "L24",
       "weight": 1.0,
@@ -23596,6 +24260,30 @@
       "source": "artifacts_risecare_kiosk_src_hooks_use_toast_usetoast",
       "target": "artifacts_risecare_kiosk_src_hooks_use_toast_dispatch",
       "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_pages_dashboard",
+      "target": "artifacts_risecare_kiosk_src_hooks_use_toast_usetoast",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
+      "source_location": "L65",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
+      "target": "artifacts_risecare_kiosk_src_hooks_use_toast_usetoast"
     },
     {
       "relation": "imports",
@@ -23816,7 +24504,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -23852,7 +24540,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -23865,7 +24553,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L442",
+      "source_location": "L466",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
@@ -23900,7 +24588,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -23936,7 +24624,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -23972,7 +24660,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -23985,7 +24673,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L515",
+      "source_location": "L540",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
@@ -24020,7 +24708,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24033,7 +24721,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L219",
+      "source_location": "L237",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
@@ -24068,7 +24756,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24081,7 +24769,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L574",
+      "source_location": "L599",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
@@ -24116,7 +24804,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24129,7 +24817,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L573",
+      "source_location": "L598",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
@@ -24153,7 +24841,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L654",
+      "source_location": "L655",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_results_results",
@@ -24164,7 +24852,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24177,7 +24865,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L577",
+      "source_location": "L602",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard_dashboard",
@@ -24187,7 +24875,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L58",
+      "source_location": "L59",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24198,7 +24886,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L7",
+      "source_location": "L8",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24209,7 +24897,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L49",
+      "source_location": "L50",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24220,7 +24908,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L40",
+      "source_location": "L41",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24232,7 +24920,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24244,7 +24932,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24256,7 +24944,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L25",
+      "source_location": "L26",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24268,7 +24956,7 @@
       "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Dashboard.tsx",
-      "source_location": "L25",
+      "source_location": "L26",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_dashboard",
@@ -24291,7 +24979,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L25",
+      "source_location": "L22",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_history",
@@ -24302,7 +24990,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L33",
+      "source_location": "L30",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_history",
@@ -24313,7 +25001,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L15",
+      "source_location": "L12",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_history",
@@ -24325,7 +25013,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/History.tsx",
-      "source_location": "L167",
+      "source_location": "L150",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_history_history",
@@ -24336,7 +25024,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Home.tsx",
-      "source_location": "L14",
+      "source_location": "L12",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_home",
@@ -24393,7 +25081,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L730",
+      "source_location": "L732",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_results",
@@ -24404,7 +25092,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L703",
+      "source_location": "L705",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_results",
@@ -24415,7 +25103,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L711",
+      "source_location": "L713",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_results",
@@ -24426,7 +25114,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L717",
+      "source_location": "L719",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_results",
@@ -24437,7 +25125,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/risecare-kiosk/src/pages/Results.tsx",
-      "source_location": "L723",
+      "source_location": "L725",
       "weight": 1.0,
       "_origin": "ast",
       "source": "artifacts_risecare_kiosk_src_pages_results",
@@ -25265,6 +25953,17 @@
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_main",
+      "target": "hardware_main_advertise_sensors",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/main.py",
+      "source_location": "L48",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_main",
       "target": "hardware_main_handle_command",
       "confidence_score": 1.0
     },
@@ -25272,7 +25971,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "hardware/main.py",
-      "source_location": "L200",
+      "source_location": "L211",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_main",
@@ -25355,7 +26054,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "hardware/main.py",
-      "source_location": "L68",
+      "source_location": "L79",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_main_handle_command",
@@ -25363,11 +26062,23 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/main.py",
+      "source_location": "L238",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_main_main",
+      "target": "hardware_main_advertise_sensors",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "indirect_call",
       "context": "argument",
       "confidence": "INFERRED",
       "source_file": "hardware/main.py",
-      "source_location": "L222",
+      "source_location": "L233",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_main_main",
@@ -25380,7 +26091,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "hardware/main.py",
-      "source_location": "L215",
+      "source_location": "L226",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_main_main",
@@ -25392,7 +26103,7 @@
       "confidence": "INFERRED",
       "confidence_score": 0.8,
       "source_file": "hardware/main.py",
-      "source_location": "L217",
+      "source_location": "L228",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_main_main",
@@ -25979,6 +26690,18 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L4",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_shutdown",
+      "target": "hardware_mqtt_client",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "indirect_call",
       "context": "assignment",
       "confidence": "INFERRED",
@@ -26064,7 +26787,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "hardware/printer.py",
-      "source_location": "L47",
+      "source_location": "L60",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_printer",
@@ -26075,7 +26798,18 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "hardware/printer.py",
-      "source_location": "L146",
+      "source_location": "L47",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_printer",
+      "target": "hardware_printer_printer_status",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/printer.py",
+      "source_location": "L159",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_printer",
@@ -26087,7 +26821,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "hardware/printer.py",
-      "source_location": "L48",
+      "source_location": "L61",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_printer_print_receipt",
@@ -26099,12 +26833,81 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "hardware/printer.py",
-      "source_location": "L165",
+      "source_location": "L48",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_printer_printer_status",
+      "target": "hardware_printer_find_printer",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/printer.py",
+      "source_location": "L178",
       "weight": 1.0,
       "_origin": "ast",
       "source": "hardware_printer_test_print",
       "target": "hardware_printer_print_receipt",
       "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L30",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_shutdown",
+      "target": "hardware_shutdown_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L16",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_shutdown",
+      "target": "hardware_shutdown_on_command",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L9",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_shutdown",
+      "target": "hardware_shutdown_run",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L19",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_shutdown_on_command",
+      "target": "hardware_shutdown_run",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "indirect_call",
+      "context": "argument",
+      "confidence": "INFERRED",
+      "source_file": "hardware/shutdown.py",
+      "source_location": "L37",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "hardware_shutdown_main",
+      "target": "hardware_shutdown_on_command",
+      "confidence_score": 0.5
     },
     {
       "relation": "contains",
@@ -27810,7 +28613,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L79",
+      "source_location": "L100",
       "weight": 1.0,
       "_origin": "ast",
       "source": "lib_db_src_index",
@@ -27821,7 +28624,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L90",
+      "source_location": "L111",
       "weight": 1.0,
       "_origin": "ast",
       "source": "lib_db_src_index",
@@ -27832,7 +28635,7 @@
       "relation": "indirect_call",
       "confidence": "INFERRED",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L98",
+      "source_location": "L119",
       "weight": 1.0,
       "_origin": "ast",
       "context": "argument",
@@ -27869,7 +28672,7 @@
       "context": "export",
       "confidence": "EXTRACTED",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L105",
+      "source_location": "L126",
       "weight": 1.0,
       "_origin": "ast",
       "source": "lib_db_src_index",
@@ -27917,7 +28720,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L65",
+      "source_location": "L86",
       "weight": 1.0,
       "_origin": "ast",
       "source": "lib_db_src_index_createtables",
@@ -27929,7 +28732,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "lib/db/src/index.ts",
-      "source_location": "L94",
+      "source_location": "L115",
       "weight": 1.0,
       "_origin": "ast",
       "source": "lib_db_src_index_run",
@@ -29218,7 +30021,18 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L153",
+      "source_location": "L253",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme_risecare_health_kiosk",
+      "target": "readme_admin_security",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L160",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29229,7 +30043,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L184",
+      "source_location": "L230",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29240,7 +30054,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L102",
+      "source_location": "L109",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29262,7 +30076,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L89",
+      "source_location": "L96",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29273,7 +30087,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L194",
+      "source_location": "L240",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29284,7 +30098,29 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L82",
+      "source_location": "L206",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme_risecare_health_kiosk",
+      "target": "readme_orientation_responsive_layout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L191",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme_risecare_health_kiosk",
+      "target": "readme_patient_registration_validation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L89",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29295,7 +30131,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L52",
+      "source_location": "L57",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29306,7 +30142,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L122",
+      "source_location": "L129",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29317,7 +30153,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L205",
+      "source_location": "L261",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29328,7 +30164,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L217",
+      "source_location": "L273",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29339,7 +30175,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L22",
+      "source_location": "L27",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29350,7 +30186,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L170",
+      "source_location": "L216",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_risecare_health_kiosk",
@@ -29361,7 +30197,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L35",
+      "source_location": "L40",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_tech_stack",
@@ -29372,7 +30208,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L43",
+      "source_location": "L48",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_tech_stack",
@@ -29383,7 +30219,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L24",
+      "source_location": "L29",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_tech_stack",
@@ -29394,7 +30230,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L124",
+      "source_location": "L131",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_running_the_application",
@@ -29405,7 +30241,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "README.md",
-      "source_location": "L140",
+      "source_location": "L147",
       "weight": 1.0,
       "_origin": "ast",
       "source": "readme_running_the_application",
@@ -29414,5 +30250,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "746f781a454f18a1fe1e3507bdf4446475430edb"
+  "built_at_commit": "54eec123358ff2cd025b6ba32ca8cdcec69ac174"
 }

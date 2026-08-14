@@ -34,6 +34,17 @@ def publish_calibration_progress(sensor, message):
     })
 
 
+def advertise_sensors():
+    mqtt_client.publish("risecare/sensors/availability", {
+        "heartrate": hr_sensor is not None and hr_sensor.handle is not None,
+        "spo2": hr_sensor is not None and hr_sensor.handle is not None,
+        "height": True,
+        "weight": loadcell.sensor_available,
+        "temperature": temp_sensor is not None and temp_sensor.handle is not None,
+        "printer": printer.printer_status()
+    })
+
+
 def handle_command(sensor, session_id, value, payload):
     global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, hr_last_read, height_last_read, weight_last_read, temp_last_read
 
@@ -224,19 +235,14 @@ def main():
 
     if mqtt_client.wait_for_connection():
         print("✅ MQTT connected, advertising sensors...")
-        mqtt_client.publish("risecare/sensors/availability", {
-            "heartrate": hr_sensor is not None and hr_sensor.handle is not None,
-            "spo2": hr_sensor is not None and hr_sensor.handle is not None,
-            "height": True,
-            "weight": loadcell.sensor_available,
-            "temperature": temp_sensor is not None and temp_sensor.handle is not None
-        })
+        advertise_sensors()
     else:
         print("⚠️ MQTT not connected — sensors will not be advertised")
 
     running = True
     mode = 1
     tick = 0
+    last_avail = 0.0
 
     try:
         while True:
@@ -312,6 +318,10 @@ def main():
                         print(f"Weight: {weight} g")
                     if temp_enabled and temperature is not None:
                         print(f"Temperature: {temperature} C")
+
+                if time.time() - last_avail >= 10:
+                    last_avail = time.time()
+                    advertise_sensors()
 
                 time.sleep(0.1)
             elif mode == 0:

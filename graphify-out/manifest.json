@@ -50,14 +50,14 @@
     "semantic_hash": "0eb2c65c7ef1abd4064884d40a1e9d75"
   },
   "artifacts/api-server/src/routes/print.ts": {
-    "mtime": 1779638611.2320013,
-    "ast_hash": "aa26e12caf43313874b9711f93191ebd",
-    "semantic_hash": "aa26e12caf43313874b9711f93191ebd"
+    "mtime": 1786698853.3300753,
+    "ast_hash": "8577541e7ee44ee7e1d5b9ba56b407da",
+    "semantic_hash": ""
   },
   "artifacts/api-server/src/routes/sensors.ts": {
-    "mtime": 1779647404.9012196,
-    "ast_hash": "70b34d4af1db87a80b65819dfe4c7b0f",
-    "semantic_hash": "70b34d4af1db87a80b65819dfe4c7b0f"
+    "mtime": 1785218725.0509596,
+    "ast_hash": "20f86f016a79c872bb058e4948ae81e3",
+    "semantic_hash": ""
   },
   "artifacts/api-server/src/routes/sessions.ts": {
     "mtime": 1783085264.3314283,
@@ -65,9 +65,9 @@
     "semantic_hash": "d28ae2cab69de3a72ed86f6b78504583"
   },
   "artifacts/api-server/src/routes/settings.ts": {
-    "mtime": 1783086173.0996964,
-    "ast_hash": "1b137078059a31d693f52a7e80d25420",
-    "semantic_hash": "1b137078059a31d693f52a7e80d25420"
+    "mtime": 1786700187.919172,
+    "ast_hash": "191c63bc6493a55031623fd3de2bca88",
+    "semantic_hash": ""
   },
   "artifacts/api-server/src/routes/vitals.ts": {
     "mtime": 1779638610.0385244,
@@ -90,44 +90,44 @@
     "semantic_hash": "6c3c6bfb67d0981d641adcb74881cc6e"
   },
   "artifacts/risecare-kiosk/src/App.tsx": {
-    "mtime": 1782403291.1410682,
-    "ast_hash": "908d7b84cc0224fc01a38f3de3776101",
-    "semantic_hash": "908d7b84cc0224fc01a38f3de3776101"
+    "mtime": 1786688845.1161022,
+    "ast_hash": "1e6a68d92084c89ad6e2c632b8ecbee5",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/InstructionModal.tsx": {
-    "mtime": 1782396694.0421138,
-    "ast_hash": "a13e48bf4a65141c3377c930d1286e12",
-    "semantic_hash": "a13e48bf4a65141c3377c930d1286e12"
+    "mtime": 1786683712.9824674,
+    "ast_hash": "b67a1bf56d16974da7ac35a724175883",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/KeypadDialog.tsx": {
-    "mtime": 1782396691.0562863,
-    "ast_hash": "3b83a0458f53622217ca375bfb27ed76",
-    "semantic_hash": "3b83a0458f53622217ca375bfb27ed76"
+    "mtime": 1786701385.2870615,
+    "ast_hash": "00733836a78fc192c23545bcccead6b2",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/KioskHeader.tsx": {
-    "mtime": 1782396697.5242233,
-    "ast_hash": "5a2d5fd591012ddb38e8749b5c80742e",
-    "semantic_hash": "5a2d5fd591012ddb38e8749b5c80742e"
+    "mtime": 1786683712.9889944,
+    "ast_hash": "2bd17deea6b0374737634dd75403e088",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/SensorsDialog.tsx": {
-    "mtime": 1782396802.3862045,
-    "ast_hash": "33c025ab6f28a943a18e7b46059f29e3",
-    "semantic_hash": "33c025ab6f28a943a18e7b46059f29e3"
+    "mtime": 1786699501.0120177,
+    "ast_hash": "0a6058d1692f9fc9462b51429c311012",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/SettingsDialog.tsx": {
-    "mtime": 1782396787.435395,
-    "ast_hash": "ee98c646560f4af4cf8af3618b623232",
-    "semantic_hash": "ee98c646560f4af4cf8af3618b623232"
+    "mtime": 1786701227.6768818,
+    "ast_hash": "c444b5c8a6ed09bfcdda9c8c04508b90",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/VirtualKeyboard.tsx": {
-    "mtime": 1782403377.4343765,
-    "ast_hash": "f20bb08a2baba63df513aa0950f568d0",
-    "semantic_hash": "f20bb08a2baba63df513aa0950f568d0"
+    "mtime": 1786703516.173936,
+    "ast_hash": "bcdab6add4e3861634b5c8bc613afd1c",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/VitalCard.tsx": {
-    "mtime": 1779714623.7969193,
-    "ast_hash": "df94450af70da239cd341bd18ef4b041",
-    "semantic_hash": "df94450af70da239cd341bd18ef4b041"
+    "mtime": 1786689231.5006156,
+    "ast_hash": "3b9e2fd4e6212aecaf07055af9cb2044",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/ui/accordion.tsx": {
     "mtime": 1779714623.79792,
@@ -215,9 +215,9 @@
     "semantic_hash": "32bcbc337732526e7fc1e333b264277f"
   },
   "artifacts/risecare-kiosk/src/components/ui/dialog.tsx": {
-    "mtime": 1779714623.8061922,
-    "ast_hash": "dd39e6a46205125fe82e3d08d1e81fcc",
-    "semantic_hash": "dd39e6a46205125fe82e3d08d1e81fcc"
+    "mtime": 1786701682.7260134,
+    "ast_hash": "106eb5582dd8c32aa45f3ebfa5028330",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/ui/drawer.tsx": {
     "mtime": 1778768129.8183901,
@@ -385,9 +385,9 @@
     "semantic_hash": "c6fa0df1169145048bc9e000aba28d4a"
   },
   "artifacts/risecare-kiosk/src/components/ui/toaster.tsx": {
-    "mtime": 1778768129.8416593,
-    "ast_hash": "d0e062810c47a46b9bb4e8ea19875a02",
-    "semantic_hash": "d0e062810c47a46b9bb4e8ea19875a02"
+    "mtime": 1786689804.0903318,
+    "ast_hash": "ab278b1c343ad191766301b3e929669b",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/components/ui/toggle-group.tsx": {
     "mtime": 1778768129.8416593,
@@ -445,29 +445,29 @@
     "semantic_hash": "0da263f654e858856022667237989393"
   },
   "artifacts/risecare-kiosk/src/pages/Dashboard.tsx": {
-    "mtime": 1783085136.9797933,
-    "ast_hash": "6f525dd6bd625938665e2bc2bef4b472",
-    "semantic_hash": "6f525dd6bd625938665e2bc2bef4b472"
+    "mtime": 1786685637.4324212,
+    "ast_hash": "a113d5c0ebcc340d1ac67e2bf897e7be",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/pages/History.tsx": {
-    "mtime": 1783086557.6606805,
-    "ast_hash": "a5ebaf882fcdb4101edfc2d53db6ee49",
-    "semantic_hash": "a5ebaf882fcdb4101edfc2d53db6ee49"
+    "mtime": 1786697473.9927711,
+    "ast_hash": "5a7f185f54b18c4337d7c001744ba067",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/pages/Home.tsx": {
-    "mtime": 1783086717.9928691,
-    "ast_hash": "119cb1f37770cfb20760ade8e779a873",
-    "semantic_hash": "119cb1f37770cfb20760ade8e779a873"
+    "mtime": 1786697497.6436796,
+    "ast_hash": "700f2e015b2ecfaa98c7f2b8be985495",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/pages/Register.tsx": {
-    "mtime": 1782403482.1899648,
-    "ast_hash": "81d583231de753e19803d2401d50f5d4",
-    "semantic_hash": "81d583231de753e19803d2401d50f5d4"
+    "mtime": 1786688440.4466248,
+    "ast_hash": "a7a080b6e1e869c4cfec93dd5af3144a",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/pages/Results.tsx": {
-    "mtime": 1782398358.6691246,
-    "ast_hash": "74af8e2a4f295022d1075477ca50d496",
-    "semantic_hash": "74af8e2a4f295022d1075477ca50d496"
+    "mtime": 1786687744.2924252,
+    "ast_hash": "3da89e2de60bf33752fb3cabc28464e2",
+    "semantic_hash": ""
   },
   "artifacts/risecare-kiosk/src/pages/not-found.tsx": {
     "mtime": 1779714623.8381956,
@@ -510,9 +510,9 @@
     "semantic_hash": "701ea36452ae5d6fc00a3a518e1a5796"
   },
   "hardware/bptest1.py": {
-    "mtime": 1785154746.0249977,
-    "ast_hash": "9957de2f700ab761b073a91419380c5b",
-    "semantic_hash": "9957de2f700ab761b073a91419380c5b"
+    "mtime": 1786683713.0688515,
+    "ast_hash": "b8130eca5d1af76bbc2691c3af024fde",
+    "semantic_hash": ""
   },
   "hardware/calibration.json": {
     "mtime": 1778768129.8706415,
@@ -535,9 +535,9 @@
     "semantic_hash": "ae56875d882273413822f5f793103575"
   },
   "hardware/main.py": {
-    "mtime": 1779626343.3205864,
-    "ast_hash": "2f5cc5fd40751ea63e578746a7e6038b",
-    "semantic_hash": "2f5cc5fd40751ea63e578746a7e6038b"
+    "mtime": 1786698835.018403,
+    "ast_hash": "ba854b83bba258d8de0d4ebbaa1e43dd",
+    "semantic_hash": ""
   },
   "hardware/max30102.py": {
     "mtime": 1779634718.0982783,
@@ -555,9 +555,9 @@
     "semantic_hash": "cc448ab5ba8d837731b94b8bf1982e2f"
   },
   "hardware/printer.py": {
-    "mtime": 1779638625.7222645,
-    "ast_hash": "058f1a7b7c1b8c43a644cd26bb111a21",
-    "semantic_hash": "058f1a7b7c1b8c43a644cd26bb111a21"
+    "mtime": 1786698820.231372,
+    "ast_hash": "83a756ce572f922253a2c178aa76a3e9",
+    "semantic_hash": ""
   },
   "hardware/testport.py": {
     "mtime": 1779615920.6571684,
@@ -620,9 +620,9 @@
     "semantic_hash": "1fd5b886d304844bac20b87188da319f"
   },
   "lib/db/src/index.ts": {
-    "mtime": 1782396630.1540375,
-    "ast_hash": "b69f7e6c78db352cb91a7e0aa8c2421b",
-    "semantic_hash": "b69f7e6c78db352cb91a7e0aa8c2421b"
+    "mtime": 1786700158.2194564,
+    "ast_hash": "bd56107f9a9af15ed3b1bf526238b185",
+    "semantic_hash": ""
   },
   "lib/db/src/paths.ts": {
     "mtime": 1778768129.885525,
@@ -695,8 +695,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1779638882.0717437,
-    "ast_hash": "b30a4b29904b1a710093ce479787f069",
+    "mtime": 1786700473.585066,
+    "ast_hash": "2e6da097d3141c6235ceec57a3f1f33f",
     "semantic_hash": ""
   },
   "artifacts/api-server/public/index.html": {
@@ -787,6 +787,26 @@
   "artifacts/risecare-kiosk/public/opengraph.jpg": {
     "mtime": 1778768129.809765,
     "ast_hash": "42a04e1e2ea480a5a43e9383f4078937",
+    "semantic_hash": ""
+  },
+  "artifacts/risecare-kiosk/src/components/TermsAgreementDialog.tsx": {
+    "mtime": 1786704997.47451,
+    "ast_hash": "089a39f62da4fb337ac0aec33eeb3b37",
+    "semantic_hash": ""
+  },
+  "hardware/shutdown.py": {
+    "mtime": 1786690026.525572,
+    "ast_hash": "3842262884b94f6080d2bdee1d055ee6",
+    "semantic_hash": ""
+  },
+  "artifacts/risecare-kiosk/src/components/IdleTimeout.tsx": {
+    "mtime": 1786688980.3332644,
+    "ast_hash": "d4d959e49f8a6586c888a4225a24ac8f",
+    "semantic_hash": ""
+  },
+  "artifacts/risecare-kiosk/src/components/LoginDialog.tsx": {
+    "mtime": 1786701251.6777127,
+    "ast_hash": "1ed4a659d7b3ebe75b6ad6e3b803022e",
     "semantic_hash": ""
   }
 }

@@ -1,14 +1,11 @@
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { KioskHeader } from "@/components/KioskHeader";
-import { Calendar, Check, ChevronRight, Loader2, User, X } from "lucide-react";
+import { Calendar, ChevronRight, User } from "lucide-react";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+import LoginDialog from "@/components/LoginDialog";
 
 const HISTORY_ACCESS_KEY = "risecare-history-access";
 
@@ -36,7 +33,6 @@ export default function History() {
   const [hasAccess, setHasAccess] = useState(
     () => sessionStorage.getItem(HISTORY_ACCESS_KEY) === "true",
   );
-  const [passcode, setPasscode] = useState("");
   const [error, setError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const { data: sessions, isLoading } = useQuery<any[]>({
@@ -50,57 +46,43 @@ export default function History() {
   });
 
   const closePasscode = () => {
-    setPasscode("");
     setError("");
     setIsVerifying(false);
     setLocation("/");
   };
 
-  const handleKeyPress = (num: string) => {
-    if (passcode.length < 6) {
-      setError("");
-      setPasscode((prev) => prev + num);
-    }
-  };
-
-  const handlePasswordDelete = () => {
-    setError("");
-    setPasscode((prev) => prev.slice(0, -1));
-  };
-
-  const handlePasswordSubmit = async () => {
-    if (passcode.length !== 6 || isVerifying) return;
+  const handleLoginSubmit = async (username: string, password: string) => {
+    if (!username || !password || isVerifying) return;
 
     try {
       setIsVerifying(true);
-      const res = await fetch("/api/settings/verify-passcode", {
+      const res = await fetch("/api/settings/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passcode, context: "history" }),
+        body: JSON.stringify({ username, password, context: "history" }),
       });
       const data = await res.json();
 
       if (data.success) {
         sessionStorage.setItem(HISTORY_ACCESS_KEY, "true");
         setHasAccess(true);
-        setPasscode("");
         setError("");
       } else {
-        setError("Incorrect passcode");
-        setPasscode("");
+        setError(data.error || "Invalid username or password");
       }
     } catch {
-      setError("Failed to verify passcode");
+      setError("Failed to login");
     } finally {
       setIsVerifying(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-dvh bg-background flex flex-col">
       <KioskHeader title="Session History" showBack backTo="/" />
 
-      <main className="flex-1 p-4 max-w-3xl mx-auto w-full">
+      <main className="flex-1 min-h-0 overflow-y-auto">
+        <div className="p-4 max-w-3xl mx-auto w-full">
         {!hasAccess ? (
           <div className="mt-16 rounded-xl border border-border bg-card p-10 text-center shadow-xl">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -110,7 +92,7 @@ export default function History() {
               Patient Records Locked
             </h2>
             <p className="text-base text-muted-foreground">
-              Enter an admin passcode to view session history.
+              Enter your admin credentials to view session history.
             </p>
           </div>
         ) : (
@@ -125,7 +107,8 @@ export default function History() {
               Loading records...
             </div>
           ) : Array.isArray(sessions) && sessions.length > 0 ? (
-            <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[34rem] text-left border-collapse">
               <thead>
                 <tr className="bg-secondary/50 text-muted-foreground text-base font-semibold border-b border-border/50">
                   <th className="p-4 pb-3 font-medium">Date & Time</th>
@@ -175,6 +158,7 @@ export default function History() {
                 ))}
               </tbody>
             </table>
+            </div>
           ) : (
             <div className="p-10 text-center flex flex-col items-center">
               <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center mb-3 text-muted-foreground">
@@ -191,61 +175,17 @@ export default function History() {
         </div>
           </>
         )}
+        </div>
       </main>
 
-      <Dialog open={!hasAccess} onOpenChange={(open) => !open && closePasscode()}>
-        <DialogContent className="max-w-sm rounded-2xl p-6">
-          <h2 className="text-2xl font-bold text-center mb-2">Enter Password</h2>
-          <p className="text-center text-muted-foreground mb-4">
-            Enter 6-digit passcode
-          </p>
-          <div className="flex justify-center gap-2 mb-6">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="w-12 h-14 border-2 border-border rounded-lg flex items-center justify-center text-2xl font-bold"
-              >
-                {passcode[i] ? "*" : ""}
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <p className="text-red-500 text-center mb-4">{error}</p>
-          )}
-
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <button
-                key={num}
-                onClick={() => { if (isRateLimited("history-pw-" + num)) return; handleKeyPress(num.toString()); }}
-                className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
-              >
-                {num}
-              </button>
-            ))}
-            <button
-              onClick={() => { if (isRateLimited("history-pw-del")) return; handlePasswordDelete(); }}
-              className="h-16 flex items-center justify-center bg-muted rounded-xl"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <button
-              onClick={() => { if (isRateLimited("history-pw-0")) return; handleKeyPress("0"); }}
-              className="h-16 text-2xl font-semibold bg-secondary rounded-xl"
-            >
-              0
-            </button>
-            <button
-              onClick={() => { if (isRateLimited("history-pw-submit")) return; handlePasswordSubmit(); }}
-              disabled={passcode.length !== 6 || isVerifying}
-              className="h-16 flex items-center justify-center bg-primary text-white rounded-xl disabled:opacity-50"
-            >
-              {isVerifying ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <LoginDialog
+        open={!hasAccess}
+        onOpenChange={(open) => !open && closePasscode()}
+        description="Enter your admin credentials to view session history."
+        error={error}
+        verifying={isVerifying}
+        onSubmit={handleLoginSubmit}
+      />
     </div>
   );
 }

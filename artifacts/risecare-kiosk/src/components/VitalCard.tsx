@@ -32,18 +32,18 @@ export function VitalCard({
       onClick={disabled ? undefined : onClick}
       className={`
         relative overflow-hidden group
-        bg-card rounded-xl p-3 border-2 
+        bg-card rounded-xl p-5 border-2 
         ${disabled 
           ? "cursor-not-allowed opacity-50 border-border/30" 
-          : "cursor-pointer shadow-sm border-border/50 hover:border-primary/50"
+          : "cursor-pointer shadow-sm border-border/50 hover:border-primary/50 active:scale-[0.97] transition-transform duration-100"
         }
         ${hasValue && !disabled ? "" : "border-dashed"}
       `}
     >
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex items-center gap-3">
           <div
-            className={`p-2 rounded-xl ${
+            className={`p-3 rounded-xl ${
               hasValue
                 ? getStatusColor(status)
                     .replace("text-", "bg-opacity-20 text-")
@@ -54,46 +54,46 @@ export function VitalCard({
           >
             {icon}
           </div>
-          <h3 className="text-xl font-bold text-foreground">{title}</h3>
+          <h3 className="text-2xl font-bold text-foreground">{title}</h3>
         </div>
 
         {!hasValue && !disabled && (
-           <div className="flex items-center gap-1.5 text-sm text-muted-foreground/60 py-1">
+           <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
              <Plus className="w-4 h-4" />
              <span>Tap to record</span>
            </div>
          )}
          {disabled && (
-           <div className="flex items-center gap-1.5 text-sm text-muted-foreground/60 py-1">
+           <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
              <Lock className="w-4 h-4" />
              <span>Disabled</span>
            </div>
          )}
       </div>
 
-      <div className="mt-2 flex items-baseline justify-between">
+      <div className="mt-3 flex items-baseline justify-between">
         {hasValue ? (
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-display font-bold text-foreground tracking-tight">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-4xl font-display font-bold text-foreground tracking-tight">
               {value}
             </span>
             {isDouble && secondaryValue && (
               <>
-                <span className="text-2xl text-muted-foreground font-light">
+                <span className="text-3xl text-muted-foreground font-light">
                   /
                 </span>
-                <span className="text-3xl font-display font-bold text-foreground tracking-tight">
+                <span className="text-4xl font-display font-bold text-foreground tracking-tight">
                   {secondaryValue}
                 </span>
               </>
             )}
-            <span className="text-xl font-medium text-muted-foreground ml-1">
+            <span className="text-2xl font-medium text-muted-foreground ml-1">
               {unit}
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 text-xl font-medium text-muted-foreground/60 py-1">
-            <Plus className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 text-2xl font-medium text-muted-foreground/60 py-1">
+            <Plus className="w-6 h-6" />
             <span>Tap to record</span>
           </div>
         )}

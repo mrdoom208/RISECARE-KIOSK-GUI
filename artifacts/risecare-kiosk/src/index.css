@@ -41,6 +41,29 @@
 
   --radius-xl: 1.5rem;
   --radius-2xl: 2rem;
+
+  --animate-tap-flash: tap-flash 0.35s ease-out;
+}
+
+@keyframes tap-flash {
+  0% {
+    transform: scale(1.1);
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 3px hsl(var(--ring) / 0.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Depleting timer bar shown on notifications before they auto-dismiss */
+@keyframes toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 :root {
@@ -87,6 +110,13 @@
   --radius: 1rem;
 }
 
+html {
+  /* Fluid root size: scales the whole kiosk UI smoothly from portrait
+     (vmin = viewport width) to widescreen (vmin = viewport height).
+     All rem-based Tailwind utilities scale with this. */
+  font-size: clamp(15px, calc(10px + 0.78vmin), 20px);
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -113,6 +143,14 @@
   textarea {
     user-select: auto;
     -webkit-user-select: auto;
+  }
+
+  /* Push reaction on tap for kiosk buttons */
+  button {
+    transition: transform 100ms ease;
+  }
+  button:not(:disabled):active {
+    transform: scale(0.95);
   }
 }
 /* Remove number input arrows in Chrome, Safari, Edge */

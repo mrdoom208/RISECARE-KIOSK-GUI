@@ -89,8 +89,10 @@ export function VirtualKeyboard() {
   const { setVisible } = useVirtualKeyboard();
   const [visible, setVisibleInternal] = useState(false);
   const [shift, setShift] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
   const [layout, setLayout] = useState<Layout>("qwerty");
   const elRef = useRef<HTMLElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const isPressingKey = useRef(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backspaceInitialTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,6 +116,19 @@ export function VirtualKeyboard() {
   }, [stopBackspaceRepeat]);
 
   useEffect(() => {
+    const update = () => {
+      const el = containerRef.current;
+      document.documentElement.style.setProperty("--vk-height", el ? `${el.offsetHeight}px` : "0px");
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      document.documentElement.style.setProperty("--vk-height", "0px");
+    };
+  }, [visible, layout]);
+
+  useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       if (!shouldShowKeyboard(target)) return;
@@ -131,6 +146,11 @@ export function VirtualKeyboard() {
     const onFocusOut = () => {
       blurTimer.current = setTimeout(() => {
         if (isPressingKey.current) return;
+        const active = document.activeElement;
+        if (containerRef.current?.contains(active) && active !== elRef.current) {
+          elRef.current?.focus({ preventScroll: true });
+          return;
+        }
         if (
           document.activeElement !== elRef.current ||
           !shouldShowKeyboard(document.activeElement as HTMLElement)
@@ -148,6 +168,20 @@ export function VirtualKeyboard() {
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
       if (blurTimer.current) clearTimeout(blurTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const updateCapsLock = (e: KeyboardEvent) => {
+      if (typeof e.getModifierState === "function") {
+        setCapsLock(e.getModifierState("CapsLock"));
+      }
+    };
+    window.addEventListener("keydown", updateCapsLock);
+    window.addEventListener("keyup", updateCapsLock);
+    return () => {
+      window.removeEventListener("keydown", updateCapsLock);
+      window.removeEventListener("keyup", updateCapsLock);
     };
   }, []);
 
@@ -177,6 +211,19 @@ export function VirtualKeyboard() {
   const handleSpace = useCallback(() => handleChar(" "), [handleChar]);
 
   const handleDone = useCallback(() => {
+    const el = elRef.current;
+    if (el && isInputElement(el)) {
+      el.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          code: "Enter",
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    }
     elRef.current?.blur();
   }, []);
 
@@ -210,7 +257,7 @@ export function VirtualKeyboard() {
         setLayout("qwerty");
         break;
       default:
-        handleChar(shift ? key.toUpperCase() : key);
+        handleChar(capsLock !== shift ? key.toUpperCase() : key);
         break;
     }
   };
@@ -227,20 +274,32 @@ export function VirtualKeyboard() {
     stopBackspaceRepeat();
   };
 
+  const handlePointerUp = () => {
+    isPressingKey.current = false;
+    stopBackspaceRepeat();
+  };
+
+  const handleButtonPointerDown = (label: string, e: React.PointerEvent) => {
+    e.preventDefault();
+    isPressingKey.current = true;
+    if (label === "Backspace") {
+      handleBackspace();
+      startBackspaceRepeat();
+    } else {
+      handleKey(label);
+    }
+    if (label !== "Done" && elRef.current) elRef.current.focus({ preventScroll: true });
+  };
+
   const btn = (label: string, opts: { wide?: boolean; primary?: boolean; danger?: boolean } = {}) => {
     const isSpecial = ["Shift", "Backspace", "Space", "Done", "Clear", "?123", "ABC"].includes(label);
     return (
       <button
         key={label}
-        onMouseDown={(e) => {
-          handleMouseDown(e);
-          if (label === "Backspace") {
-            handleBackspace();
-            startBackspaceRepeat();
-          } else {
-            handleKey(label);
-          }
-        }}
+        onPointerDown={(e) => handleButtonPointerDown(label, e)}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         className={`h-12 portrait:h-20 md:h-14 rounded-lg text-base portrait:text-lg md:text-lg font-semibold flex items-center justify-center ${
           opts.primary
@@ -252,15 +311,42 @@ export function VirtualKeyboard() {
                 : "bg-secondary text-secondary-foreground"
         } ${opts.wide ? "flex-[2]" : "flex-1"} active:brightness-75`}
       >
-        {label === "Backspace" ? "⌫" : label === "Space" ? "Space" : label === "Shift" ? (shift ? "⇧" : "⇪") : label}
+        {label === "Backspace"
+          ? "⌫"
+          : label === "Space"
+            ? "Space"
+            : label === "Shift"
+              ? shift || capsLock
+                ? "⇧"
+                : "⇪"
+              : /^[a-z]$/.test(label)
+                ? capsLock !== shift
+                  ? label.toUpperCase()
+                  : label
+                : label}
       </button>
     );
   };
 
   return (
     <div
-      onMouseDown={handleMouseDown}
-      className="fixed bottom-0 left-0 right-0 z-[9999] bg-card border-t border-border p-2 portrait:p-3.5 portrait:pb-8 shadow-2xl">
+      ref={containerRef}
+      onPointerDown={(e) => {
+        isPressingKey.current = true;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isPressingKey.current = true;
+      }}
+      onMouseUp={handleMouseUp}
+      data-virtual-keyboard
+      className="pointer-events-auto fixed bottom-0 left-0 right-0 z-[9999] bg-card border-t border-border p-2 portrait:p-3.5 portrait:pb-8 shadow-2xl">
       {layout === "qwerty" ? (
         <div className="max-w-3xl mx-auto space-y-1.5 portrait:space-y-2.5">
           {QWERTY_ROWS.map((row, ri) => (

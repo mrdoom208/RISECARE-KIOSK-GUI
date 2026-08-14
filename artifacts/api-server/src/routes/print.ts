@@ -4,6 +4,21 @@ import { publish } from "../mqtt";
 
 const router: IRouter = Router();
 
+router.post("/print/test", async (_req, res) => {
+  const sent = publish("risecare/command/printer", {
+    sensor: "printer",
+    value: 3,
+    sessionId: `test-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (sent) {
+    res.json({ status: "sent", message: "Print test sent to printer" });
+  } else {
+    res.status(500).json({ error: "MQTT not connected" });
+  }
+});
+
 router.post("/print/receipt", async (req, res) => {
   const { sessionId } = req.body;
 

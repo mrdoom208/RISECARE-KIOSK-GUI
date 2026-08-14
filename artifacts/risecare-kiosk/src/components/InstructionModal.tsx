@@ -19,10 +19,10 @@ export default function InstructionModal({
     <>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-[70vw] max-h-[90vh] overflow-y-auto"
+          <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
           >
-            <h2 className="text-2xl font-bold mb-4">{sensorGuide?.name}</h2>
-            <div className="lg:flex-row flex flex-col-reverse flex-col gap-3 justify-center items-stretch mb-6">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4">{sensorGuide?.name}</h2>
+            <div className="flex flex-col-reverse lg:flex-row gap-3 justify-center items-stretch mb-6">
               <div className="flex-1 border border-border rounded-lg p-4">
                 {sensorGuide?.instruction && (
                   <div>
@@ -53,7 +53,7 @@ export default function InstructionModal({
                 <img
                   src={sensorGuide.image}
                   alt={sensorGuide.name}
-                  className="flex-1 lg:h-120 object-fit border rounded-md"
+                  className="w-full lg:w-1/2 lg:h-120 max-h-[45vh] lg:max-h-none object-cover rounded-md border"
                 />
               )}
             </div>

@@ -8,14 +8,19 @@ A modern, self-service health monitoring kiosk application that enables patients
 
 ## Features
 
-- **Patient Registration** - Quick patient onboarding with validation (name, phone, age, gender)
+- **Patient Registration** - Quick patient onboarding with live field validation (name ≥ 2 characters, Philippine mobile number starting with `9` and 10 digits, age 1-120, required gender)
+- **Terms Agreement** - Patients must accept a terms/consent dialog before registering
 - **Vital Signs Recording** - Blood pressure, heart rate, SpO2, temperature, weight, height, BMI
 - **IoT Sensor Integration** - Optional MQTT-based real-time sensor data communication
 - **Health Status Evaluation** - Automated normal/warning/critical status for all vitals
 - **Session Management** - Track and review patient sessions with full history
-- **AI Health Recommendations** - Automated health insights based on recorded vitals
+- **AI Health Recommendations** - Automated health insights based on recorded vitals (toggleable)
 - **Kiosk Mode** - Touchscreen-optimized UI with auto-reset after session completion
+- **Configurable Idle Timeout** - Returns to the home screen after a period of inactivity; duration is set by admins in Settings (30s to 10 min)
+- **Orientation-Responsive Layout** - UI adapts smoothly between wide/landscape and portrait kiosk displays, with side-aligned scrollbars
+- **Admin Security** - Username/password-protected history and admin accounts management (create admins & sub admins)
 - **Print Reports** - Generate and print patient health reports
+- **Power Controls** - Admin Power menu with Shutdown, Restart, and Lock options (sent to the Raspberry Pi via MQTT)
 
 ---
 
@@ -56,7 +61,7 @@ RiseCare-Health-Kiosk/
 ├── artifacts/
 │   ├── api-server/          # Express backend API
 │   │   └── src/
-│   │       ├── routes/      # API endpoints (sessions, vitals, sensors)
+│   │       ├── routes/      # API endpoints (sessions, vitals, sensors, settings)
 │   │       ├── mqtt.ts     # MQTT client
 │   │       └── app.ts      # Express app config
 │   └── risecare-kiosk/     # React frontend kiosk UI
@@ -66,12 +71,14 @@ RiseCare-Health-Kiosk/
 │           ├── pages/      # Home, Register, Dashboard, Results, History
 │           ├── lib/        # Utilities and health evaluation logic
 │           └── hooks/      # Custom React hooks
+├── hardware/               # Raspberry Pi scripts (sensor read, shutdown)
 ├── lib/
 │   ├── api-spec/           # OpenAPI specification
 │   ├── api-zod/            # Shared Zod schemas
 │   ├── api-client-react/   # Generated React Query API client
 │   └── db/                 # SQLite database layer
 ├── scripts/                # Utility scripts
+├── graphify-out/           # Knowledge graph output (auto-generated)
 ├── .env                    # Environment configuration
 ├── package.json            # Root workspace config
 └── tsconfig.json           # TypeScript base config
@@ -162,8 +169,47 @@ pnpm run start
 | `/api/vitals`            | POST   | Record vital signs         |
 | `/api/vitals/:sessionId` | GET    | Get vitals for session     |
 | `/api/sensors`           | GET    | List available sensors     |
+| `/api/settings/register` | POST   | Create superadmin/admin account (username + password) |
+| `/api/settings/login`    | POST   | Login with username + password            |
+| `/api/settings/accounts` | GET    | List accounts (superadmin only, optional `?role=` filter) |
+| `/api/settings/accounts/:id` | PUT/DELETE | Edit / remove an account (superadmin only) |
+| `/api/settings/logs`     | GET    | Get activity logs (superadmin only)       |
+| `/api/settings/recommendation` | GET/POST | Get / toggle AI recommendations |
+| `/api/settings/idle-timeout` | GET/POST | Get / set idle timeout (seconds) |
+| `/api/settings/export`   | POST   | Export database            |
+| `/api/settings/import`   | POST   | Import database            |
+| `/api/settings/shutdown` | POST   | Send MQTT shutdown command (legacy alias) |
+| `/api/settings/power`    | POST   | Send MQTT power command (shutdown / restart / lock) |
+| `/api/print/receipt`     | POST   | Send report to thermal printer |
+| `/api/print/test`        | POST   | Send a test page to the printer |
+| `/api/ai/recommendation` | POST   | AI health assessment       |
 
 Full API documentation available in [`lib/api-spec/openapi.yaml`](lib/api-spec/openapi.yaml)
+
+---
+
+## Patient Registration Validation
+
+All registration fields are validated live as the patient types:
+
+| Field        | Rule                                                              |
+| ------------ | ----------------------------------------------------------------- |
+| Full Name    | Required, at least 2 characters (digits stripped on input)        |
+| Phone Number | Required, `+63` prefix, must start with `9`, exactly 10 digits (red border marks invalid input) |
+| Age          | Required, numeric, between 1 and 120                              |
+| Sex          | Required (Male / Female)                                          |
+
+The **Begin Session** button stays disabled until every field is valid.
+
+---
+
+## Orientation-Responsive Layout
+
+The kiosk UI adapts to both portrait and widescreen (landscape) displays:
+
+- A fluid root font size (`clamp` + `vmin`) scales the entire interface to the screen
+- Wide screens use wider content containers and multi-column layouts; portrait keeps a compact single-column flow (Tailwind `portrait:` variants)
+- Scrollable pages (e.g. Results, History) align their scrollbars to the screen edge while content stays centered
 
 ---
 
@@ -186,7 +232,7 @@ Health status is automatically evaluated based on standard medical guidelines:
 Uses SQLite (file-based, no external server required):
 
 - **Location**: `./risecare.sqlite` (configurable via `DATABASE_URL`)
-- **Tables**: `sessions`, `vital_readings`, `sensors`
+- **Tables**: `sessions`, `vital_readings`, `sensors`, `accounts` (admin accounts), `activity_log`, `settings`
 - Tables are created automatically on first run
 
 ---
@@ -199,6 +245,16 @@ To enable real-time IoT sensor data:
 2. Start the broker on default port 1883
 3. Configure sensors to publish to `risecare/sensors/#` topic
 4. The system works without MQTT using manual input
+
+**Command topics**: the API server publishes to `risecare/command/shutdown`, `risecare/command/restart`, and `risecare/command/lock` to remotely control the Raspberry Pi (see `hardware/shutdown.py`).
+
+---
+
+## Admin & Security
+
+- **Username & password login**: Session history and admin actions are locked behind an admin login (username + password)
+- **Account roles**: Accounts are either **Super Admin** (full access) or **Admin**. Only super admins see the Activity Log and Accounts categories (which list all accounts with role badges, edit accounts, remove accounts, and can create both super admins and admins); admins get the remaining settings (Sensors, Database, Print Test, AI Integration, Idle Timeout, Power) only
+- **Activity logging**: Admin actions (e.g. system shutdown, database operations) are recorded in the `activity_log` table
 
 ---
 

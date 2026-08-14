@@ -42,14 +42,35 @@ function createTables() {
     db.run("CREATE TABLE IF NOT EXISTS sensors (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, instruction TEXT NOT NULL, img TEXT)");
 
     // New tables for settings
-    db.run("CREATE TABLE IF NOT EXISTS accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, passcode TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
+    db.run("CREATE TABLE IF NOT EXISTS accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'admin', created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
     db.run("CREATE TABLE IF NOT EXISTS activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, action TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (account_id) REFERENCES accounts(id))");
     db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+
+    // Migrate existing accounts table (name -> username, passcode -> password, add role)
+    const accountCols = db.exec("PRAGMA table_info(accounts)")[0]?.values || [];
+    const accountColNames = accountCols.map((col: any[]) => col[1]);
+    if (accountColNames.includes("name") && !accountColNames.includes("username")) {
+      db.run("ALTER TABLE accounts RENAME COLUMN name TO username");
+    }
+    if (accountColNames.includes("passcode") && !accountColNames.includes("password")) {
+      db.run("ALTER TABLE accounts RENAME COLUMN passcode TO password");
+    }
+    if (!accountColNames.includes("role")) {
+      db.run("ALTER TABLE accounts ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
+    }
 
     // Insert default account if none exists
     const accounts = db.exec("SELECT COUNT(*) as count FROM accounts");
     if (accounts[0]?.values?.[0]?.[0] === 0) {
-      db.run("INSERT INTO accounts (name, passcode) VALUES ('admin', '082405')");
+      db.run("INSERT INTO accounts (username, password, role) VALUES ('admin', '082405', 'superadmin')");
+    }
+
+    // Migrate roles: admin -> superadmin, sub_admin -> admin (run once)
+    const rolesMigrated = db.exec("SELECT value FROM settings WHERE key = 'roles_migrated'");
+    if (!rolesMigrated[0]?.values?.length) {
+      db.run("UPDATE accounts SET role = 'superadmin' WHERE role = 'admin'");
+      db.run("UPDATE accounts SET role = 'admin' WHERE role = 'sub_admin'");
+      db.run("INSERT INTO settings (key, value) VALUES ('roles_migrated', 'true')");
     }
 
     // Insert default settings if none exist

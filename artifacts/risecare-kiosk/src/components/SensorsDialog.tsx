@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Loader2, CheckCircle2, XCircle, HeartPulse, Wind, Ruler, Scale, Thermometer, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2, XCircle, HeartPulse, Ruler, Scale, Thermometer, Zap, RefreshCw, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
@@ -34,7 +36,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const [sessionId] = useState(() => `session-${Date.now()}`);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
   const [confirmReset, setConfirmReset] = useState(false);
-  const [doneCooldown, setDoneCooldown] = useState(false);
+  const [printFeedback, setPrintFeedback] = useState<Feedback | null>(null);
+  const [doneCooldown, setDoneCooldown] = useState<Record<string, boolean>>({});
   const [feedback, setFeedback] = useState<Record<string, Feedback | null>>({});
   const testTimestamps = useRef<Record<string, number>>({});
   const calTimestamps = useRef<Record<string, number>>({});
@@ -73,14 +76,14 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     refetchInterval: isOpen ? 5000 : false,
   });
 
-  const { data: calibrationResults, refetch: refetchCalibration } = useQuery({
+  const { data: calibrationResults } = useQuery({
     queryKey: ["calibration-results"],
     queryFn: async () => {
       const res = await fetch("/api/sensors/calibration");
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
-    enabled: isOpen && hasPending,
+    enabled: isOpen,
     refetchInterval: hasPending ? 2000 : false,
   });
 
@@ -324,7 +327,7 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   const handleCalibrate = (sensorId: string) => {
     if (isRateLimited(sensorId)) return;
     lastAction.current[sensorId] = Date.now();
-    setDoneCooldown(false);
+    setDoneCooldown((prev) => ({ ...prev, [sensorId]: false }));
     calTimestamps.current[sensorId] = Date.now();
     const isWeight = sensorId === "weight";
     setSensorFeedback(sensorId, {
@@ -340,10 +343,10 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
   };
 
   const handleFinalizeCalibrate = (sensorId: string) => {
-    if (doneCooldown) return;
+    if (doneCooldown[sensorId]) return;
     if (isRateLimited(sensorId + "_finalize")) return;
     lastAction.current[sensorId + "_finalize"] = Date.now();
-    setDoneCooldown(true);
+    setDoneCooldown((prev) => ({ ...prev, [sensorId]: true }));
     commandMutation.mutate({
       sensor: sensorId,
       value: 12,
@@ -381,9 +384,9 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     },
   });
 
-  const toggleSensor = (sensorId: string) => {
+  const toggleSensor = (sensorId: string, enabled?: boolean) => {
     const newState = { ...enabledSensors };
-    const enable = !newState[sensorId];
+    const enable = enabled ?? !newState[sensorId];
     if (sensorId === "heartrate") {
       newState["heartrate"] = enable;
       newState["spo2"] = enable;
@@ -393,48 +396,71 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
     saveEnabledState(newState);
   };
 
+  const printerStatus = sensorStatus?.sensors?.printer as
+    | { connected?: boolean; paper?: boolean }
+    | undefined;
+
+  const printTestMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/print/test", { method: "POST" });
+      if (!res.ok) throw new Error("Print test failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      setPrintFeedback({ type: "test", status: "success", message: "Test page sent to printer" });
+      toast({ title: "Print test sent", description: "Test page sent to printer" });
+      clearPrintFeedback();
+    },
+    onError: () => {
+      setPrintFeedback({ type: "test", status: "fail", message: "Print test failed — printer unreachable" });
+      toast({ title: "Print test failed", description: "Could not connect to printer", variant: "destructive" });
+      clearPrintFeedback();
+    },
+  });
+
+  const clearPrintFeedback = () => {
+    if (feedbackTimers.current["printer"]) clearTimeout(feedbackTimers.current["printer"]);
+    feedbackTimers.current["printer"] = setTimeout(() => setPrintFeedback(null), 4000);
+  };
+
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <button
-                onClick={onClose}
-                className="p-2 rounded-full hover:bg-muted"
-              >
-                <X className="w-6 h-6" />
-              </button>
-              <h2 className="text-2xl font-bold">Sensors</h2>
-              <div className="w-10" />
-            </div>
-
-            {/* Status */}
-            <div className="mb-6 p-4 rounded-xl bg-secondary">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-semibold">MQTT Status</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {statusLoading ? (
-                    <Loader2 className="w-4 h-4" />
-                  ) : (
-                    <div
-                      className={`w-3 h-3 rounded-full ${sensorStatus?.connected ? "bg-green-500" : "bg-red-500"}`}
-                    />
-                  )}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
+          style={{ paddingBottom: "calc(1rem + var(--vk-height, 0px))" }}
+        >
+          <div className="bg-card rounded-3xl shadow-2xl p-5 sm:p-6 md:p-10 w-full max-w-5xl border border-border/50 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 mb-8">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={onClose}
+                  className="p-3 rounded-full hover:bg-muted transition-colors"
+                  aria-label="Close sensors"
+                >
+                  <ArrowLeft className="w-7 h-7" />
+                </button>
+                <h2 className="text-3xl font-bold">Sensors</h2>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-border/60 bg-secondary/50 shrink-0">
+                {statusLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                ) : (
                   <span
-                    className={sensorStatus?.connected ? "text-green-600" : "text-red-600"}
-                  >
-                    {sensorStatus?.connected ? "Connected" : "Disconnected"}
-                  </span>
-                </div>
+                    className={`w-3 h-3 rounded-full ${sensorStatus?.connected ? "bg-green-500" : "bg-red-500"}`}
+                  />
+                )}
+                <span
+                  className={`text-base font-medium ${sensorStatus?.connected ? "text-green-600" : "text-red-600"}`}
+                >
+                  {sensorStatus?.connected ? "MQTT Connected" : "MQTT Disconnected"}
+                </span>
               </div>
             </div>
 
-            {/* Sensors */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Sensor grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {sensors.map((sensor) => {
                 const fb = feedback[sensor.id];
                 const SensorIcon = sensor.icon;
@@ -446,47 +472,80 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                     ? progress.message
                     : null;
                 const feedbackMessage = progressMessage ?? fb?.message;
+                const detected = sensorStatus?.sensors?.[sensor.id];
+                const calibrationSaved =
+                  (sensor.id === "height" || sensor.id === "weight") &&
+                  calibrationResults?.[sensor.id]?.status === "ok" &&
+                  !fb;
 
                 return (
-                  <div key={sensor.id} className="p-4 rounded-xl bg-secondary">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <SensorIcon className="w-6 h-6 text-primary" />
-                        <h3 className="font-semibold">{sensor.name}</h3>
+                  <div
+                    key={sensor.id}
+                    className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm flex flex-col gap-4"
+                  >
+                    {/* Card header */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-12 h-12 shrink-0 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                          <SensorIcon className="w-6 h-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-semibold leading-tight truncate">{sensor.name}</h3>
+                          <p className="text-sm text-muted-foreground">{sensor.unit}</p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {sensorStatus?.sensors?.[sensor.id] === false && (
-                          <span className="text-xs text-red-500 bg-red-500/10 px-2 py-1 rounded-full">
-                            Not detected
-                          </span>
-                        )}
-                        {sensorStatus?.sensors?.[sensor.id] === true && (
-                          <span className="text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
-                            Detected
-                          </span>
-                        )}
-                        {(sensor.id === "height" || sensor.id === "weight") && calibrationResults?.[sensor.id]?.status === "ok" && !fb && (
-                          <span className="text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-full">
-                            {sensor.id === "height"
-                              ? `${calibrationResults.height.totalHeight?.toFixed(1)} cm`
-                              : `factor: ${calibrationResults.weight.factor?.toFixed(2)}`}
-                          </span>
-                        )}
-                        <Button
-                          onClick={() => { if (isGloballyRateLimited("toggle-" + sensor.id)) return; toggleSensor(sensor.id); }}
-                          disabled={commandMutation.isPending || !sensorStatus?.connected}
-                          variant={enabledSensors[sensor.id] ? "default" : "outline"}
-                          size="sm"
+                      {detected === false && (
+                        <Badge variant="destructive" className="shrink-0 px-3 py-1.5 text-sm">
+                          Not detected
+                        </Badge>
+                      )}
+                      {detected === true && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 px-3 py-1.5 text-sm text-green-600 border-green-500/30 bg-green-500/10"
                         >
-                          {enabledSensors[sensor.id] ? "Enabled" : "Disabled"}
-                        </Button>
-                      </div>
+                          Detected
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="h-px bg-border/60" />
+
+                    {/* Enable toggle */}
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/40 px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isGloballyRateLimited("toggle-" + sensor.id)) return;
+                          toggleSensor(sensor.id);
+                        }}
+                        disabled={commandMutation.isPending || !sensorStatus?.connected}
+                        className="flex-1 min-w-0 text-left disabled:opacity-50"
+                      >
+                        <p className="text-base font-medium">Sensor enabled</p>
+                        {calibrationSaved && (
+                          <p className="text-sm text-muted-foreground truncate">
+                            {sensor.id === "height"
+                              ? `Calibrated ${calibrationResults.height.totalHeight?.toFixed(1)} cm`
+                              : `Calibrated · factor ${calibrationResults.weight.factor?.toFixed(2)}`}
+                          </p>
+                        )}
+                      </button>
+                      <Switch
+                        checked={!!enabledSensors[sensor.id]}
+                        onCheckedChange={(checked) => {
+                          if (isGloballyRateLimited("toggle-" + sensor.id)) return;
+                          toggleSensor(sensor.id, checked === true);
+                        }}
+                        disabled={commandMutation.isPending || !sensorStatus?.connected}
+                        className="h-8 w-[52px] shrink-0 [&>span]:h-6! [&>span]:w-6! [&>span]:data-[state=checked]:translate-x-6! [&>span]:data-[state=unchecked]:translate-x-0!"
+                      />
                     </div>
 
                     {/* Feedback */}
                     {fb && (
                       <div
-                        className={`mb-3 p-3 rounded-lg border ${
+                        className={`p-4 rounded-xl border ${
                           fb.status === "pending"
                             ? "bg-blue-500/10 border-blue-500/30"
                             : fb.status === "success"
@@ -495,12 +554,12 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {fb.status === "pending" && <Loader2 className="w-4 h-4 text-blue-500" />}
-                            {fb.status === "success" && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                            {fb.status === "fail" && <XCircle className="w-4 h-4 text-red-500" />}
+                          <div className="flex items-center gap-2 min-w-0">
+                            {fb.status === "pending" && <Loader2 className="w-5 h-5 text-blue-500 animate-spin shrink-0" />}
+                            {fb.status === "success" && <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />}
+                            {fb.status === "fail" && <XCircle className="w-5 h-5 text-red-500 shrink-0" />}
                             <span
-                              className={`text-sm font-medium ${
+                              className={`text-base font-medium truncate ${
                                 fb.status === "pending"
                                   ? "text-blue-600"
                                   : fb.status === "success"
@@ -511,22 +570,24 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                               {feedbackMessage}
                             </span>
                           </div>
-                          {fb.value && (
-                            <span className="text-lg font-bold text-primary">{fb.value}</span>
-                          )}
-                          {fb.status === "pending" && fb.type === "test" && (
-                            <span className="text-xs text-muted-foreground">timeout 12s</span>
-                          )}
-                          {fb.status === "pending" && fb.type === "calibrate" && (
-                            <span className="text-xs text-muted-foreground">timeout 20s</span>
-                          )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {fb.value && (
+                              <span className="text-2xl font-bold text-primary">{fb.value}</span>
+                            )}
+                            {fb.status === "pending" && fb.type === "test" && (
+                              <span className="text-sm text-muted-foreground">timeout 12s</span>
+                            )}
+                            {fb.status === "pending" && fb.type === "calibrate" && (
+                              <span className="text-sm text-muted-foreground">timeout 20s</span>
+                            )}
+                          </div>
                         </div>
                         {sensor.id === "weight" && isWaitingForWeight && (
                           <Button
                             onClick={() => handleFinalizeCalibrate("weight")}
-                            disabled={commandMutation.isPending || doneCooldown}
-                            className="mt-2 w-full"
-                            size="sm"
+                            disabled={commandMutation.isPending || doneCooldown["weight"]}
+                            className="mt-3 w-full h-12 text-base"
+                            size="lg"
                           >
                             Done — weight placed
                           </Button>
@@ -534,9 +595,9 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                         {sensor.id === "height" && isWaitingForHeight && (
                           <Button
                             onClick={() => handleFinalizeCalibrate("height")}
-                            disabled={commandMutation.isPending || doneCooldown}
-                            className="mt-2 w-full"
-                            size="sm"
+                            disabled={commandMutation.isPending || doneCooldown["height"]}
+                            className="mt-3 w-full h-12 text-base"
+                            size="lg"
                           >
                             Done — height measured
                           </Button>
@@ -544,7 +605,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                       </div>
                     )}
 
-                    <div className="flex gap-2 flex-wrap">
+                    {/* Actions */}
+                    <div className="flex gap-3 mt-auto">
                       {sensor.canCalibrate && (
                         <Button
                           onClick={() => handleCalibrate(sensor.id)}
@@ -556,7 +618,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                             isRateLimited(sensor.id)
                           }
                           variant="outline"
-                          size="sm"
+                          size="lg"
+                          className="flex-1 h-12 text-base"
                         >
                           Calibrate
                         </Button>
@@ -571,7 +634,8 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
                           isRateLimited(sensor.id)
                         }
                         variant="secondary"
-                        size="sm"
+                        size="lg"
+                        className={sensor.canCalibrate ? "flex-1 h-12 text-base" : "w-full h-12 text-base"}
                       >
                         Test
                       </Button>
@@ -581,57 +645,200 @@ export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
               })}
             </div>
 
-            <Button onClick={() => { if (isGloballyRateLimited("refresh")) return; refetch(); }} className="w-full mt-4" variant="outline">
-              Refresh Status
-            </Button>
-            <Button
-              onClick={handleTestAll}
-              disabled={testAllMutation.isPending || hasPending || !sensorStatus?.connected}
-              className="w-full mt-2"
-              variant="default"
-            >
-              {testAllMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Zap className="w-4 h-4 mr-2" />
+            {/* Printer card */}
+            <div className="mt-5 bg-card border border-border/60 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 shrink-0 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Printer className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-semibold leading-tight truncate">Thermal Printer</h3>
+                    <p className="text-sm text-muted-foreground">USB · 80mm receipt</p>
+                  </div>
+                </div>
+                {!printerStatus?.connected ? (
+                  <Badge variant="destructive" className="shrink-0 px-3 py-1.5 text-sm">
+                    Not detected
+                  </Badge>
+                ) : printerStatus?.paper ? (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 px-3 py-1.5 text-sm text-green-600 border-green-500/30 bg-green-500/10"
+                  >
+                    Paper OK
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="shrink-0 px-3 py-1.5 text-sm">
+                    No paper inside
+                  </Badge>
+                )}
+              </div>
+
+              <div className="h-px bg-border/60" />
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/40 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isGloballyRateLimited("toggle-printer")) return;
+                    toggleSensor("printer");
+                  }}
+                  disabled={commandMutation.isPending || !printerStatus?.connected}
+                  className="flex-1 min-w-0 text-left disabled:opacity-50"
+                >
+                  <p className="text-base font-medium">Printer enabled</p>
+                  {!enabledSensors["printer"] && (
+                    <p className="text-sm text-muted-foreground truncate">Printing will be skipped</p>
+                  )}
+                </button>
+                <Switch
+                  checked={!!enabledSensors["printer"]}
+                  onCheckedChange={(checked) => {
+                    if (isGloballyRateLimited("toggle-printer")) return;
+                    toggleSensor("printer", checked === true);
+                  }}
+                  disabled={commandMutation.isPending || !printerStatus?.connected}
+                  className="h-8 w-[52px] shrink-0 [&>span]:h-6! [&>span]:w-6! [&>span]:data-[state=checked]:translate-x-6! [&>span]:data-[state=unchecked]:translate-x-0!"
+                />
+              </div>
+
+              {printFeedback && (
+                <div
+                  className={`p-4 rounded-xl border ${
+                    printFeedback.status === "pending"
+                      ? "bg-blue-500/10 border-blue-500/30"
+                      : printFeedback.status === "success"
+                        ? "bg-green-500/10 border-green-500/30"
+                        : "bg-red-500/10 border-red-500/30"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {printFeedback.status === "pending" && <Loader2 className="w-5 h-5 text-blue-500 animate-spin shrink-0" />}
+                      {printFeedback.status === "success" && <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />}
+                      {printFeedback.status === "fail" && <XCircle className="w-5 h-5 text-red-500 shrink-0" />}
+                      <span
+                        className={`text-base font-medium truncate ${
+                          printFeedback.status === "pending"
+                            ? "text-blue-600"
+                            : printFeedback.status === "success"
+                              ? "text-green-600"
+                              : "text-red-600"
+                        }`}
+                      >
+                        {printFeedback.message}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
-              Test All Sensors
-            </Button>
+
+              <div className="flex gap-3 mt-auto">
+                <Button
+                  onClick={() => { if (isGloballyRateLimited("print-test")) return; printTestMutation.mutate(); }}
+                  disabled={
+                    printTestMutation.isPending ||
+                    !printerStatus?.connected ||
+                    !printerStatus?.paper ||
+                    !enabledSensors["printer"]
+                  }
+                  variant="secondary"
+                  size="lg"
+                  className="w-full h-12 text-base"
+                >
+                  {printTestMutation.isPending ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Printer className="w-5 h-5" />
+                  )}
+                  Print Test
+                </Button>
+              </div>
+            </div>
+
+            {/* Footer actions */}
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <Button
+                onClick={() => { if (isGloballyRateLimited("refresh")) return; refetch(); }}
+                variant="outline"
+                size="lg"
+                className="sm:flex-1 h-12 text-base"
+              >
+                <RefreshCw className="w-5 h-5" />
+                Refresh Status
+              </Button>
+              <Button
+                onClick={handleTestAll}
+                disabled={testAllMutation.isPending || hasPending || !sensorStatus?.connected}
+                size="lg"
+                className="sm:flex-[1.5] h-12 text-base"
+              >
+                {testAllMutation.isPending ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Zap className="w-5 h-5" />
+                )}
+                Test All Sensors
+              </Button>
+            </div>
 
             {/* Test All Summary */}
             {testAllResults?.completed && testAllResults?.summary && (
-              <div className="mt-4 p-4 rounded-xl bg-secondary">
-                <p className="font-semibold mb-2">Test Summary</p>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="mt-5 p-5 rounded-2xl border border-border/60 bg-secondary/40">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-lg font-semibold">Test Summary</p>
+                  <span className="text-sm text-muted-foreground text-right">Published to risecare/test/summary</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {Object.entries(testAllResults.summary).map(([sensor, status]) => (
                     <div key={sensor} className="flex items-center gap-2">
                       {status === "working" ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
                       ) : (
-                        <XCircle className="w-4 h-4 text-red-500" />
+                        <XCircle className="w-5 h-5 text-red-500" />
                       )}
-                      <span className="text-sm capitalize">{sensor}</span>
-                      <span className={`text-xs ${status === "working" ? "text-green-600" : "text-red-600"}`}>
-                        {status === "working" ? "Working" : "Not Working"}
+                      <span className="text-base capitalize font-medium">{sensor}</span>
+                      <span
+                        className={`ml-auto text-sm ${status === "working" ? "text-green-600" : "text-red-600"}`}
+                      >
+                        {status === "working" ? "Working" : "Not working"}
                       </span>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">Published to risecare/test/summary</p>
               </div>
             )}
-            <div className="mt-6 pt-4 border-t border-border/50">
+
+            {/* Reset calibration */}
+            <div className="mt-5 pt-4 border-t border-border/50">
               {confirmReset ? (
-                <div className="flex gap-2">
-                  <Button onClick={() => { if (isGloballyRateLimited("reset-cancel")) return; setConfirmReset(false); }} variant="outline" className="flex-1" size="sm">
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => { if (isGloballyRateLimited("reset-cancel")) return; setConfirmReset(false); }}
+                    variant="outline"
+                    className="flex-1 h-11 text-base"
+                    size="lg"
+                  >
                     Cancel
                   </Button>
-                  <Button onClick={() => { if (isGloballyRateLimited("reset-confirm")) return; resetMutation.mutate(); }} variant="destructive" className="flex-1" size="sm" disabled={resetMutation.isPending}>
+                  <Button
+                    onClick={() => { if (isGloballyRateLimited("reset-confirm")) return; resetMutation.mutate(); }}
+                    variant="destructive"
+                    className="flex-1 h-11 text-base"
+                    size="lg"
+                    disabled={resetMutation.isPending}
+                  >
                     {resetMutation.isPending ? "Resetting..." : "Confirm Reset"}
                   </Button>
                 </div>
               ) : (
-                <Button onClick={() => { if (isGloballyRateLimited("reset-all")) return; setConfirmReset(true); }} variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-destructive">
+                <Button
+                  onClick={() => { if (isGloballyRateLimited("reset-all")) return; setConfirmReset(true); }}
+                  variant="ghost"
+                  size="lg"
+                  className="w-full h-11 text-base text-muted-foreground hover:text-destructive"
+                >
                   Reset All Calibration
                 </Button>
               )}

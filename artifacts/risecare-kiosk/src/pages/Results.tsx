@@ -519,7 +519,8 @@ Assessment:`;
     >
       <KioskHeader title="Session Results" />
 
-      <main className="flex-1 overflow-y-auto p-4 pb-20 max-w-2xl mx-auto w-full min-h-0">
+      <main className="flex-1 overflow-y-auto min-h-0">
+        <div className="max-w-[60rem] portrait:max-w-2xl mx-auto w-full p-4 pb-20">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-success/20 text-success rounded-full mb-3">
             <CheckCircle className="w-6 h-6" />
@@ -660,10 +661,11 @@ Assessment:`;
             )}
           </div>
         </div>
+        </div>
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10">
-        <div className="max-w-3xl mx-auto flex gap-3">
+        <div className="max-w-[60rem] portrait:max-w-2xl mx-auto flex gap-3">
           <button
             onClick={() => {
               if (isRateLimited("print")) return;
@@ -675,7 +677,7 @@ Assessment:`;
               });
             }}
             disabled={printMutation.isPending || printCooldown}
-            className="flex-1 h-12 bg-secondary text-secondary-foreground text-xl font-display font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+            className="flex-1 h-12 bg-secondary text-secondary-foreground text-base sm:text-lg md:text-xl font-display font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Printer className="w-5 h-5" />
             {printMutation.isPending ? "Printing..." : printCooldown ? "Wait..." : "Print Report"}
@@ -689,7 +691,7 @@ Assessment:`;
               });
               setLocation("/");
             }}
-            className="flex-[2] h-12 bg-primary text-primary-foreground text-xl font-display font-bold rounded-xl shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+            className="flex-[2] h-12 bg-primary text-primary-foreground text-base sm:text-lg md:text-xl font-display font-bold rounded-xl shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
           >
             <Home className="w-5 h-5" />
             Returning to home in ( {countdown} ) s...

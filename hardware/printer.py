@@ -44,6 +44,19 @@ def close_printer():
         _printer = None
 
 
+def printer_status():
+    p = find_printer()
+    if p is None:
+        return {"connected": False, "paper": False}
+    try:
+        status = p.paper_status()
+        value = getattr(status, "value", status)
+        return {"connected": True, "paper": value != 0}
+    except Exception as e:
+        print(f"⚠️ Printer paper status check failed: {e}")
+        return {"connected": True, "paper": False}
+
+
 def print_receipt(data):
     p = find_printer()
     if p is None:

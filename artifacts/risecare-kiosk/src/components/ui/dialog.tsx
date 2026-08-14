@@ -27,6 +27,12 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+function isVirtualKeyboardEvent(e: { detail?: { originalEvent?: Event }; target?: EventTarget | null }) {
+  const original = e.detail?.originalEvent;
+  const target = (original?.target ?? e.target) as EventTarget | null;
+  return !!(target instanceof Element && target.closest("[data-virtual-keyboard]"));
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
@@ -35,6 +41,8 @@ const DialogContent = React.forwardRef<
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      onPointerDownOutside={(e) => { if (isVirtualKeyboardEvent(e)) e.preventDefault(); }}
+      onInteractOutside={(e) => { if (isVirtualKeyboardEvent(e)) e.preventDefault(); }}
       className={cn(
         "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
         className

@@ -429,7 +429,7 @@ const handleCancelReading = async () => {
 
   if (isLoading)
     return (
-      <div className="p-6 text-center text-xl font-bold text-muted-foreground min-h-screen bg-background pt-16">
+      <div className="p-6 text-center text-xl font-bold text-muted-foreground h-dvh bg-background pt-16">
         Loading session...
       </div>
     );
@@ -437,13 +437,13 @@ const handleCancelReading = async () => {
   if (!session) return <NotFound />;
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden"
+    <div className="h-dvh bg-background flex flex-col overflow-hidden"
     >
       <KioskHeader
         title={`Recording: ${session.patientName}`}
       />
 
-      <main className="flex-1 p-4 pb-20 max-w-[800px] mx-auto w-full min-h-0 overflow-y-auto">
+      <main className="flex-1 p-4 pb-20 max-w-[60rem] portrait:max-w-2xl mx-auto w-full min-h-0 overflow-y-auto">
         <div className="flex justify-between items-end mb-4">
           <div>
             <h2 className="text-2xl font-display font-bold text-foreground">
@@ -455,14 +455,14 @@ const handleCancelReading = async () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 portrait:grid-cols-1 gap-3 mb-4">
           {/* Blood Pressure */}
           <VitalCard
             title="Blood Pressure"
             value={currentVitals.bloodPressureSystolic}
             secondaryValue={currentVitals.bloodPressureDiastolic}
             unit="mmHg"
-            icon={<Heart className="w-5 h-5" />}
+            icon={<Heart className="w-7 h-7" />}
             status={getBPStatus(
               currentVitals.bloodPressureSystolic,
               currentVitals.bloodPressureDiastolic,
@@ -493,38 +493,38 @@ const handleCancelReading = async () => {
              }}
              className={`
                relative overflow-hidden group
-               bg-card rounded-xl p-3 border-2
+               bg-card rounded-xl p-5 border-2
                ${(isVitalDisabled("hr") && isVitalDisabled("spo2")) ? "cursor-not-allowed opacity-50 border-border/50" : "cursor-pointer border-border/50 hover:border-primary/50"}
              `}
            >
-             <div className="flex justify-between items-start mb-3">
-               <div className="flex items-center gap-2">
-                 <div className="p-2 rounded-xl bg-secondary text-primary">
-                   <Activity className="w-5 h-5" />
+             <div className="flex justify-between items-start mb-4">
+               <div className="flex items-center gap-3">
+                 <div className="p-3 rounded-xl bg-secondary text-primary">
+                   <Activity className="w-7 h-7" />
                  </div>
-                 <h3 className="text-xl font-bold text-foreground">Heart Rate & SpO2</h3>
+                 <h3 className="text-2xl font-bold text-foreground">Heart Rate & SpO2</h3>
                </div>
-               <div className="flex items-center gap-1.5 text-sm text-muted-foreground/60 py-1">
+               <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
                  <Plus className="w-4 h-4" />
                  <span>Tap to record</span>
                </div>
              </div>
 
-             <div className="mt-2 flex items-baseline gap-4">
+             <div className="mt-3 flex items-baseline gap-4">
                <div className="flex items-baseline gap-1">
-                 <span className="text-3xl font-display font-bold text-foreground tracking-tight">
+                 <span className="text-4xl font-display font-bold text-foreground tracking-tight">
                    {currentVitals.heartRate ?? "--"}
                  </span>
-                 <span className="text-xl font-medium text-muted-foreground ml-0.5">
+                 <span className="text-2xl font-medium text-muted-foreground ml-0.5">
                    bpm
                  </span>
                </div>
                <span className="text-2xl text-muted-foreground font-light">|</span>
                <div className="flex items-baseline gap-1">
-                 <span className="text-3xl font-display font-bold text-foreground tracking-tight">
+                 <span className="text-4xl font-display font-bold text-foreground tracking-tight">
                    {currentVitals.oxygenSaturation ?? "--"}
                  </span>
-                 <span className="text-xl font-medium text-muted-foreground ml-0.5">
+                 <span className="text-2xl font-medium text-muted-foreground ml-0.5">
                    %
                  </span>
                </div>
@@ -536,7 +536,7 @@ const handleCancelReading = async () => {
               title="Temperature"
               value={currentVitals.temperature}
               unit="°C"
-              icon={<Thermometer className="w-5 h-5" />}
+              icon={<Thermometer className="w-7 h-7" />}
               status={getTempStatus(currentVitals.temperature)}
               onClick={() => {
                 if (isRateLimited("temperature")) return;
@@ -554,7 +554,7 @@ const handleCancelReading = async () => {
              title="Weight"
              value={currentVitals.weight}
              unit="kg"
-             icon={<Scale className="w-5 h-5" />}
+             icon={<Scale className="w-7 h-7" />}
              status="unknown"
              onClick={() => {
                if (isRateLimited("weight")) return;
@@ -573,7 +573,7 @@ const handleCancelReading = async () => {
              title="Height"
              value={currentVitals.height}
              unit="cm"
-             icon={<Ruler className="w-5 h-5" />}
+             icon={<Ruler className="w-7 h-7" />}
              status="unknown"
              onClick={() => {
                if (isRateLimited("height")) return;
@@ -589,9 +589,9 @@ const handleCancelReading = async () => {
            />
 
           {/* Auto BMI */}
-          <div className="relative overflow-hidden bg-secondary/30 rounded-xl p-3 border border-border/50 flex flex-col justify-between">
-            <div className="flex justify-between items-start mb-3">
-              <h3 className="text-xl font-bold text-foreground">BMI (Auto)</h3>
+          <div className="relative overflow-hidden bg-secondary/30 rounded-xl p-5 border border-border/50 flex flex-col justify-between">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-2xl font-bold text-foreground">BMI (Auto)</h3>
 
               {autoBMI && (
                 <div
@@ -606,16 +606,16 @@ const handleCancelReading = async () => {
 
             <div>
               {autoBMI ? (
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-display font-bold text-foreground">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-4xl font-display font-bold text-foreground">
                     {autoBMI}
                   </span>
-                  <span className="text-xl text-muted-foreground font-medium">
+                  <span className="text-2xl text-muted-foreground font-medium">
                     kg/m²
                   </span>
                 </div>
               ) : (
-                <div className="text-base text-muted-foreground/80 font-medium pb-1">
+                <div className="text-lg text-muted-foreground/80 font-medium pb-1">
                   Enter weight and height
                 </div>
               )}
@@ -632,7 +632,7 @@ const handleCancelReading = async () => {
                 if (isRateLimited("finish")) return;
                 setShowFinishConfirm(true);
               }}
-              className="w-full max-w-[800px] h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+              className="w-full max-w-[60rem] portrait:max-w-2xl h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
             >
               <CheckCircle2 className="w-5 h-5" />
               Finish & View Results
