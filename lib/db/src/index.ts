@@ -1,4 +1,5 @@
 import initSqlJs from "sql.js";
+import bcrypt from "bcryptjs";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -15,6 +16,17 @@ if (!dbUrlMatch) throw new Error("DATABASE_URL not found in .env");
 const dbPath = path.resolve(workspaceRoot, dbUrlMatch[1]);
 let SQL: any;
 let db: any;
+
+// Fallback surnames for legacy rows that only have a single name part.
+const FALLBACK_SURNAMES = [
+  "Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Dela Cruz", "Garcia", "Mendoza",
+  "Torres", "Ramos", "Flores", "Aquino", "Villanueva", "Domingo", "Castillo", "Salazar",
+  "Navarro", "Padilla", "Marquez", "Vargas",
+];
+
+function randomSurname(): string {
+  return FALLBACK_SURNAMES[Math.floor(Math.random() * FALLBACK_SURNAMES.length)];
+}
 
 async function initDb() {
   SQL = await initSqlJs();
@@ -37,7 +49,8 @@ async function initDb() {
 
 function createTables() {
   try {
-    db.run("CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT, patient_name TEXT NOT NULL, patient_phone TEXT, patient_age INTEGER, patient_gender TEXT, started_at DATETIME DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME)");
+    db.run("CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT, patient_first_name TEXT NOT NULL, patient_last_name TEXT NOT NULL, patient_phone TEXT, patient_age INTEGER, patient_gender TEXT, started_at DATETIME DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME)");
+
     db.run("CREATE TABLE IF NOT EXISTS vital_readings (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER NOT NULL, blood_pressure_systolic INTEGER, blood_pressure_diastolic INTEGER, heart_rate INTEGER, oxygen_saturation REAL, temperature REAL, weight REAL, height REAL, bmi REAL, notes TEXT, recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (session_id) REFERENCES sessions(id))");
     db.run("CREATE TABLE IF NOT EXISTS sensors (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, instruction TEXT NOT NULL, img TEXT)");
 
@@ -45,6 +58,49 @@ function createTables() {
     db.run("CREATE TABLE IF NOT EXISTS accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, password TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'admin', created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
     db.run("CREATE TABLE IF NOT EXISTS activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, action TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (account_id) REFERENCES accounts(id))");
     db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+
+    // Migrate sessions table: split patient_name into patient_first_name + patient_last_name
+    const sessionCols = db.exec("PRAGMA table_info(sessions)")[0]?.values || [];
+    const sessionColNames = sessionCols.map((col: any[]) => col[1]);
+    const hasLegacyNameCol = sessionColNames.includes("patient_name");
+    if (!sessionColNames.includes("patient_first_name")) {
+      db.run("ALTER TABLE sessions ADD COLUMN patient_first_name TEXT");
+    }
+    if (!sessionColNames.includes("patient_last_name")) {
+      db.run("ALTER TABLE sessions ADD COLUMN patient_last_name TEXT");
+    }
+
+    const nameSplitMigrated = db.exec("SELECT value FROM settings WHERE key = 'name_split_migrated'");
+    if (!nameSplitMigrated[0]?.values?.length) {
+      if (hasLegacyNameCol) {
+        const rows = db.exec(
+          "SELECT id, patient_name FROM sessions WHERE patient_name IS NOT NULL AND TRIM(patient_name) != ''"
+        );
+        if (rows[0]?.values) {
+          for (const row of rows[0].values) {
+            const id = row[0];
+            const name = String(row[1]).trim();
+            const parts = name.split(/\s+/).filter(Boolean);
+            const first = parts[0] ?? "";
+            const last = parts.length > 1 ? parts.slice(1).join(" ") : randomSurname();
+            db.run("UPDATE sessions SET patient_first_name = ?, patient_last_name = ? WHERE id = ?", [
+              first,
+              last,
+              id,
+            ]);
+          }
+        }
+      }
+      db.run("INSERT INTO settings (key, value) VALUES ('name_split_migrated', 'true')");
+    }
+
+    if (hasLegacyNameCol) {
+      try {
+        db.run("ALTER TABLE sessions DROP COLUMN patient_name");
+      } catch (e) {
+        console.warn("Could not drop legacy patient_name column:", e);
+      }
+    }
 
     // Migrate existing accounts table (name -> username, passcode -> password, add role)
     const accountCols = db.exec("PRAGMA table_info(accounts)")[0]?.values || [];
@@ -62,7 +118,21 @@ function createTables() {
     // Insert default account if none exists
     const accounts = db.exec("SELECT COUNT(*) as count FROM accounts");
     if (accounts[0]?.values?.[0]?.[0] === 0) {
-      db.run("INSERT INTO accounts (username, password, role) VALUES ('admin', '082405', 'superadmin')");
+      db.run("INSERT INTO accounts (username, password, role) VALUES ('admin', ?, 'superadmin')", [
+        bcrypt.hashSync("082405", 10),
+      ]);
+    }
+
+    // Migrate plaintext passwords to bcrypt hashes (run every boot, idempotent)
+    const accountRows = db.exec("SELECT id, password FROM accounts");
+    if (accountRows[0]?.values) {
+      for (const row of accountRows[0].values) {
+        const id = row[0];
+        const pw = row[1];
+        if (typeof pw === "string" && !pw.startsWith("$2")) {
+          db.run("UPDATE accounts SET password = ? WHERE id = ?", [bcrypt.hashSync(pw, 10), id]);
+        }
+      }
     }
 
     // Migrate roles: admin -> superadmin, sub_admin -> admin (run once)

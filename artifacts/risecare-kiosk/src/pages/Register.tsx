@@ -19,7 +19,8 @@ export default function Register() {
   const { isRateLimited } = useRateLimit(1000);
   const [, setLocation] = useLocation();
   const { visible: keyboardVisible } = useVirtualKeyboard();
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [phoneRaw, setPhoneRaw] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "">("");
@@ -30,9 +31,9 @@ export default function Register() {
   const phoneDisplay = formatPhoneDisplay(phoneRaw);
   const phoneError = phoneDigits.length > 0 && !phoneValid ? "Phone must start with 9 and be 10 digits" : "";
 
-  const nameTrimmed = name.trim();
-  const nameValid = nameTrimmed.length >= 2;
-  const nameError = nameTrimmed.length > 0 && nameTrimmed.length < 2 ? "Name must be at least 2 characters" : "";
+  const firstNameTrimmed = firstName.trim();
+  const lastNameTrimmed = lastName.trim();
+  const nameValid = firstNameTrimmed.length >= 1 && lastNameTrimmed.length >= 1;
 
   const ageNum = parseInt(age, 10);
   const ageValid = age.length > 0 && !Number.isNaN(ageNum) && ageNum >= 1 && ageNum <= 120;
@@ -51,7 +52,8 @@ export default function Register() {
     createSession.mutate(
       {
         data: {
-          patientName: name,
+          patientFirstName: firstNameTrimmed,
+          patientLastName: lastNameTrimmed,
           patientPhone: PH_PREFIX + phoneDigits,
           patientAge: parseInt(age, 10),
           patientGender: gender,
@@ -59,7 +61,7 @@ export default function Register() {
       },
       {
         onSuccess: (session) => {
-          setLocation(`/session/${session.token}`);
+          setLocation("/dashboard", { state: { token: session.token } });
         },
       },
     );
@@ -101,19 +103,33 @@ export default function Register() {
             </div>
 
             <div className={keyboardVisible ? "space-y-4" : "space-y-5"}>
-              <div className="space-y-2.5">
-                <label className="text-xl font-semibold text-foreground flex items-center gap-2">
-                  <User className="w-8 h-8 text-primary" /> Full Name{" "}
-                  <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value.replace(/[0-9]/g, ""))}
-                  placeholder="Tap to enter patient name"
-                  className={`w-full h-12 px-4 text-xl rounded-lg bg-background border-2 ${nameError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground`}
-                />
-                {nameError && <p className="text-destructive text-sm mt-1">{nameError}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-2 portrait:grid-cols-1 gap-4">
+                <div className="space-y-2.5">
+                  <label className="text-xl font-semibold text-foreground flex items-center gap-2">
+                    <User className="w-8 h-8 text-primary" /> First Name{" "}
+                    <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value.replace(/[0-9]/g, ""))}
+                    placeholder="First name"
+                    className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                <div className="space-y-2.5">
+                  <label className="text-xl font-semibold text-foreground flex items-center gap-2">
+                    Last Name <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value.replace(/[0-9]/g, ""))}
+                    placeholder="Last name"
+                    className="w-full h-12 px-4 text-xl rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2.5">

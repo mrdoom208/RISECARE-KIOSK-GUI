@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useLocation } from "wouter";
+import { useHistoryState } from "wouter/use-browser-location";
 import { useSaveVitals } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRateLimit } from "@/hooks/use-rate-limit";
@@ -58,9 +59,9 @@ const vitalToSensorId: Record<VitalType, string> = {
 
 export default function Dashboard() {
   const { isRateLimited } = useRateLimit(1000);
-  const [, params] = useRoute("/session/:token");
   const [, setLocation] = useLocation();
-  const sessionToken = params?.token || "";
+  const navState = useHistoryState<{ token?: string }>();
+  const sessionToken = navState?.token || "";
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -443,7 +444,7 @@ const handleCancelReading = async () => {
         title={`Recording: ${session.patientName}`}
       />
 
-      <main className="flex-1 p-4 pb-20 max-w-[60rem] portrait:max-w-2xl mx-auto w-full min-h-0 overflow-y-auto">
+      <main className="flex-1 p-4 pb-28 max-w-[60rem] portrait:max-w-2xl mx-auto w-full min-h-0 overflow-y-auto">
         <div className="flex justify-between items-end mb-4">
           <div>
             <h2 className="text-2xl font-display font-bold text-foreground">
@@ -504,10 +505,17 @@ const handleCancelReading = async () => {
                  </div>
                  <h3 className="text-2xl font-bold text-foreground">Heart Rate & SpO2</h3>
                </div>
-               <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
-                 <Plus className="w-4 h-4" />
-                 <span>Tap to record</span>
-               </div>
+               {isVitalDisabled("hr") && isVitalDisabled("spo2") ? (
+                 <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
+                   <Lock className="w-4 h-4" />
+                   <span>Disabled</span>
+                 </div>
+               ) : (
+                 <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
+                   <Plus className="w-4 h-4" />
+                   <span>Tap to record</span>
+                 </div>
+               )}
              </div>
 
              <div className="mt-3 flex items-baseline gap-4">
@@ -625,16 +633,16 @@ const handleCancelReading = async () => {
       </main>
 
       {/* Bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10 flex justify-center">
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-4 z-10 flex justify-center">
           <AlertDialog open={showFinishConfirm} onOpenChange={setShowFinishConfirm}>
             <button
               onClick={() => {
                 if (isRateLimited("finish")) return;
                 setShowFinishConfirm(true);
               }}
-              className="w-full max-w-[60rem] portrait:max-w-2xl h-12 bg-primary hover:bg-primary/90 text-primary-foreground text-xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+              className="w-full max-w-[60rem] portrait:max-w-2xl h-16 bg-primary hover:bg-primary/90 text-primary-foreground text-2xl font-display font-bold rounded-lg shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
             >
-              <CheckCircle2 className="w-5 h-5" />
+              <CheckCircle2 className="w-6 h-6" />
               Finish & View Results
             </button>
           <AlertDialogContent>
@@ -651,7 +659,9 @@ const handleCancelReading = async () => {
               <AlertDialogAction
                 onClick={() => {
                   if (isRateLimited("finish-confirm")) return;
-                  setLocation(`/session/${sessionToken}/results`);
+                  setLocation(
+                    `/results?token=${encodeURIComponent(sessionToken)}`,
+                  );
                 }}
                 className="h-12 text-xl font-bold flex-1 bg-primary text-primary-foreground hover:bg-primary/80"
               >

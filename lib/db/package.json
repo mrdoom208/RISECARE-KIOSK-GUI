@@ -8,12 +8,14 @@
     "./schema": "./src/schema/index.ts"
   },
   "dependencies": {
-    "dotevn": "0.0.1-security",
+    "bcryptjs": "^2.4.3",
     "sql.js": "^1.10.4",
     "zod": "^3.24.2"
   },
-   "devDependencies": {
-     "@types/node": "^24.0.0",
-     "dotenv": "^17.3.1"
-   }
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^24.0.0",
+    "@types/sql.js": "^1.4.11",
+    "dotenv": "^17.3.1"
+  }
 }

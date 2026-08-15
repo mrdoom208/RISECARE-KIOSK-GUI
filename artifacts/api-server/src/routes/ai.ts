@@ -237,7 +237,7 @@ Assessment:`;
       throw new Error(`Ollama returned ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { response?: string };
     const recommendation = data.response || "";
     res.json({ recommendation });
   } catch (e) {

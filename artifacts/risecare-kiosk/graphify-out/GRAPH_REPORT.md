@@ -1,16 +1,16 @@
-# Graph Report - risecare-kiosk  (2026-08-14)
+# Graph Report - risecare-kiosk  (2026-08-15)
 
 ## Corpus Check
-- 86 files · ~272,822 words
+- 86 files · ~275,352 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 635 nodes · 1005 edges · 80 communities (35 shown, 45 thin omitted)
+- 636 nodes · 1007 edges · 79 communities (33 shown, 46 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `54eec123`
+- Built from commit: `fbff93bc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -18,12 +18,12 @@
 - Dashboard.tsx
 - devDependencies
 - carousel.tsx
-- sidebar.tsx
+- cn
 - command.tsx
 - App.tsx
 - compilerOptions
 - use-toast.ts
-- cn
+- field.tsx
 - components.json
 - menubar.tsx
 - utils.ts
@@ -44,9 +44,8 @@
 - button-group.tsx
 - card.tsx
 - toggle-group.tsx
-- alert.tsx
-- input-otp.tsx
-- avatar.tsx
+- accordion.tsx
+- kbd.tsx
 - tabs.tsx
 - sonner.tsx
 - clsx
@@ -121,11 +120,11 @@
 ## Import Cycles
 - None detected.
 
-## Communities (80 total, 45 thin omitted)
+## Communities (79 total, 46 thin omitted)
 
 ### Community 0 - "Dashboard.tsx"
-Cohesion: 0.07
-Nodes (55): InstructionModal(), InstructionModalProps, KeypadDialog(), KeypadDialogProps, KioskHeader(), KioskHeaderProps, Feedback, sensors (+47 more)
+Cohesion: 0.06
+Nodes (57): InstructionModal(), InstructionModalProps, KeypadDialog(), KeypadDialogProps, KioskHeader(), KioskHeaderProps, Feedback, sensors (+49 more)
 
 ### Community 1 - "devDependencies"
 Cohesion: 0.05
@@ -135,17 +134,17 @@ Nodes (40): lightningcss, devDependencies, lightningcss, @replit/vite-plugin-car
 Cohesion: 0.07
 Nodes (30): react, react, Button, ButtonProps, buttonVariants, Calendar(), CalendarDayButton(), Carousel (+22 more)
 
-### Community 3 - "sidebar.tsx"
-Cohesion: 0.07
-Nodes (30): Sidebar(), SidebarContent(), SidebarContext, SidebarContextProps, SidebarFooter(), SidebarGroup(), SidebarGroupAction(), SidebarGroupContent() (+22 more)
+### Community 3 - "cn"
+Cohesion: 0.11
+Nodes (32): SheetHeader(), Sidebar(), SidebarContent(), SidebarContext, SidebarContextProps, SidebarFooter(), SidebarGroup(), SidebarGroupAction() (+24 more)
 
 ### Community 4 - "command.tsx"
-Cohesion: 0.08
-Nodes (20): PasscodeDialogProps, PasscodeKeypadProps, TermsAgreementDialogProps, Checkbox, Command, CommandEmpty, CommandGroup, CommandInput (+12 more)
+Cohesion: 0.09
+Nodes (19): LoginDialogProps, TermsAgreementDialogProps, Checkbox, Command, CommandEmpty, CommandGroup, CommandInput, CommandItem (+11 more)
 
 ### Community 5 - "App.tsx"
-Cohesion: 0.12
-Nodes (20): queryClient, Toaster(), backspaceAtCursor(), clearValue(), INPUT_TAGS, insertTextAtCursor(), isInputElement(), isNumeric() (+12 more)
+Cohesion: 0.11
+Nodes (20): queryClient, ACTIVITY_EVENTS, IdleTimeout(), backspaceAtCursor(), clearValue(), INPUT_TAGS, insertTextAtCursor(), isInputElement() (+12 more)
 
 ### Community 6 - "compilerOptions"
 Cohesion: 0.08
@@ -155,9 +154,9 @@ Nodes (24): build, dist, dom, dom.iterable, esnext, node, node_modules, src/**/*
 Cohesion: 0.12
 Nodes (22): Toast, ToastAction, ToastActionElement, ToastClose, ToastDescription, ToastProps, ToastTitle, toastVariants (+14 more)
 
-### Community 8 - "cn"
-Cohesion: 0.17
-Nodes (17): Field(), FieldContent(), FieldDescription(), FieldError(), FieldGroup(), FieldLabel(), FieldLegend(), FieldSeparator() (+9 more)
+### Community 8 - "field.tsx"
+Cohesion: 0.15
+Nodes (13): Field(), FieldContent(), FieldDescription(), FieldError(), FieldGroup(), FieldLabel(), FieldLegend(), FieldSeparator() (+5 more)
 
 ### Community 9 - "components.json"
 Cohesion: 0.12
@@ -168,12 +167,12 @@ Cohesion: 0.12
 Nodes (11): Menubar, MenubarCheckboxItem, MenubarContent, MenubarItem, MenubarLabel, MenubarRadioItem, MenubarSeparator, MenubarShortcut() (+3 more)
 
 ### Community 11 - "utils.ts"
-Cohesion: 0.12
-Nodes (9): AccordionContent, AccordionItem, AccordionTrigger, HoverCardContent, PopoverContent, Progress, RadioGroup, RadioGroupItem (+1 more)
+Cohesion: 0.10
+Nodes (12): Avatar, AvatarFallback, AvatarImage, HoverCardContent, PopoverContent, Progress, RadioGroup, RadioGroupItem (+4 more)
 
 ### Community 12 - "form.tsx"
-Cohesion: 0.15
-Nodes (11): FormControl, FormDescription, FormFieldContext, FormFieldContextValue, FormItem, FormItemContext, FormItemContextValue, FormLabel (+3 more)
+Cohesion: 0.09
+Nodes (17): Alert, AlertDescription, AlertTitle, alertVariants, FormControl, FormDescription, FormFieldContext, FormFieldContextValue (+9 more)
 
 ### Community 13 - "dependencies"
 Cohesion: 0.15
@@ -200,8 +199,8 @@ Cohesion: 0.20
 Nodes (9): DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut(), DropdownMenuSubContent (+1 more)
 
 ### Community 19 - "sheet.tsx"
-Cohesion: 0.22
-Nodes (8): SheetContent, SheetContentProps, SheetDescription, SheetFooter(), SheetHeader(), SheetOverlay, SheetTitle, sheetVariants
+Cohesion: 0.25
+Nodes (7): SheetContent, SheetContentProps, SheetDescription, SheetFooter(), SheetOverlay, SheetTitle, sheetVariants
 
 ### Community 20 - "table.tsx"
 Cohesion: 0.22
@@ -239,40 +238,32 @@ Nodes (6): Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle
 Cohesion: 0.33
 Nodes (5): ToggleGroup, ToggleGroupContext, ToggleGroupItem, Toggle, toggleVariants
 
-### Community 29 - "alert.tsx"
-Cohesion: 0.40
-Nodes (4): Alert, AlertDescription, AlertTitle, alertVariants
-
-### Community 30 - "input-otp.tsx"
-Cohesion: 0.40
-Nodes (4): InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot
-
-### Community 31 - "avatar.tsx"
+### Community 29 - "accordion.tsx"
 Cohesion: 0.50
-Nodes (3): Avatar, AvatarFallback, AvatarImage
+Nodes (3): AccordionContent, AccordionItem, AccordionTrigger
 
 ### Community 32 - "tabs.tsx"
 Cohesion: 0.50
 Nodes (3): TabsContent, TabsList, TabsTrigger
 
 ## Knowledge Gaps
-- **276 isolated node(s):** `$schema`, `style`, `rsc`, `tsx`, `config` (+271 more)
+- **275 isolated node(s):** `$schema`, `style`, `rsc`, `tsx`, `config` (+270 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **45 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `cn()` connect `cn` to `Dashboard.tsx`, `carousel.tsx`, `sidebar.tsx`, `command.tsx`, `use-toast.ts`, `menubar.tsx`, `utils.ts`, `form.tsx`, `input-group.tsx`, `item.tsx`, `chart.tsx`, `context-menu.tsx`, `dropdown-menu.tsx`, `sheet.tsx`, `table.tsx`, `breadcrumb.tsx`, `drawer.tsx`, `empty.tsx`, `navigation-menu.tsx`, `select.tsx`, `button-group.tsx`, `card.tsx`, `toggle-group.tsx`, `alert.tsx`, `input-otp.tsx`, `avatar.tsx`, `tabs.tsx`?**
-  _High betweenness centrality (0.467) - this node is a cross-community bridge._
+- **Why does `cn()` connect `cn` to `Dashboard.tsx`, `carousel.tsx`, `command.tsx`, `use-toast.ts`, `field.tsx`, `menubar.tsx`, `utils.ts`, `form.tsx`, `input-group.tsx`, `item.tsx`, `chart.tsx`, `context-menu.tsx`, `dropdown-menu.tsx`, `sheet.tsx`, `table.tsx`, `breadcrumb.tsx`, `drawer.tsx`, `empty.tsx`, `navigation-menu.tsx`, `select.tsx`, `button-group.tsx`, `card.tsx`, `toggle-group.tsx`, `accordion.tsx`, `kbd.tsx`, `tabs.tsx`?**
+  _High betweenness centrality (0.468) - this node is a cross-community bridge._
 - **Why does `dependencies` connect `dependencies` to `devDependencies`, `carousel.tsx`, `clsx`, `cmdk`, `date-fns`, `embla-carousel-react`, `@hookform/resolvers`, `input-otp`, `lucide-react`, `next-themes`, `@radix-ui/react-accordion`, `@radix-ui/react-aspect-ratio`, `@radix-ui/react-avatar`, `@radix-ui/react-checkbox`, `@radix-ui/react-collapsible`, `@radix-ui/react-context-menu`, `@radix-ui/react-dialog`, `@radix-ui/react-hover-card`, `@radix-ui/react-label`, `@radix-ui/react-menubar`, `@radix-ui/react-navigation-menu`, `@radix-ui/react-progress`, `@radix-ui/react-scroll-area`, `@radix-ui/react-select`, `@radix-ui/react-separator`, `@radix-ui/react-slider`, `@radix-ui/react-slot`, `@radix-ui/react-switch`, `@radix-ui/react-tabs`, `@radix-ui/react-toggle`, `@radix-ui/react-toggle-group`, `@radix-ui/react-tooltip`, `react-day-picker`, `react-dom`, `react-hook-form`, `react-icons`, `react-resizable-panels`, `recharts`, `sonner`, `tailwind-merge`, `@tanstack/react-query`, `vaul`, `@workspace/api-client-react`, `wouter`, `zod`?**
   _High betweenness centrality (0.352) - this node is a cross-community bridge._
-- **Why does `react` connect `carousel.tsx` to `Dashboard.tsx`, `sidebar.tsx`, `dependencies`?**
-  _High betweenness centrality (0.318) - this node is a cross-community bridge._
+- **Why does `react` connect `carousel.tsx` to `Dashboard.tsx`, `cn`, `dependencies`?**
+  _High betweenness centrality (0.317) - this node is a cross-community bridge._
 - **What connects `$schema`, `style`, `rsc` to the rest of the system?**
-  _276 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _275 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Dashboard.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.06506849315068493 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06342342342342343 - nodes in this community are weakly interconnected._
 - **Should `devDependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.04878048780487805 - nodes in this community are weakly interconnected._
 - **Should `carousel.tsx` be split into smaller, more focused modules?**

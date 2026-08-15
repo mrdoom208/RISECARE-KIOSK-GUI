@@ -8,6 +8,7 @@ import IdleTimeout from "@/components/IdleTimeout";
 // Pages
 import Home from "./pages/Home";
 import Register from "./pages/Register";
+import FindSession from "./pages/FindSession";
 import Dashboard from "./pages/Dashboard";
 import Results from "./pages/Results";
 import History from "./pages/History";
@@ -30,9 +31,10 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/register" component={Register} />
+        <Route path="/find-session" component={FindSession} />
         <Route path="/history" component={History} />
-        <Route path="/session/:token/results" component={Results} />
-        <Route path="/session/:token" component={Dashboard} />
+        <Route path="/results" component={Results} />
+        <Route path="/dashboard" component={Dashboard} />
         <Route path="/:rest*" component={NotFound} />
       </Switch>
     </div>
@@ -41,18 +43,20 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter>
-          <VirtualKeyboardProvider>
-            <Router />
-            <VirtualKeyboard />
-            <IdleTimeout />
-          </VirtualKeyboardProvider>
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <div onContextMenu={(event) => event.preventDefault()}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WouterRouter>
+            <VirtualKeyboardProvider>
+              <Router />
+              <VirtualKeyboard />
+              <IdleTimeout />
+            </VirtualKeyboardProvider>
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </div>
   );
 }
 

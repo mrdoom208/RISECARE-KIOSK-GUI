@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 
-interface SensorsDialogProps {
+interface SensorsSettingsProps {
   isOpen: boolean;
   onClose: () => void;
 }
@@ -30,7 +30,7 @@ const TEST_TIMEOUT = 12000;
 const CAL_TIMEOUT = 20000;
 const RATE_LIMIT_MS = 2000;
 
-export function SensorsDialog({ isOpen, onClose }: SensorsDialogProps) {
+export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const { toast } = useToast();
   const { isRateLimited: isGloballyRateLimited } = useRateLimit(1000);
   const [sessionId] = useState(() => `session-${Date.now()}`);

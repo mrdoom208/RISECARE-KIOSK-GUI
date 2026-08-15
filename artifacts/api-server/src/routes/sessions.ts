@@ -1,7 +1,11 @@
 import { Router, type IRouter } from "express";
+import rateLimit from "express-rate-limit";
 import { query, run } from "@workspace/db";
+import { requireAuth } from "../auth";
+import { logActivity } from "../activity-log";
 import {
   CreateSessionBody,
+  FindSessionsBody,
   GetSessionParams,
   SaveVitalsBody,
   SaveVitalsParams,
@@ -9,10 +13,28 @@ import {
 
 const router: IRouter = Router();
 const VITALS_SELECT = `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi, notes, recorded_at AS recordedAt FROM vital_readings`;
+const SESSION_SELECT = `SELECT id, token, patient_first_name AS patientFirstName, patient_last_name AS patientLastName, TRIM(patient_first_name || ' ' || patient_last_name) AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions`;
 
-router.get("/sessions", async (_req, res) => {
+const findSessionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res, _next, options) => {
+    res.status(429).json({ error: "rate_limited", message: options.message });
+  },
+});
+
+// The session list exposes patient names; only a signed-in admin may view it.
+router.get("/sessions", requireAuth, async (req, res) => {
+  void logActivity(
+    req.user?.id ?? null,
+    "History Accessed",
+    `Admin ${req.user?.username} viewed session history`,
+  );
+
   const sessions = await query(
-    `SELECT id, token, patient_name AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions ORDER BY started_at DESC LIMIT 50`
+    `${SESSION_SELECT} ORDER BY started_at DESC LIMIT 50`
   );
 
   const result = await Promise.all(
@@ -44,20 +66,103 @@ router.post("/sessions", async (req, res) => {
     }
   }
 
-  if (body.patientName && !/^[a-zA-Z\s'-]+$/.test(body.patientName)) {
-    res.status(400).json({ error: "invalid_name", message: "Name can only contain letters" });
+  const namePattern = /^[a-zA-Z\s'-]+$/;
+  if (!namePattern.test(body.patientFirstName)) {
+    res.status(400).json({ error: "invalid_name", message: "First name can only contain letters" });
+    return;
+  }
+  if (!namePattern.test(body.patientLastName)) {
+    res.status(400).json({ error: "invalid_name", message: "Last name can only contain letters" });
     return;
   }
 
   const token = Math.random().toString(36).substring(2, 8).toUpperCase();
   const result = await run(
-    `INSERT INTO sessions (token, patient_name, patient_phone, patient_age, patient_gender) VALUES (?, ?, ?, ?, ?)`,
-    [token, body.patientName, body.patientPhone ?? null, body.patientAge ?? null, body.patientGender ?? null]
+    `INSERT INTO sessions (token, patient_first_name, patient_last_name, patient_phone, patient_age, patient_gender) VALUES (?, ?, ?, ?, ?, ?)`,
+    [token, body.patientFirstName, body.patientLastName, body.patientPhone ?? null, body.patientAge ?? null, body.patientGender ?? null]
   );
 
-  const sessions = await query(`SELECT id, token, patient_name AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions WHERE id = ?`, [result.lastInsertRowid]);
+  const sessions = await query(`${SESSION_SELECT} WHERE id = ?`, [result.lastInsertRowid]);
   console.log("Session created:", JSON.stringify(sessions[0]));
   res.status(201).json({ ...sessions[0], vitals: [] });
+});
+
+router.post("/sessions/find", findSessionLimiter, async (req, res) => {
+  const body = FindSessionsBody.parse(req.body);
+
+  const reference = (body.reference ?? "").trim().toUpperCase();
+  const phone = (body.phone ?? "").trim();
+
+  if (!reference && !phone) {
+    res.status(400).json({
+      error: "invalid_request",
+      message: "Provide either a phone number or a reference",
+    });
+    return;
+  }
+
+  if (reference) {
+    if (!/^[A-Z0-9]{4,12}$/.test(reference)) {
+      res.status(400).json({
+        error: "invalid_reference",
+        message: "Invalid Reference",
+      });
+      return;
+    }
+
+    const sessions = await query(
+      `${SESSION_SELECT} WHERE token = ? LIMIT 1`,
+      [reference]
+    );
+    const session = sessions[0];
+
+    if (!session) {
+      res.json([]);
+      return;
+    }
+
+    const vitals = await query(
+      `${VITALS_SELECT} WHERE session_id = ? ORDER BY recorded_at DESC`,
+      [session.id]
+    );
+
+    res.json([{ ...session, vitals }]);
+    return;
+  }
+
+  const phoneDigits = phone.replace(/\D/g, "");
+  let local = phoneDigits;
+  if (local.startsWith("63") && local.length === 12) {
+    local = local.slice(2);
+  } else if (local.startsWith("0")) {
+    local = local.slice(1);
+  }
+
+  if (!/^9\d{9}$/.test(local)) {
+    res.status(400).json({
+      error: "invalid_phone",
+      message: "Invalid Phone number",
+    });
+    return;
+  }
+  const normalized = "63" + local;
+
+  const sessions = await query(
+    `${SESSION_SELECT} WHERE patient_phone IS NOT NULL AND REPLACE(patient_phone, '+', '') = ? ORDER BY started_at DESC LIMIT 20`,
+    [normalized]
+  );
+
+  const result = await Promise.all(
+    sessions.map(async (s) => {
+      const vitals = await query(
+        `${VITALS_SELECT} WHERE session_id = ? ORDER BY recorded_at DESC LIMIT 1`,
+        [s.id]
+      );
+      return { ...s, vitals: vitals[0] || null };
+    })
+  );
+
+  res.json(result);
 });
 
 router.post("/sessions/token", async (req, res) => {
@@ -68,7 +173,7 @@ router.post("/sessions/token", async (req, res) => {
     return;
   }
 
-  const sessions = await query(`SELECT id, token, patient_name AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions WHERE token = ? LIMIT 1`, [token.toUpperCase()]);
+  const sessions = await query(`${SESSION_SELECT} WHERE token = ? LIMIT 1`, [token.toUpperCase()]);
   const session = sessions[0];
 
   if (!session) {
@@ -87,7 +192,7 @@ router.post("/sessions/token", async (req, res) => {
 router.get("/sessions/:id", async (req, res) => {
   const { id } = GetSessionParams.parse({ id: Number(req.params.id) });
 
-  const sessions = await query(`SELECT id, token, patient_name AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions WHERE id = ?`, [id]);
+  const sessions = await query(`${SESSION_SELECT} WHERE id = ?`, [id]);
   const session = sessions[0];
 
   if (!session) {

@@ -1,24 +1,31 @@
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Clock, Settings } from "lucide-react";
+import { ArrowLeft, Clock, LogOut, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { SettingsDialog } from "./SettingsDialog";
+import { SettingsDialog } from "./settings/SettingsDialog";
+import LoginDialog from "@/components/LoginDialog";
 import { useRateLimit } from "@/hooks/use-rate-limit";
+import { useAdminAuth } from "@/hooks/use-admin-auth";
 
 interface KioskHeaderProps {
   title: string;
   showBack?: boolean;
   backTo?: string;
+  onLogout?: () => void;
 }
 
 export function KioskHeader({
   title,
   showBack = false,
   backTo = "/",
+  onLogout,
 }: KioskHeaderProps) {
   const { isRateLimited } = useRateLimit(1000);
   const [time, setTime] = useState(new Date());
   const [showSettings, setShowSettings] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const { account, hasAccess, loggingIn, error: authError, login, logout } =
+    useAdminAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -30,14 +37,22 @@ export function KioskHeader({
     <>
       <header className="h-14 sm:h-16 md:h-18 px-3 sm:px-6 bg-card border-b border-border flex items-center justify-between shrink-0 shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 w-1/3">
-          {showBack && (
+          {onLogout ? (
+            <button
+              onClick={onLogout}
+              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-secondary text-secondary-foreground shrink-0"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+          ) : showBack ? (
             <button
               onClick={() => setLocation(backTo)}
               className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-secondary text-secondary-foreground shrink-0"
             >
               <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
-          )}
+          ) : null}
           <div className="flex items-center gap-2.5">
             <span className="font-display font-bold text-base sm:text-lg md:text-xl text-primary tracking-wide whitespace-nowrap">
               RISECARE
@@ -59,7 +74,8 @@ export function KioskHeader({
           <button
             onClick={() => {
               if (isRateLimited("settings")) return;
-              setShowSettings(true);
+              if (hasAccess) setShowSettings(true);
+              else setShowLogin(true);
             }}
             className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-secondary text-secondary-foreground shrink-0"
             title="Settings"
@@ -69,9 +85,28 @@ export function KioskHeader({
         </div>
       </header>
 
+      <LoginDialog
+        open={showLogin}
+        onOpenChange={setShowLogin}
+        error={authError}
+        verifying={loggingIn}
+        onSubmit={async (username, password) => {
+          const ok = await login(username, password, "settings");
+          if (ok) {
+            setShowLogin(false);
+            setShowSettings(true);
+          }
+        }}
+      />
+
        <SettingsDialog
          isOpen={showSettings}
          onClose={() => setShowSettings(false)}
+         account={account}
+         onLogout={() => {
+           void logout();
+           setShowSettings(false);
+         }}
        />
     </>
   );

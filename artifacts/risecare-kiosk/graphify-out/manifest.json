@@ -10,58 +10,48 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1786687884.221798,
-    "ast_hash": "198e7909e83578b4e413c13ad0f07436",
+    "mtime": 1786781688.1274822,
+    "ast_hash": "ac314287ebd18faa2764bcdba384451a",
     "semantic_hash": ""
   },
   "src/components/InstructionModal.tsx": {
-    "mtime": 1786683712.9824674,
+    "mtime": 1786746716.8803213,
     "ast_hash": "b67a1bf56d16974da7ac35a724175883",
     "semantic_hash": ""
   },
   "src/components/KeypadDialog.tsx": {
-    "mtime": 1786683712.9859679,
-    "ast_hash": "339df99fecc7679819257a69f2d5d578",
+    "mtime": 1786746716.880824,
+    "ast_hash": "00733836a78fc192c23545bcccead6b2",
     "semantic_hash": ""
   },
   "src/components/KioskHeader.tsx": {
-    "mtime": 1786683712.9889944,
+    "mtime": 1786746716.8818247,
     "ast_hash": "2bd17deea6b0374737634dd75403e088",
     "semantic_hash": ""
   },
-  "src/components/PasscodeDialog.tsx": {
-    "mtime": 1786021114.2791455,
-    "ast_hash": "a1f9dac4fb2c9ce21ab1aee541c385b7",
-    "semantic_hash": ""
-  },
-  "src/components/PasscodeKeypad.tsx": {
-    "mtime": 1786021248.160669,
-    "ast_hash": "49d15294072ea369d4a8abbc9e89161a",
-    "semantic_hash": ""
-  },
   "src/components/SensorsDialog.tsx": {
-    "mtime": 1786687090.871769,
-    "ast_hash": "8ba4e56f89e77748ea0088ac7db62e86",
+    "mtime": 1786746716.884337,
+    "ast_hash": "65e385c2a243609c50250baeb5fd764b",
     "semantic_hash": ""
   },
   "src/components/SettingsDialog.tsx": {
-    "mtime": 1786687889.0776963,
-    "ast_hash": "8074aba64adb7f375c10eb94ddcb454a",
+    "mtime": 1786746716.8853338,
+    "ast_hash": "348befb68aa9362c29e3263af0c3636c",
     "semantic_hash": ""
   },
   "src/components/TermsAgreementDialog.tsx": {
-    "mtime": 1786686083.8102121,
-    "ast_hash": "c7dc24a0719798f58752c131307a84db",
+    "mtime": 1786746716.8873837,
+    "ast_hash": "07df01bc8ae3f6bd2c75104b3380d6d5",
     "semantic_hash": ""
   },
   "src/components/VirtualKeyboard.tsx": {
-    "mtime": 1785228608.8867846,
-    "ast_hash": "724f1b72c9c88dc4944f71f7b1884dac",
+    "mtime": 1786746716.8873837,
+    "ast_hash": "a2e1ef0518987154252cf2c14ea1d6b4",
     "semantic_hash": ""
   },
   "src/components/VitalCard.tsx": {
-    "mtime": 1786685052.4697905,
-    "ast_hash": "7bff081d33c8a78de48ddac214488b7d",
+    "mtime": 1786746716.8896797,
+    "ast_hash": "3b9e2fd4e6212aecaf07055af9cb2044",
     "semantic_hash": ""
   },
   "src/components/ui/accordion.tsx": {
@@ -150,8 +140,8 @@
     "semantic_hash": ""
   },
   "src/components/ui/dialog.tsx": {
-    "mtime": 1779714623.8061922,
-    "ast_hash": "dd39e6a46205125fe82e3d08d1e81fcc",
+    "mtime": 1786746716.8906765,
+    "ast_hash": "106eb5582dd8c32aa45f3ebfa5028330",
     "semantic_hash": ""
   },
   "src/components/ui/drawer.tsx": {
@@ -320,8 +310,8 @@
     "semantic_hash": ""
   },
   "src/components/ui/toaster.tsx": {
-    "mtime": 1778768129.8416593,
-    "ast_hash": "d0e062810c47a46b9bb4e8ea19875a02",
+    "mtime": 1786746716.8916726,
+    "ast_hash": "738a0aed78f4f64c083f77cd7c177d6a",
     "semantic_hash": ""
   },
   "src/components/ui/toggle-group.tsx": {
@@ -380,27 +370,27 @@
     "semantic_hash": ""
   },
   "src/pages/Dashboard.tsx": {
-    "mtime": 1786685637.4324212,
+    "mtime": 1786746716.8937564,
     "ast_hash": "a113d5c0ebcc340d1ac67e2bf897e7be",
     "semantic_hash": ""
   },
   "src/pages/History.tsx": {
-    "mtime": 1786688004.3755696,
-    "ast_hash": "cce39f2db5d0486de8f2b716e8c5c998",
+    "mtime": 1786746716.895148,
+    "ast_hash": "5a7f185f54b18c4337d7c001744ba067",
     "semantic_hash": ""
   },
   "src/pages/Home.tsx": {
-    "mtime": 1786685642.910116,
-    "ast_hash": "bb0af9fdc10c0a965390d071452587d9",
+    "mtime": 1786746716.896149,
+    "ast_hash": "700f2e015b2ecfaa98c7f2b8be985495",
     "semantic_hash": ""
   },
   "src/pages/Register.tsx": {
-    "mtime": 1786688440.4466248,
+    "mtime": 1786746716.897146,
     "ast_hash": "a7a080b6e1e869c4cfec93dd5af3144a",
     "semantic_hash": ""
   },
   "src/pages/Results.tsx": {
-    "mtime": 1786687744.2924252,
+    "mtime": 1786746716.8984957,
     "ast_hash": "3da89e2de60bf33752fb3cabc28464e2",
     "semantic_hash": ""
   },
@@ -467,6 +457,16 @@
   "public/opengraph.jpg": {
     "mtime": 1778768129.809765,
     "ast_hash": "42a04e1e2ea480a5a43e9383f4078937",
+    "semantic_hash": ""
+  },
+  "src/components/IdleTimeout.tsx": {
+    "mtime": 1786746716.878936,
+    "ast_hash": "3b8219c6d1f48a1a134272906d4fd682",
+    "semantic_hash": ""
+  },
+  "src/components/LoginDialog.tsx": {
+    "mtime": 1786780523.018794,
+    "ast_hash": "b4bb35e11b0f4f01f901bbec590e13c7",
     "semantic_hash": ""
   }
 }

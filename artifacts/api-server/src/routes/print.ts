@@ -29,7 +29,7 @@ router.post("/print/receipt", async (req, res) => {
 
   try {
     const sessions = await query(
-      `SELECT id, token, patient_name AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender FROM sessions WHERE id = ?`,
+      `SELECT id, token, patient_first_name AS patientFirstName, patient_last_name AS patientLastName, TRIM(patient_first_name || ' ' || patient_last_name) AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender FROM sessions WHERE id = ?`,
       [sessionId]
     );
 

@@ -1,12 +1,18 @@
-import { useRoute, useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
+import { useHistoryState } from "wouter/use-browser-location";
 import { KioskHeader } from "@/components/KioskHeader";
+import { format } from "date-fns";
 import {
   Printer,
   Home,
   CheckCircle,
   Activity,
   AlertCircle,
+  AlertTriangle,
+  AlertOctagon,
+  ArrowLeft,
   Check,
+  X,
 } from "lucide-react";
 import {
   getBPStatus,
@@ -15,7 +21,6 @@ import {
   getTempStatus,
   getBMIStatus,
   calculateBMI,
-  getStatusColor,
   VitalStatus,
 } from "@/lib/vitals-utils";
 import type { Vitals } from "@/types/vitals";
@@ -26,9 +31,19 @@ import { useRateLimit } from "@/hooks/use-rate-limit";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 export default function Results() {
-  const [, params] = useRoute("/session/:token/results");
   const [, setLocation] = useLocation();
-  const sessionToken = params?.token || "";
+  const search = useSearch();
+  const navState = useHistoryState<{ token?: string; from?: string }>();
+
+  const params = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search,
+  );
+  const sessionToken = params.get("token") || navState?.token || "";
+  const isSharedView = params.get("from") === "share";
+  const returnTo =
+    params.get("from") === "history" || navState?.from === "history"
+      ? "/history"
+      : "/";
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isRateLimited } = useRateLimit(1000);
@@ -41,6 +56,7 @@ export default function Results() {
   const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aiCalledRef = useRef(false);
   const [printCooldown, setPrintCooldown] = useState(false);
+  const [showDoneConfirm, setShowDoneConfirm] = useState(false);
 
   const { data: recEnabled } = useQuery({
     queryKey: ["recommendation-enabled"],
@@ -92,7 +108,7 @@ export default function Results() {
     },
   });
 
-  const { data: session, isLoading, refetch } = useQuery<Session>({
+  const { data: session, isLoading } = useQuery<Session>({
     queryKey: ["session", sessionToken],
     queryFn: async () => {
       const res = await fetch("/api/sessions/token", {
@@ -476,8 +492,10 @@ Assessment:`;
     };
   }, []);
 
-  // Auto-reset the session after showing results (kiosk mode)
+  // Auto-reset the session after showing results (kiosk mode only)
   useEffect(() => {
+    if (isSharedView) return;
+
     const interval = setInterval(() => {
       setCountdown((prev) => prev - 1);
     }, 1000);
@@ -485,14 +503,14 @@ Assessment:`;
       queryClient.removeQueries({ queryKey: ["session", sessionToken] });
 
       // Redirect to home
-      setLocation("/");
+      setLocation(returnTo);
     }, 60 * 1000); // 60 seconds display
 
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [sessionToken]);
+  }, [sessionToken, returnTo, isSharedView]);
 
   if (isLoading)
     return (
@@ -506,10 +524,29 @@ Assessment:`;
   if (!session)
     return (
       <div
-        className="min-h-screen bg-background pt-16 text-center text-xl text-destructive"
+        className="min-h-screen bg-background pt-16 text-center"
         style={{ minHeight: "100dvh" }}
       >
-        Session not found
+        <div className="mx-auto max-w-md px-6">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <AlertCircle className="h-8 w-8" />
+          </div>
+          <h1 className="text-3xl font-display font-bold text-foreground">
+            Report unavailable
+          </h1>
+          <p className="mt-2 text-lg text-muted-foreground">
+            This session link is invalid or the report is no longer available.
+          </p>
+          <button
+            onClick={() => {
+              if (isRateLimited("home")) return;
+              setLocation("/");
+            }}
+            className="mt-6 inline-flex items-center justify-center rounded-xl bg-primary px-8 py-3 text-xl font-semibold text-primary-foreground hover:bg-primary/90"
+          >
+            Go to Home
+          </button>
+        </div>
       </div>
     );
 
@@ -520,7 +557,7 @@ Assessment:`;
       <KioskHeader title="Session Results" />
 
       <main className="flex-1 overflow-y-auto min-h-0">
-        <div className="max-w-[60rem] portrait:max-w-2xl mx-auto w-full p-4 pb-20">
+        <div className="max-w-[60rem] portrait:max-w-2xl mx-auto w-full p-4 pb-28">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-success/20 text-success rounded-full mb-3">
             <CheckCircle className="w-6 h-6" />
@@ -528,8 +565,16 @@ Assessment:`;
           <h2 className="text-2xl font-display font-bold text-foreground">
             Session Complete
           </h2>
-          <p className="text-xl text-muted-foreground mt-2">
-            Review the summary below for {session.patientName}
+          <h3 className="mt-1 text-3xl font-display font-bold text-foreground truncate">
+            {session.patientName}
+          </h3>
+          <p className="mt-1 text-lg text-muted-foreground">
+            {session.patientAge} years old •{" "}
+            <span className="capitalize">{session.patientGender}</span>
+          </p>
+          <p className="text-base text-muted-foreground/80">
+            {format(new Date(session.startedAt), "MMMM d, yyyy")} •{" "}
+            {format(new Date(session.startedAt), "h:mm a")}
           </p>
         </div>
 
@@ -549,12 +594,11 @@ Assessment:`;
           >
             <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              {aiLoading
-                ? "AI Analyzing..."
-                : aiRecommendation
-                  ? "AI Health Assessment"
-                  : overallRecommendation.title}
+              Health Summary
             </h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Automated summary based on the recorded measurements.
+            </p>
           </div>
           <div className="p-6">
             {aiLoading ? (
@@ -582,6 +626,9 @@ Assessment:`;
               </>
             ) : (
               <>
+                <p className="text-lg font-bold text-foreground mb-2">
+                  {overallRecommendation.title}
+                </p>
                 <p className="text-lg text-foreground mb-4">
                   {overallRecommendation.message}
                 </p>
@@ -624,9 +671,9 @@ Assessment:`;
               resultsList.map((item, idx) => (
                 <div
                   key={idx}
-                  className="p-4 flex items-center justify-between"
+                  className="p-4 flex items-center justify-between gap-4"
                 >
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <h4 className="text-xl font-bold text-foreground mb-1">
                       {item.name}
                     </h4>
@@ -641,7 +688,7 @@ Assessment:`;
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <span className="text-2xl font-display font-bold tracking-tight">
                         {item.val}
@@ -650,11 +697,28 @@ Assessment:`;
                         {item.unit}
                       </span>
                     </div>
-                    <div
-                      className={`w-2 h-12 rounded-full ${
-                        getStatusColor(item.status).split(" ")[0]
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold ${
+                        item.status === "normal"
+                          ? "bg-success/10 text-success"
+                          : item.status === "warning"
+                            ? "bg-yellow-500/10 text-yellow-500"
+                            : "bg-destructive/10 text-destructive"
                       }`}
-                    />
+                    >
+                      {item.status === "normal" ? (
+                        <Check className="w-4 h-4" />
+                      ) : item.status === "warning" ? (
+                        <AlertTriangle className="w-4 h-4" />
+                      ) : (
+                        <AlertOctagon className="w-4 h-4" />
+                      )}
+                      {item.status === "normal"
+                        ? "Normal"
+                        : item.status === "warning"
+                          ? "Needs Attention"
+                          : "Critical"}
+                    </span>
                   </div>
                 </div>
               ))
@@ -664,7 +728,7 @@ Assessment:`;
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-3 z-10">
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_15px_rgba(0,0,0,0.05)] p-4 z-10">
         <div className="max-w-[60rem] portrait:max-w-2xl mx-auto flex gap-3">
           <button
             onClick={() => {
@@ -677,27 +741,87 @@ Assessment:`;
               });
             }}
             disabled={printMutation.isPending || printCooldown}
-            className="flex-1 h-12 bg-secondary text-secondary-foreground text-base sm:text-lg md:text-xl font-display font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+            className="flex-1 h-16 bg-secondary text-secondary-foreground text-lg sm:text-xl md:text-2xl font-display font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            <Printer className="w-5 h-5" />
+            <Printer className="w-6 h-6" />
             {printMutation.isPending ? "Printing..." : printCooldown ? "Wait..." : "Print Report"}
           </button>
 
-          <button
-            onClick={() => {
-              if (isRateLimited("home")) return;
-              queryClient.removeQueries({
-                queryKey: ["session", sessionToken],
-              });
-              setLocation("/");
-            }}
-            className="flex-[2] h-12 bg-primary text-primary-foreground text-base sm:text-lg md:text-xl font-display font-bold rounded-xl shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
-          >
-            <Home className="w-5 h-5" />
-            Returning to home in ( {countdown} ) s...
-          </button>
+          {isSharedView ? (
+            <button
+              onClick={() => {
+                if (isRateLimited("home")) return;
+                if (window.history.length > 1) window.history.back();
+                else setLocation("/");
+              }}
+              className="flex-[2] h-16 bg-primary text-primary-foreground text-lg sm:text-xl md:text-2xl font-display font-bold rounded-xl shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="w-6 h-6" />
+              Back
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (isRateLimited("home")) return;
+                setShowDoneConfirm(true);
+              }}
+              className="flex-[2] h-16 bg-primary text-primary-foreground text-lg sm:text-xl md:text-2xl font-display font-bold rounded-xl shadow-xl shadow-primary/25 flex items-center justify-center gap-2"
+            >
+              <Home className="w-6 h-6" />
+              {returnTo === "/history"
+                ? "Returning to history"
+                : "Returning to home"}{" "}
+              in ( {countdown} ) s...
+            </button>
+          )}
         </div>
       </div>
+
+      {showDoneConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
+          <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold">
+                {returnTo === "/history"
+                  ? "Return to history?"
+                  : "Return to home?"}
+              </h2>
+              <button
+                onClick={() => setShowDoneConfirm(false)}
+                className="p-2 rounded-full hover:bg-muted"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <p className="text-center text-muted-foreground mb-6">
+              {returnTo === "/history"
+                ? "Go back to the patient history list?"
+                : "Leave this report and go back to the home screen?"}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (isRateLimited("home-confirm")) return;
+                  setShowDoneConfirm(false);
+                  queryClient.removeQueries({
+                    queryKey: ["session", sessionToken],
+                  });
+                  setLocation(returnTo);
+                }}
+                className="flex-1 h-14 rounded-xl bg-primary text-primary-foreground text-lg font-semibold"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setShowDoneConfirm(false)}
+                className="flex-1 h-14 rounded-xl bg-secondary text-lg font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

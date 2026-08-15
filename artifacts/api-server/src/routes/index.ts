@@ -6,6 +6,7 @@ import sensorsRouter from "./sensors";
 import settingsRouter from "./settings";
 import printRouter from "./print";
 import aiRouter from "./ai";
+import networkRouter from "./network";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(sensorsRouter);
 router.use("/settings", settingsRouter);
 router.use(printRouter);
 router.use(aiRouter);
+router.use(networkRouter);
 
 export default router;

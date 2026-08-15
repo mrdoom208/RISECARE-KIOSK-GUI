@@ -14,7 +14,7 @@ router.get("/vitals/latest", async (_req, res) => {
   }
 
   const latestVital = latestVitals[0];
-  const sessions = await query(`SELECT id, token, patient_name AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions WHERE id = ?`, [latestVital.sessionId]);
+  const sessions = await query(`SELECT id, token, patient_first_name AS patientFirstName, patient_last_name AS patientLastName, TRIM(patient_first_name || ' ' || patient_last_name) AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions WHERE id = ?`, [latestVital.sessionId]);
   const session = sessions[0];
 
   const vitals = await query(

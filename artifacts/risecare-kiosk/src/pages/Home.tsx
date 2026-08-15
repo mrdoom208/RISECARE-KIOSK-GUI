@@ -1,25 +1,20 @@
 import { useLocation } from "wouter";
 import { useState } from "react";
-import { Activity, ArrowRight, ClipboardList, UserPlus } from "lucide-react";
+import { Activity, ArrowRight, ClipboardList, Lock, Search, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useRateLimit } from "@/hooks/use-rate-limit";
+import { useAdminAuth } from "@/hooks/use-admin-auth";
 import LoginDialog from "@/components/LoginDialog";
 import TermsAgreementDialog from "@/components/TermsAgreementDialog";
-
-const HISTORY_ACCESS_KEY = "risecare-history-access";
 
 export default function Home() {
   const { isRateLimited } = useRateLimit(1000);
   const [, setLocation] = useLocation();
-  const [showHistoryPasscode, setShowHistoryPasscode] = useState(false);
-  const [historyTarget, setHistoryTarget] = useState("/history");
-  const [historyError, setHistoryError] = useState("");
-  const [isVerifyingHistory, setIsVerifyingHistory] = useState(false);
-  const [hasHistoryAccess, setHasHistoryAccess] = useState(
-    () => sessionStorage.getItem(HISTORY_ACCESS_KEY) === "true",
-  );
   const [showTerms, setShowTerms] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const { hasAccess, loggingIn, error: authError, login } = useAdminAuth();
+
   const { data: sessions, isLoading } = useQuery<any[]>({
     queryKey: ["home-history-sessions"],
     queryFn: async () => {
@@ -27,50 +22,8 @@ export default function Home() {
       if (!res.ok) throw new Error("Failed to load history");
       return res.json();
     },
+    enabled: hasAccess,
   });
-
-  const requestHistoryAccess = (target = "/history") => {
-    if (hasHistoryAccess) {
-      setLocation(target);
-      return;
-    }
-
-    setHistoryTarget(target);
-    setShowHistoryPasscode(true);
-  };
-
-  const closeHistoryPasscode = () => {
-    setShowHistoryPasscode(false);
-    setHistoryError("");
-    setIsVerifyingHistory(false);
-  };
-
-  const handleHistoryLoginSubmit = async (username: string, password: string) => {
-    if (!username || !password || isVerifyingHistory) return;
-
-    try {
-      setIsVerifyingHistory(true);
-      const res = await fetch("/api/settings/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, context: "history" }),
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        sessionStorage.setItem(HISTORY_ACCESS_KEY, "true");
-        setHasHistoryAccess(true);
-        closeHistoryPasscode();
-        setLocation(historyTarget);
-      } else {
-        setHistoryError(data.error || "Invalid username or password");
-      }
-    } catch {
-      setHistoryError("Failed to login");
-    } finally {
-      setIsVerifyingHistory(false);
-    }
-  };
 
   return (
     <div className="h-dvh bg-background flex flex-col relative overflow-hidden">
@@ -127,7 +80,7 @@ export default function Home() {
             <button
               onClick={() => {
                 if (isRateLimited("view-history")) return;
-                requestHistoryAccess();
+                setShowLogin(true);
               }}
               className="w-full bg-card hover:bg-secondary text-foreground p-5 rounded-[1rem] shadow-xl shadow-black/5 flex flex-col items-center justify-center gap-2 border border-border"
             >
@@ -141,6 +94,27 @@ export default function Home() {
           </div>
         </div>
 
+        <button
+          onClick={() => {
+            if (isRateLimited("find-session")) return;
+            setLocation("/find-session");
+          }}
+          className="mt-3 w-full max-w-2xl bg-card hover:bg-secondary text-foreground p-4 rounded-[1rem] shadow-xl shadow-black/5 flex items-center justify-center gap-3 border border-border"
+        >
+          <div className="bg-primary/10 p-2.5 rounded-full text-primary shrink-0">
+            <Search className="w-6 h-6" />
+          </div>
+          <div className="text-left">
+            <span className="block text-2xl font-bold font-display">
+              Find my Session
+            </span>
+            <span className="block text-sm text-muted-foreground font-medium">
+              Look up your results using your phone number or reference
+            </span>
+          </div>
+          <ArrowRight className="w-6 h-6 text-primary shrink-0 ml-auto" />
+        </button>
+
         {/* Recent Sessions widget */}
         <div className="mt-8 w-full max-w-2xl"
         >
@@ -152,7 +126,7 @@ export default function Home() {
               type="button"
               onClick={() => {
                 if (isRateLimited("view-all-history")) return;
-                requestHistoryAccess();
+                setShowLogin(true);
               }}
               className="text-primary text-lg font-semibold flex items-center gap-1"
             >
@@ -161,7 +135,29 @@ export default function Home() {
           </div>
 
           <div className="bg-card border border-border/50 rounded-2xl shadow-lg overflow-hidden backdrop-blur-md bg-white/80">
-            {isLoading ? (
+            {!hasAccess ? (
+              <div className="p-6 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Lock className="h-6 w-6" />
+                </div>
+                <p className="text-xl font-semibold text-foreground">
+                  Patient records are protected
+                </p>
+                <p className="text-base text-muted-foreground mt-1">
+                  Sign in as an administrator to view patient history.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isRateLimited("view-history-locked")) return;
+                    setShowLogin(true);
+                  }}
+                  className="mt-4 inline-flex items-center gap-2 text-primary text-lg font-semibold"
+                >
+                  View History <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : isLoading ? (
               <div className="p-6 text-center text-lg text-muted-foreground">
                 Loading history...
               </div>
@@ -204,13 +200,19 @@ export default function Home() {
       </div>
 
       <LoginDialog
-        open={showHistoryPasscode}
-        onOpenChange={(open) => !open && closeHistoryPasscode()}
-        title="History Access"
-        description="Enter your admin credentials to view history."
-        error={historyError}
-        verifying={isVerifyingHistory}
-        onSubmit={handleHistoryLoginSubmit}
+        open={showLogin}
+        onOpenChange={setShowLogin}
+        title="Admin Login"
+        description="Enter your admin credentials to view session history."
+        error={authError}
+        verifying={loggingIn}
+        onSubmit={async (username, password) => {
+          const ok = await login(username, password, "history");
+          if (ok) {
+            setShowLogin(false);
+            setLocation("/history");
+          }
+        }}
       />
 
       <TermsAgreementDialog
