@@ -15,6 +15,10 @@ out-tsc
 .expo
 .expo-shared
 
+# Generated codebase graph output (regenerated locally with `graphify update .`)
+/graphify-out/
+/artifacts/risecare-kiosk/graphify-out/
+
 # dependencies
 node_modules
 node_modules/
