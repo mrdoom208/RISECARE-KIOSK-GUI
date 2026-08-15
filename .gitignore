@@ -75,6 +75,7 @@ desktop.ini
 # Cursor / AI tools
 .cursor/rules/nx-rules.mdc
 .cursor/
+.opencode/
 .github/instructions/nx.instructions.md
 .ai/
 .claude/
