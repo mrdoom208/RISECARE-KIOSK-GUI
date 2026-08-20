@@ -10,10 +10,10 @@ import { AccountsSettings } from "./AccountsSettings";
 import { AIIntegrationSettings } from "./AIIntegrationSettings";
 import { IdleTimeoutSettings } from "./IdleTimeoutSettings";
 import { NetworkSettings } from "./NetworkSettings";
-import { DatabaseSettings } from "./DatabaseSettings";
 import { PowerSettings } from "./PowerSettings";
 import { ProfileSettings } from "./ProfileSettings";
 import { SensorsSettings } from "./SensorsSettings";
+import { DeviceInformationSettings } from "./DeviceInformationSettings";
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -270,10 +270,10 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
         ? "Edit Account"
         : activeSubmenu === "profile"
           ? "Profile"
-          : activeSubmenu === "logs"
+          : activeSubmenu === "device"
+            ? "Device Information"
+            : activeSubmenu === "logs"
             ? "Activity Logs"
-          : activeSubmenu === "database"
-            ? "User Records"
             : activeSubmenu === "accounts"
               ? "Accounts"
               : activeSubmenu === "ai-integration"
@@ -479,10 +479,10 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
               </>
             ) : activeSubmenu === "profile" ? (
               <ProfileSettings account={account} />
+            ) : activeSubmenu === "device" ? (
+              <DeviceInformationSettings account={account} isRateLimited={isRateLimited} />
             ) : activeSubmenu === "logs" ? (
               <ActivityLogsSettings account={account} />
-            ) : activeSubmenu === "database" ? (
-              <DatabaseSettings account={account} isRateLimited={isRateLimited} />
             ) : activeSubmenu === "accounts" ? (
               <AccountsSettings
                 account={account}
@@ -498,7 +498,6 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
               <NetworkSettings isRateLimited={isRateLimited} />
             ) : (
               <SettingsMenu
-                account={account}
                 isSuperadmin={isSuperadmin}
                 isRateLimited={isRateLimited}
                 onNavigate={setActiveSubmenu}

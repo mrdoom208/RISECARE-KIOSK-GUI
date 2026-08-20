@@ -14,6 +14,7 @@ A modern, self-service health monitoring kiosk application that enables patients
 - **IoT Sensor Integration** - Optional MQTT-based real-time sensor data communication
 - **Health Status Evaluation** - Automated normal/warning/critical status for all vitals
 - **Session Management** - Track and review patient sessions with full history
+- **Find My Session** - Patients can look up past sessions and results by phone number or reference code, with rate limiting
 - **AI Health Recommendations** - Automated health insights based on recorded vitals (toggleable)
 - **Kiosk Mode** - Touchscreen-optimized UI with auto-reset after session completion
 - **Configurable Idle Timeout** - Returns to the home screen after a period of inactivity; duration is set by admins in Settings (30s to 10 min)
@@ -21,6 +22,7 @@ A modern, self-service health monitoring kiosk application that enables patients
 - **Admin Security** - Username/password-protected history and admin accounts management (create admins & sub admins)
 - **Print Reports** - Generate and print patient health reports
 - **Power Controls** - Admin Power menu with Shutdown, Restart, and Lock options (sent to the Raspberry Pi via MQTT)
+- **WiFi Management** - Admin network page to check status, scan and connect to WiFi networks on the Raspberry Pi
 
 ---
 
@@ -61,14 +63,14 @@ RiseCare-Health-Kiosk/
 ├── artifacts/
 │   ├── api-server/          # Express backend API
 │   │   └── src/
-│   │       ├── routes/      # API endpoints (sessions, vitals, sensors, settings)
+│   │       ├── routes/      # API endpoints (sessions, vitals, sensors, settings, network, print, ai)
 │   │       ├── mqtt.ts     # MQTT client
 │   │       └── app.ts      # Express app config
 │   └── risecare-kiosk/     # React frontend kiosk UI
 │       ├── public/         # Static assets, images, instructions
 │       └── src/
 │           ├── components/ # UI components (50+ Radix components)
-│           ├── pages/      # Home, Register, Dashboard, Results, History
+│           ├── pages/      # Home, Register, Dashboard, Results, History, FindSession
 │           ├── lib/        # Utilities and health evaluation logic
 │           └── hooks/      # Custom React hooks
 ├── hardware/               # Raspberry Pi scripts (sensor read, shutdown)
@@ -116,7 +118,14 @@ PORT=5000
 BASE_PATH=/
 MQTT_BROKER=mqtt://localhost:1883
 MQTT_TOPIC=risecare/sensors/#
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:0.5b
+SESSION_SECRET=change-me-to-a-long-random-string
 ```
+
+- `OLLAMA_HOST` / `OLLAMA_MODEL` - configure the local Ollama server used for AI health recommendations
+- `SESSION_SECRET` - secret used to sign admin session tokens
+- `RISECARE_PORTAL_URL` - optional base URL of the RiseCare Admin Portal used for kiosk activation and sync. Defaults to `http://localhost:3001` in dev and `https://portal.example.com` in production; the `server_link` setting overrides the default when both are set, and this env var takes precedence over the setting.
 
 To disable MQTT (manual input mode):
 
@@ -166,6 +175,9 @@ pnpm run start
 | `/api/sessions/token`    | POST   | Validate session token     |
 | `/api/sessions/:id`      | GET    | Get session details        |
 | `/api/sessions`          | GET    | List all sessions          |
+| `/api/sessions/find`     | POST   | Find sessions by phone number or reference code (rate-limited) |
+| `/api/sessions/:id/vitals` | POST | Save or update vitals for a session |
+| `/api/sessions/:id/vitals/clear` | POST | Clear individual vital fields for a session |
 | `/api/vitals`            | POST   | Record vital signs         |
 | `/api/vitals/:sessionId` | GET    | Get vitals for session     |
 | `/api/sensors`           | GET    | List available sensors     |
@@ -183,6 +195,10 @@ pnpm run start
 | `/api/print/receipt`     | POST   | Send report to thermal printer |
 | `/api/print/test`        | POST   | Send a test page to the printer |
 | `/api/ai/recommendation` | POST   | AI health assessment       |
+| `/api/network/status`    | GET    | Get network connection status |
+| `/api/network/wifi/scan` | GET    | Scan for available WiFi networks |
+| `/api/network/wifi/connect` | POST | Connect to a WiFi network |
+| `/api/network/wifi/disconnect` | POST | Disconnect from the current network |
 
 Full API documentation available in [`lib/api-spec/openapi.yaml`](lib/api-spec/openapi.yaml)
 
@@ -264,9 +280,12 @@ To enable real-time IoT sensor data:
 | ------------------ | ----------------------------- |
 | `pnpm dev`         | Start development environment |
 | `pnpm dev:api`     | Start API server only         |
+| `pnpm dev:local`   | Start API + kiosk with local proxy |
 | `pnpm build:kiosk` | Build frontend for production |
 | `pnpm typecheck`   | Run TypeScript type checking  |
 | `pnpm run db:push` | Push database schema changes  |
+| `pnpm run db:migrate` | Apply database migrations   |
+| `pnpm run db:studio` | Open the database studio    |
 
 ---
 

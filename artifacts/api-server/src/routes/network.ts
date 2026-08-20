@@ -74,6 +74,15 @@ router.get("/network/wifi/scan", requireAuth, requireNetworkEnabled, async (_req
   }
 });
 
+router.get("/network/lan", requireAuth, requireNetworkEnabled, async (_req, res) => {
+  try {
+    const result = await runWifi(["lan"]);
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post("/network/wifi/connect", requireAuth, requireNetworkEnabled, async (req, res) => {
   const { ssid, password } = req.body ?? {};
   if (!ssid || typeof ssid !== "string") {

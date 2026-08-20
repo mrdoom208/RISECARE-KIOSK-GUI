@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
+import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 import { query, run } from "@workspace/db";
 import { requireAuth } from "../auth";
 import { logActivity } from "../activity-log";
+import { getTransactionTags } from "../device";
 import {
   CreateSessionBody,
   FindSessionsBody,
@@ -12,6 +14,20 @@ import {
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+// Portal expects gender as one of Male / Female / Other / Unknown (Title Case).
+// The kiosk form submits lowercase ("male"/"female"); canonicalize before storing.
+function normalizeGender(value: string | null | undefined): string | null {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (lower === "male") return "Male";
+  if (lower === "female") return "Female";
+  if (lower === "other") return "Other";
+  if (lower === "unknown") return "Unknown";
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+}
+
 const VITALS_SELECT = `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi, notes, recorded_at AS recordedAt FROM vital_readings`;
 const SESSION_SELECT = `SELECT id, token, patient_first_name AS patientFirstName, patient_last_name AS patientLastName, TRIM(patient_first_name || ' ' || patient_last_name) AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions`;
 
@@ -77,9 +93,11 @@ router.post("/sessions", async (req, res) => {
   }
 
   const token = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const tags = await getTransactionTags();
+  const sourceSessionId = crypto.randomUUID();
   const result = await run(
-    `INSERT INTO sessions (token, patient_first_name, patient_last_name, patient_phone, patient_age, patient_gender) VALUES (?, ?, ?, ?, ?, ?)`,
-    [token, body.patientFirstName, body.patientLastName, body.patientPhone ?? null, body.patientAge ?? null, body.patientGender ?? null]
+    `INSERT INTO sessions (token, patient_first_name, patient_last_name, patient_phone, patient_age, patient_gender, source_session_id, device_uid, kiosk_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [token, body.patientFirstName, body.patientLastName, body.patientPhone ?? null, body.patientAge ?? null, normalizeGender(body.patientGender), sourceSessionId, tags.deviceUid, tags.kioskId]
   );
 
   const sessions = await query(`${SESSION_SELECT} WHERE id = ?`, [result.lastInsertRowid]);
@@ -232,6 +250,8 @@ router.post("/sessions/:id/vitals", async (req, res) => {
   }
 
   let vital;
+  const tags = await getTransactionTags();
+  const sourceVitalId = crypto.randomUUID();
   if (existing) {
     await run(
       `UPDATE vital_readings SET 
@@ -244,6 +264,9 @@ router.post("/sessions/:id/vitals", async (req, res) => {
         height = ?, 
         bmi = ?, 
         notes = ?,
+        device_uid = ?,
+        kiosk_id = ?,
+        sync_status = 'pending',
         recorded_at = CURRENT_TIMESTAMP
       WHERE id = ?`,
       [
@@ -256,6 +279,8 @@ router.post("/sessions/:id/vitals", async (req, res) => {
         body.height ?? existing.height,
         bmi,
         body.notes ?? existing.notes,
+        tags.deviceUid,
+        tags.kioskId,
         existing.id
       ]
     );
@@ -265,8 +290,9 @@ router.post("/sessions/:id/vitals", async (req, res) => {
     const result = await run(
       `INSERT INTO vital_readings (
         session_id, blood_pressure_systolic, blood_pressure_diastolic, heart_rate, 
-        oxygen_saturation, temperature, weight, height, bmi, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        oxygen_saturation, temperature, weight, height, bmi, notes,
+        source_vital_id, device_uid, kiosk_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         body.bloodPressureSystolic ?? null,
@@ -277,7 +303,10 @@ router.post("/sessions/:id/vitals", async (req, res) => {
         body.weight ?? null,
         body.height ?? null,
         bmi,
-        body.notes ?? null
+        body.notes ?? null,
+        sourceVitalId,
+        tags.deviceUid,
+        tags.kioskId
       ]
     );
     const inserted = await query(`SELECT * FROM vital_readings WHERE id = ?`, [result.lastInsertRowid]);

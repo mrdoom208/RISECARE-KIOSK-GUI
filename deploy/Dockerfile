@@ -17,6 +17,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+RUN pnpm --filter @workspace/api-spec run codegen
 RUN pnpm --filter @workspace/risecare-kiosk run build
 RUN pnpm --filter @workspace/api-server run build
 

@@ -4,6 +4,8 @@ import { resolve } from "path";
 dotenv.config({ path: resolve("../../.env") });
 import app from "./app";
 import { connectMQTT, disconnectMQTT } from "./mqtt";
+import { startSyncLoop } from "./device";
+import { setupWebSocket } from "./ws";
 
 const rawPort = process.env["PORT"];
 
@@ -19,8 +21,14 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, async () => {
+const server = app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
+
+  // Attach WebSocket server
+  setupWebSocket(server);
+
+  // Background offline-first sync (runs only when the kiosk is activated)
+  startSyncLoop();
 
   // Connect to MQTT broker (skip if NO_MQTT=1)
   if (process.env.NO_MQTT !== "1") {

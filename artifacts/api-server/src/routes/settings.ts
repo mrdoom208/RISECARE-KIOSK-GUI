@@ -5,6 +5,7 @@ import { run, query } from "@workspace/db";
 import { publish } from "../mqtt";
 import { requireAuth, requireReauth, requireSuperadmin, REAUTH_TTL_MS } from "../auth";
 import { logActivity } from "../activity-log";
+import { SyncError, getPortalBaseUrl, syncPending } from "../device";
 import path from "path";
 import fs from "fs";
 
@@ -549,42 +550,12 @@ router.post("/network-enabled", requireAuth, async (req, res) => {
   }
 });
 
-// Get server link setting (authenticated)
-router.get("/server-link", requireAuth, async (_req, res) => {
-  try {
-    const rows = await query("SELECT value FROM settings WHERE key = 'server_link'");
-    const link = rows && rows.length > 0 ? rows[0].value : "";
-    res.json({ link });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to get server link" });
-  }
-});
-
-// Set server link setting (authenticated)
-router.post("/server-link", requireAuth, async (req, res) => {
-  try {
-    const link = (req.body?.link ?? "").toString().trim();
-    if (link && !/^https?:\/\//i.test(link)) {
-      res.status(400).json({ error: "Server link must start with http:// or https://" });
-      return;
-    }
-    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('server_link', ?)", [link]);
-    await logActivity(
-      req.user?.id ?? null,
-      "Server Link Changed",
-      `Server link set to "${link}" by ${req.user?.username ?? "Unknown"}`,
-    );
-    res.json({ success: true, link });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to set server link" });
-  }
-});
-
-// Check connection to the configured server (authenticated)
+// Check connection to the configured server (authenticated). The server link
+// is configured via RISECARE_PORTAL_URL (env) only; there is no runtime
+// override, so this reports the resolved portal URL.
 router.get("/server-connection", requireAuth, async (_req, res) => {
   try {
-    const rows = await query("SELECT value FROM settings WHERE key = 'server_link'");
-    const link = rows && rows.length > 0 ? rows[0].value : "";
+    const link = await getPortalBaseUrl();
     if (!link) {
       res.json({ connected: false, link });
       return;
@@ -604,65 +575,24 @@ router.get("/server-connection", requireAuth, async (_req, res) => {
   }
 });
 
-// Export reports to the configured server (authenticated, requires recent re-auth)
+// Export pending records to the configured server (offline-first sync).
+// Delegates to the shared sync service which handles batching, idempotency
+// and exponential backoff (authenticated, requires recent re-auth)
 router.post("/export-server", requireAuth, requireReauth, async (req, res) => {
   try {
-    const rows = await query("SELECT value FROM settings WHERE key = 'server_link'");
-    const link = rows && rows.length > 0 ? rows[0].value : "";
-    if (!link) {
-      res.status(400).json({ error: "No server link configured" });
+    const result = await syncPending();
+    await logActivity(
+      req.user?.id ?? null,
+      "Reports Exported",
+      `${result.exported} record(s) synced to server by ${req.user?.username ?? "Unknown"}`,
+    );
+    res.json({ success: true, ...result });
+  } catch (e) {
+    if (e instanceof SyncError) {
+      res.status(e.permanent ? 400 : 502).json({ error: e.message, code: e.code });
       return;
     }
-
-    const sessions = await query(`
-      SELECT id, token, patient_first_name AS patientFirstName, patient_last_name AS patientLastName,
-             TRIM(patient_first_name || ' ' || patient_last_name) AS patientName,
-             patient_phone AS patientPhone,
-             patient_age AS patientAge, patient_gender AS patientGender,
-             started_at AS startedAt, completed_at AS completedAt
-      FROM sessions ORDER BY started_at DESC
-    `);
-    const vitals = await query(`
-      SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic,
-             blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate,
-             oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi, notes,
-             recorded_at AS recordedAt
-      FROM vital_readings
-    `);
-
-    const payload = {
-      source: "risecare-kiosk",
-      exportedAt: new Date().toISOString(),
-      sessions,
-      vitals,
-    };
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    try {
-      const resp = await fetch(link, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-      if (!resp.ok) {
-        res.status(502).json({ error: `Server returned ${resp.status}` });
-        return;
-      }
-      await logActivity(
-        req.user?.id ?? null,
-        "Reports Exported",
-        `Exported reports to ${link} by ${req.user?.username ?? "Unknown"}`,
-      );
-      res.json({ success: true, exported: sessions.length });
-    } catch {
-      res.status(502).json({ error: "Failed to reach server" });
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch (e) {
-    res.status(500).json({ error: "Failed to export reports" });
+    res.status(502).json({ error: "Failed to sync records" });
   }
 });
 

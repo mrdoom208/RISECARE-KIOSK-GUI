@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useHistoryState } from "wouter/use-browser-location";
 import { useSaveVitals } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useToast } from "@/hooks/use-toast";
+import { useSensorWebSocket } from "@/hooks/use-sensor-websocket";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 import {
@@ -38,6 +39,7 @@ import {
 import NotFound from "./not-found";
 
 import { sensorGuides } from "@/data/sensorGuides";
+import { sensorStabilityConfig } from "@/lib/sensor-stability";
 
 type VitalType =
   | "bp"
@@ -74,8 +76,19 @@ export default function Dashboard() {
   const prevValueRef = useRef<any>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
-  const STABLE_READING_THRESHOLD = 3;
-  const STABLE_READING_COUNT = 5;
+  const [liveReadings, setLiveReadings] = useState<Record<string, any>>({});
+  const liveReadingsRef = useRef<Record<string, any>>({});
+
+  // WebSocket: receive live sensor data pushed from server
+  const { connected: wsConnected } = useSensorWebSocket({
+    onSensorReading: useCallback((sensor: string, data: any) => {
+      setLiveReadings((prev) => {
+        const next = { ...prev, [sensor]: { ...data, _receivedAt: Date.now() } };
+        liveReadingsRef.current = next;
+        return next;
+      });
+    }, []),
+  });
 
   // Load enabled state from localStorage
   useEffect(() => {
@@ -93,7 +106,7 @@ export default function Dashboard() {
     return () => window.removeEventListener("sensorStateChange", loadEnabledSensors);
   }, []);
 
-  const isStable = stableCount >= STABLE_READING_COUNT;
+  const isStable = readingVital ? stableCount >= (sensorStabilityConfig[vitalToSensorId[readingVital]]?.stableCount ?? 5) : false;
 
   // Check if a vital's sensor is enabled
   const isVitalEnabled = (vital: VitalType) => {
@@ -129,18 +142,7 @@ export default function Dashboard() {
       return res.json();
     },
     enabled: !!sessionToken,
-    refetchInterval: readingVital ? 2000 : false, // Poll every 2s while reading
-  });
-
-  const { data: latestSensorReadings } = useQuery({
-    queryKey: ["latest-sensor-readings"],
-    queryFn: async () => {
-      const res = await fetch("/api/sensors/latest-readings");
-      if (!res.ok) throw new Error("Failed to load sensor readings");
-      return res.json();
-    },
-    enabled: !!readingVital,
-    refetchInterval: readingVital ? 500 : false,
+    refetchInterval: readingVital ? 2000 : false,
   });
 
   const saveVitalsMutation = useSaveVitals();
@@ -151,8 +153,8 @@ export default function Dashboard() {
   }, [session]);
 
   const getLiveReadingValue = (vital: VitalType) => {
-    const sensorId = vitalToSensor[vital];
-    const reading = latestSensorReadings?.[sensorId];
+    const sensorId = vitalToSensorId[vital];
+    const reading = liveReadings[sensorId];
 
     if (!reading || String(reading.sessionId) !== String(session?.id)) return null;
 
@@ -180,6 +182,10 @@ export default function Dashboard() {
       prevValueRef.current = null;
       return;
     }
+
+    const sensorId = vitalToSensorId[readingVital];
+    const config = sensorStabilityConfig[sensorId];
+    if (!config) return;
 
     let currentValue: any;
     let prevValue: any = prevValueRef.current;
@@ -211,18 +217,10 @@ export default function Dashboard() {
     if (currentValue == null) return;
 
     if (prevValue !== null) {
-      let isNear = false;
-      if (readingVital === "bp") {
-        const diffSys = Math.abs(currentValue.sys - prevValue.sys);
-        const diffDia = Math.abs(currentValue.dia - prevValue.dia);
-        isNear = diffSys <= STABLE_READING_THRESHOLD && diffDia <= STABLE_READING_THRESHOLD;
-      } else {
-        const diff = Math.abs(currentValue - prevValue);
-        isNear = diff <= STABLE_READING_THRESHOLD;
-      }
+      const isNear = config.compare(prevValue, currentValue);
 
       if (isNear) {
-        setStableCount((prev) => Math.min(prev + 1, STABLE_READING_COUNT));
+        setStableCount((prev) => Math.min(prev + 1, config.stableCount));
       } else {
         setStableCount(1);
         prevValueRef.current = currentValue;
@@ -233,7 +231,7 @@ export default function Dashboard() {
     }
 
     prevValueRef.current = currentValue;
-  }, [currentVitals, latestSensorReadings, readingVital]);
+  }, [liveReadings, readingVital, session]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
 
@@ -267,15 +265,6 @@ export default function Dashboard() {
     );
   };
 
-  const vitalToSensor: Record<VitalType, string> = {
-    bp: "bp",
-    hr: "heartrate",
-    spo2: "spo2",
-    weight: "weight",
-    height: "height",
-    temperature: "temperature",
-  };
-
 const handleStartReading = async () => {
   if (!activeSensor || !activeKeypad || !session?.id) return;
 
@@ -285,7 +274,7 @@ const handleStartReading = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sessionId: session.id,
-        sensor: vitalToSensor[activeKeypad],
+        sensor: vitalToSensorId[activeKeypad],
         value: 1,
       }),
     });
@@ -308,7 +297,7 @@ const stopSensor = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sessionId: session.id,
-        sensor: vitalToSensor[readingVital],
+        sensor: vitalToSensorId[readingVital],
         value: 0,
       }),
     });
@@ -319,6 +308,8 @@ const stopSensor = async () => {
   }
   setReadingVital(null);
   setStableCount(0);
+  setLiveReadings({});
+  liveReadingsRef.current = {};
 };
 
 const handleDoneReading = async () => {
@@ -442,6 +433,7 @@ const handleCancelReading = async () => {
     >
       <KioskHeader
         title={`Recording: ${session.patientName}`}
+        wsConnected={wsConnected}
       />
 
       <main className="flex-1 p-4 pb-28 max-w-[60rem] portrait:max-w-2xl mx-auto w-full min-h-0 overflow-y-auto">
@@ -768,7 +760,7 @@ const handleCancelReading = async () => {
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Done {!isStable && `(${stableCount}/${STABLE_READING_COUNT})`}
+                  Done {!isStable && `(${stableCount}/${sensorStabilityConfig[vitalToSensorId[readingVital]]?.stableCount ?? 5})`}
                 </button>
               </div>
             </div>

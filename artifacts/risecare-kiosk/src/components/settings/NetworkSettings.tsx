@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Cable,
   ChevronRight,
   Loader2,
   RefreshCw,
@@ -29,6 +30,15 @@ interface WifiNetwork {
   signal: number;
   security: string;
   inUse: boolean;
+}
+
+interface LanInterface {
+  device: string;
+  state: string;
+  connected: boolean;
+  connection?: string | null;
+  ip?: string | null;
+  mac?: string | null;
 }
 
 function SignalStrength({
@@ -137,6 +147,20 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
       return res.json();
     },
     refetchInterval: 20000,
+    enabled: networkEnabled,
+  });
+
+  const {
+    data: lanStatus,
+    isLoading: lanStatusLoading,
+  } = useQuery<{ interfaces?: LanInterface[]; error?: string }>({
+    queryKey: ["lan-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/network/lan");
+      if (!res.ok) throw new Error("Failed to fetch LAN interfaces");
+      return res.json();
+    },
+    refetchInterval: 5000,
     enabled: networkEnabled,
   });
 
@@ -318,6 +342,82 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
                 </p>
               </>
             )}
+          </div>
+
+          <div className="rounded-md border border-border/60 bg-card p-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-10 w-10 shrink-0 rounded-md bg-primary/10 flex items-center justify-center">
+                <Cable className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-xl font-semibold">Wired Connections</h3>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {lanStatus?.error
+                    ? "Failed to load wired connections"
+                    : lanStatus?.interfaces?.length
+                      ? `${lanStatus.interfaces.length} wired connection${lanStatus.interfaces.length === 1 ? "" : "s"}`
+                      : "No wired connections detected"}
+                </p>
+              </div>
+            </div>
+
+            {lanStatus?.error && (
+              <p className="mt-3 text-red-500 text-sm">{lanStatus.error}</p>
+            )}
+
+            <div className="mt-4 space-y-2">
+              {lanStatusLoading && !lanStatus ? (
+                <div className="animate-pulse space-y-3">
+                  <div className="h-16 rounded-md bg-muted" />
+                  <div className="h-16 rounded-md bg-muted" />
+                </div>
+              ) : lanStatus?.interfaces && lanStatus.interfaces.length > 0 ? (
+                lanStatus.interfaces.map((iface) => (
+                  <div
+                    key={iface.device}
+                    className={`flex items-center gap-4 p-4 rounded-md border ${
+                      iface.connected
+                        ? "border-primary/30 bg-primary/5"
+                        : "border-border bg-card"
+                    }`}
+                  >
+                    <div
+                      className={`h-10 w-10 shrink-0 rounded-md flex items-center justify-center ${
+                        iface.connected ? "bg-blue-500/10" : "bg-muted"
+                      }`}
+                    >
+                      <Cable
+                        className={`h-5 w-5 ${iface.connected ? "text-blue-500" : "text-muted-foreground"}`}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold truncate">
+                          {iface.connection || iface.device}
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                            iface.connected
+                              ? "bg-green-500/10 text-green-600"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {iface.connected ? "Connected" : iface.state}
+                        </span>
+                      </div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {iface.ip || "No IP address"} · {iface.device}
+                        {iface.mac ? ` · ${iface.mac}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="p-4 text-center text-lg text-muted-foreground rounded-md border border-dashed border-border/60">
+                  No wired connections found
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="rounded-md border border-border/60 bg-card p-5">

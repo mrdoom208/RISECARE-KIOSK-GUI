@@ -1,31 +1,30 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   Brain,
-  ChevronRight,
   CircleUserRound,
-  Database,
   FileText,
   Loader2,
+  MonitorSmartphone,
   Power,
   Shield,
   Timer,
   Wifi,
   WifiOff,
 } from "lucide-react";
-import type { SettingsAccount } from "@/components/LoginDialog";
+import { SettingsMenuItem } from "./SettingsMenuItem";
 
 export type SettingsSubmenu =
   | "profile"
+  | "device"
   | "logs"
-  | "database"
   | "accounts"
   | "ai-integration"
   | "idle-timeout"
   | "network";
 
 interface SettingsMenuProps {
-  account: SettingsAccount | null;
   isSuperadmin: boolean;
   isRateLimited: (key: string) => boolean;
   onNavigate: (submenu: SettingsSubmenu) => void;
@@ -33,8 +32,30 @@ interface SettingsMenuProps {
   onOpenPower: () => void;
 }
 
+function SectionHeading({ children }: { children: ReactNode }) {
+  return (
+    <h3 className="px-1 pt-1 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+      {children}
+    </h3>
+  );
+}
+
+function SettingsSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-label={`${label} settings`}>
+      <SectionHeading>{label}</SectionHeading>
+      <div className="mt-2 space-y-3">{children}</div>
+    </section>
+  );
+}
+
 export function SettingsMenu({
-  account,
   isSuperadmin,
   isRateLimited,
   onNavigate,
@@ -43,11 +64,6 @@ export function SettingsMenu({
 }: SettingsMenuProps) {
   const { data: networkStatus, isLoading: networkStatusLoading } = useQuery<{
     online?: boolean;
-    ssid?: string | null;
-    ip?: string | null;
-    signal?: number | null;
-    device?: string | null;
-    type?: string | null;
   }>({
     queryKey: ["network-status"],
     queryFn: async () => {
@@ -56,155 +72,121 @@ export function SettingsMenu({
       return res.json();
     },
     refetchInterval: 5000,
+    refetchIntervalInBackground: true,
   });
 
   return (
-    <div className="space-y-3">
-      <button
-        onClick={() => {
-          if (isRateLimited("profile")) return;
-          onNavigate("profile");
-        }}
-        className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
-      >
-        <div className="flex items-center gap-3">
-          <CircleUserRound className="w-6 h-6" />
-          <span className="text-xl font-semibold">Profile</span>
-        </div>
-        <ChevronRight className="w-6 h-6" />
-      </button>
-
-      <button
-        onClick={() => {
-          if (isRateLimited("sensors")) return;
-          onOpenSensors();
-        }}
-        className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
-      >
-        <div className="flex items-center gap-3">
-          <Activity className="w-6 h-6" />
-          <span className="text-xl font-semibold">Sensors/Print Test</span>
-        </div>
-        <ChevronRight className="w-6 h-6" />
-      </button>
-
-      {isSuperadmin && (
-        <button
+    <div className="space-y-5">
+      <SettingsSection label="General">
+        <SettingsMenuItem
+          icon={CircleUserRound}
+          label="Profile"
           onClick={() => {
-            if (isRateLimited("activity-log")) return;
-            onNavigate("logs");
+            if (isRateLimited("profile")) return;
+            onNavigate("profile");
           }}
-          className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
-        >
-          <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6" />
-            <span className="text-xl font-semibold">Activity Log</span>
-          </div>
-          <ChevronRight className="w-6 h-6" />
-        </button>
-      )}
-
-      {isSuperadmin && (
-        <button
+          ariaLabel="Open Profile settings"
+        />
+        <SettingsMenuItem
+          icon={MonitorSmartphone}
+          label="Device Information"
           onClick={() => {
-            if (isRateLimited("database")) return;
-            onNavigate("database");
+            if (isRateLimited("device-info")) return;
+            onNavigate("device");
           }}
-          className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
-        >
-          <div className="flex items-center gap-3">
-            <Database className="w-6 h-6" />
-            <span className="text-xl font-semibold">User Records</span>
-          </div>
-
-          <ChevronRight className="w-6 h-6" />
-        </button>
-      )}
-
-      <button
-        onClick={() => {
-          if (isRateLimited("ai-integration-menu")) return;
-          onNavigate("ai-integration");
-        }}
-        className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
-      >
-        <div className="flex items-center gap-3">
-          <Brain className="w-6 h-6" />
-          <span className="text-xl font-semibold">AI Integration</span>
-        </div>
-        <ChevronRight className="w-6 h-6" />
-      </button>
-
-      <button
-        onClick={() => {
-          if (isRateLimited("idle-timeout-menu")) return;
-          onNavigate("idle-timeout");
-        }}
-        className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
-      >
-        <div className="flex items-center gap-3">
-          <Timer className="w-6 h-6" />
-          <span className="text-xl font-semibold">Idle Timeout</span>
-        </div>
-        <ChevronRight className="w-6 h-6" />
-      </button>
-
-      <button
-        onClick={() => {
-          if (isRateLimited("network-menu")) return;
-          onNavigate("network");
-        }}
-        className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
-      >
-        <div className="flex items-center gap-3">
-          <Wifi className="w-6 h-6" />
-          <span className="text-xl font-semibold">Network Settings</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {networkStatusLoading ? (
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          ) : networkStatus?.online ? (
-            <span className="flex items-center gap-1.5 text-sm font-bold text-green-600">
-              <Wifi className="w-4 h-4" /> Online
+          ariaLabel="Open Device Information settings"
+        />
+        <SettingsMenuItem
+          icon={Wifi}
+          label="Network Settings"
+          onClick={() => {
+            if (isRateLimited("network-menu")) return;
+            onNavigate("network");
+          }}
+          ariaLabel="Open Network Settings"
+          trailing={
+            <span className="flex items-center gap-2" aria-live="polite">
+              {networkStatusLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              ) : networkStatus?.online ? (
+                <span className="flex items-center gap-1.5 text-sm font-bold text-green-600">
+                  <Wifi className="w-4 h-4" /> Online
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-sm font-bold text-red-500">
+                  <WifiOff className="w-4 h-4" /> Offline
+                </span>
+              )}
             </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-sm font-bold text-red-500">
-              <WifiOff className="w-4 h-4" /> Offline
-            </span>
-          )}
-          <ChevronRight className="w-6 h-6" />
-        </div>
-      </button>
+          }
+        />
+        <SettingsMenuItem
+          icon={Timer}
+          label="Idle Timeout"
+          onClick={() => {
+            if (isRateLimited("idle-timeout-menu")) return;
+            onNavigate("idle-timeout");
+          }}
+          ariaLabel="Open Idle Timeout settings"
+        />
+      </SettingsSection>
+
+      <SettingsSection label="System">
+        <SettingsMenuItem
+          icon={Activity}
+          label="Sensors/Print Test"
+          onClick={() => {
+            if (isRateLimited("sensors")) return;
+            onOpenSensors();
+          }}
+          ariaLabel="Open Sensors and Print Test"
+        />
+        <SettingsMenuItem
+          icon={Brain}
+          label="AI Integration"
+          onClick={() => {
+            if (isRateLimited("ai-integration-menu")) return;
+            onNavigate("ai-integration");
+          }}
+          ariaLabel="Open AI Integration settings"
+        />
+      </SettingsSection>
 
       {isSuperadmin && (
-        <button
-          onClick={() => {
-            if (isRateLimited("accounts-menu")) return;
-            onNavigate("accounts");
-          }}
-          className="w-full flex items-center justify-between p-5 rounded-xl bg-secondary hover:bg-secondary/80 "
-        >
-          <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6" />
-            <span className="text-xl font-semibold">Accounts</span>
-          </div>
-          <ChevronRight className="w-6 h-6" />
-        </button>
+        <SettingsSection label="Administration">
+          <SettingsMenuItem
+            icon={FileText}
+            label="Activity Log"
+            onClick={() => {
+              if (isRateLimited("activity-log")) return;
+              onNavigate("logs");
+            }}
+            ariaLabel="Open Activity Log"
+          />
+          <SettingsMenuItem
+            icon={Shield}
+            label="Accounts"
+            onClick={() => {
+              if (isRateLimited("accounts-menu")) return;
+              onNavigate("accounts");
+            }}
+            ariaLabel="Open Accounts settings"
+          />
+        </SettingsSection>
       )}
 
-      <button
-        onClick={() => {
-          if (isRateLimited("power-menu")) return;
-          onOpenPower();
-        }}
-        className="w-full flex items-center justify-between p-5 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive"
-      >
-        <div className="flex items-center gap-3">
-          <Power className="w-6 h-6" />
-          <span className="text-xl font-semibold">Power</span>
-        </div>
-        <ChevronRight className="w-6 h-6" />
-      </button>
+      <SettingsSection label="System Power">
+        <SettingsMenuItem
+          icon={Power}
+          label="Power"
+          onClick={() => {
+            if (isRateLimited("power-menu")) return;
+            onOpenPower();
+          }}
+          ariaLabel="Open Power options"
+          destructive
+        />
+      </SettingsSection>
     </div>
   );
 }

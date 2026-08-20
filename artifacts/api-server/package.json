@@ -9,27 +9,29 @@
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-   "dependencies": {
-     "@workspace/api-zod": "workspace:*",
-     "@workspace/db": "workspace:*",
-     "bcryptjs": "^2.4.3",
-     "body-parser": "^2.2.2",
-     "cookie-parser": "^1.4.7",
-     "cors": "^2",
-     "dotenv": "^17.3.1",
-     "express": "^5",
-     "express-rate-limit": "^7.5.0",
-     "express-session": "^1.18.1",
-     "mqtt": "^5.15.1"
-   },
-   "devDependencies": {
-     "@types/bcryptjs": "^2.4.6",
-     "@types/cookie-parser": "^1.4.10",
-     "@types/cors": "^2.8.19",
-     "@types/express": "^5.0.6",
-     "@types/express-session": "^1.18.1",
-     "@types/node": "^24.0.0",
-     "esbuild": "^0.27.3",
-     "tsx": "^4.21.0"
-   }
+  "dependencies": {
+    "@types/ws": "^8.18.1",
+    "@workspace/api-zod": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^2.2.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2",
+    "dotenv": "^17.3.1",
+    "express": "^5",
+    "express-rate-limit": "^7.5.0",
+    "express-session": "^1.18.1",
+    "mqtt": "^5.15.1",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.1",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.27.3",
+    "tsx": "^4.21.0"
+  }
 }

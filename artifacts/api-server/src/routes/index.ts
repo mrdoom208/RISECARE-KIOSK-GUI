@@ -7,6 +7,7 @@ import settingsRouter from "./settings";
 import printRouter from "./print";
 import aiRouter from "./ai";
 import networkRouter from "./network";
+import deviceRouter from "./device";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use("/settings", settingsRouter);
 router.use(printRouter);
 router.use(aiRouter);
 router.use(networkRouter);
+router.use(deviceRouter);
 
 export default router;

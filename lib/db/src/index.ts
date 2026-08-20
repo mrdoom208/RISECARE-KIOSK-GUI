@@ -59,6 +59,11 @@ function createTables() {
     db.run("CREATE TABLE IF NOT EXISTS activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, action TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (account_id) REFERENCES accounts(id))");
     db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
 
+    // Permanent identity of the physical kiosk (single row). Generated locally on
+    // first boot so it works offline and never changes. The kioskId and apiKey are
+    // assigned by the server during activation.
+    db.run("CREATE TABLE IF NOT EXISTS device (id INTEGER PRIMARY KEY CHECK (id = 1), device_uid TEXT NOT NULL, kiosk_id TEXT, activation_code TEXT, activated INTEGER NOT NULL DEFAULT 0, api_key TEXT, kiosk_name TEXT, kiosk_site TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
+
     // Migrate sessions table: split patient_name into patient_first_name + patient_last_name
     const sessionCols = db.exec("PRAGMA table_info(sessions)")[0]?.values || [];
     const sessionColNames = sessionCols.map((col: any[]) => col[1]);
@@ -102,6 +107,14 @@ function createTables() {
       }
     }
 
+    // Track offline sync state per session (pending until exported/synced)
+    const sessionColNamesAfterSplit = db.exec("PRAGMA table_info(sessions)")[0]?.values || [];
+    const hasSyncState =
+      sessionColNamesAfterSplit.some((col: any[]) => col[1] === "sync_state");
+    if (!hasSyncState) {
+      db.run("ALTER TABLE sessions ADD COLUMN sync_state TEXT NOT NULL DEFAULT 'pending'");
+    }
+
     // Migrate existing accounts table (name -> username, passcode -> password, add role)
     const accountCols = db.exec("PRAGMA table_info(accounts)")[0]?.values || [];
     const accountColNames = accountCols.map((col: any[]) => col[1]);
@@ -142,6 +155,51 @@ function createTables() {
       db.run("UPDATE accounts SET role = 'admin' WHERE role = 'sub_admin'");
       db.run("INSERT INTO settings (key, value) VALUES ('roles_migrated', 'true')");
     }
+
+    // Provisioning / offline-first sync columns.
+    // Device gains server-assigned kiosk identity + API key after activation.
+    const deviceCols = db.exec("PRAGMA table_info(device)")[0]?.values || [];
+    const deviceColNames = deviceCols.map((col: any[]) => col[1]);
+    for (const col of ["api_key", "kiosk_name", "kiosk_site"]) {
+      if (!deviceColNames.includes(col)) {
+        db.run(`ALTER TABLE device ADD COLUMN ${col} TEXT`);
+      }
+    }
+
+    // Every transaction is tagged with deviceUid, kioskId, a payloadId (uuid) and
+    // sync_status = pending until the server confirms it.
+    const syncSessionCols = db.exec("PRAGMA table_info(sessions)")[0]?.values || [];
+    const syncSessionColNames = syncSessionCols.map((col: any[]) => col[1]);
+    for (const col of ["source_session_id", "device_uid", "kiosk_id", "payload_id"]) {
+      if (!syncSessionColNames.includes(col)) {
+        db.run(`ALTER TABLE sessions ADD COLUMN ${col} TEXT`);
+      }
+    }
+    if (!syncSessionColNames.includes("sync_status")) {
+      db.run("ALTER TABLE sessions ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending'");
+    }
+
+    const syncVitalCols = db.exec("PRAGMA table_info(vital_readings)")[0]?.values || [];
+    const syncVitalColNames = syncVitalCols.map((col: any[]) => col[1]);
+    for (const col of ["source_vital_id", "device_uid", "kiosk_id", "payload_id"]) {
+      if (!syncVitalColNames.includes(col)) {
+        db.run(`ALTER TABLE vital_readings ADD COLUMN ${col} TEXT`);
+      }
+    }
+    if (!syncVitalColNames.includes("sync_status")) {
+      db.run("ALTER TABLE vital_readings ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending'");
+    }
+
+    // Backfill stable source ids for legacy rows (their integer id is stable forever).
+    db.run(
+      "UPDATE sessions SET source_session_id = CAST(id AS TEXT) WHERE source_session_id IS NULL OR source_session_id = ''"
+    );
+    db.run(
+      "UPDATE vital_readings SET source_vital_id = CAST(id AS TEXT) WHERE source_vital_id IS NULL OR source_vital_id = ''"
+    );
+    // Carry over any previously-synced state into the new sync_status column.
+    db.run("UPDATE sessions SET sync_status = 'synced' WHERE sync_state = 'synced' AND sync_status = 'pending'");
+    db.run("UPDATE vital_readings SET sync_status = 'synced' WHERE sync_status = 'pending' AND id IN (SELECT vr.id FROM vital_readings vr JOIN sessions s ON s.id = vr.session_id WHERE s.sync_state = 'synced')");
 
     // Insert default settings if none exist
     const existingMode = db.exec("SELECT value FROM settings WHERE key = 'ai_mode'");

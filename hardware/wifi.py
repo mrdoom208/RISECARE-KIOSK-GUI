@@ -5,6 +5,7 @@ Usage:
   python3 wifi.py scan
   python3 wifi.py connect <ssid> [password]
   python3 wifi.py disconnect
+  python3 wifi.py lan
 
 Prints a single JSON document to stdout. On failure the document contains
 an "error" key and the process exits with a non-zero code.
@@ -132,6 +133,55 @@ def cmd_status():
     }
 
 
+def cmd_lan():
+    """List ethernet (wired LAN) interfaces with their connection state."""
+    code, out = _run(
+        ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "dev", "status"]
+    )
+    if code != 0:
+        raise NMCliError(out)
+
+    interfaces = []
+    for line in out.splitlines():
+        parts = _split(line)
+        if len(parts) < 4:
+            continue
+        device, dev_type, state, connection = parts[0], parts[1], parts[2], parts[3]
+        if dev_type != "ethernet":
+            continue
+
+        ip = None
+        mac = None
+        code2, out2 = _run(
+            ["nmcli", "-t", "-f", "IP4.ADDRESS,GENERAL.HWADDR", "dev", "show", device],
+            timeout=10,
+        )
+        if code2 == 0:
+            for line2 in out2.splitlines():
+                if ":" not in line2:
+                    continue
+                parts2 = _split(line2)
+                key, val = parts2[0], parts2[1] if len(parts2) > 1 else ""
+                if key == "IP4.ADDRESS" and ip is None:
+                    ip = val.split("/")[0] or None
+                elif key == "GENERAL.HWADDR":
+                    mac = val or None
+
+        interfaces.append(
+            {
+                "device": device,
+                "state": state,
+                "connected": state == "connected",
+                "connection": connection or None,
+                "ip": ip,
+                "mac": mac,
+            }
+        )
+
+    interfaces.sort(key=lambda i: (not i["connected"], i["device"]))
+    return {"interfaces": interfaces}
+
+
 def cmd_scan():
     code, out = _run(
         [
@@ -217,6 +267,8 @@ def main():
             result = cmd_connect(sys.argv[2:])
         elif command == "disconnect":
             result = cmd_disconnect()
+        elif command == "lan":
+            result = cmd_lan()
         else:
             result = {"error": "Unknown command: {}".format(command)}
     except NMCliError as exc:

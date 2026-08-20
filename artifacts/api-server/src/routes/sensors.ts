@@ -42,7 +42,7 @@ let testAllState: {
 
 // Subscribe to sensor data from Python
 subscribe("risecare/sensors/bp", async (data) => {
-  latestReadings["bp"] = data;
+  latestReadings["bp"] = { ...data, _receivedAt: Date.now() };
   if (data.sessionId && data.systolic != null && data.diastolic != null) {
     const existing = await query(
       `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
@@ -64,8 +64,8 @@ subscribe("risecare/sensors/bp", async (data) => {
 });
 
 subscribe("risecare/sensors/vitals", async (data) => {
-  latestReadings["heartrate"] = data;
-  latestReadings["spo2"] = data;
+  latestReadings["heartrate"] = { ...data, _receivedAt: Date.now() };
+  latestReadings["spo2"] = { ...data, _receivedAt: Date.now() };
   if (data.sessionId) {
     if (data.bpm != null) {
       await saveSensorValue(data.sessionId, "heart_rate", data.bpm);
@@ -79,7 +79,7 @@ subscribe("risecare/sensors/vitals", async (data) => {
 });
 
 subscribe("risecare/sensors/temperature", async (data) => {
-  latestReadings["temperature"] = data;
+  latestReadings["temperature"] = { ...data, _receivedAt: Date.now() };
   if (data.sessionId && data.celsius != null) {
     await saveSensorValue(data.sessionId, "temperature", data.celsius);
     console.log("💾 Temperature saved from sensor:", data);
@@ -87,7 +87,7 @@ subscribe("risecare/sensors/temperature", async (data) => {
 });
 
 subscribe("risecare/sensors/weight", async (data) => {
-  latestReadings["weight"] = data;
+  latestReadings["weight"] = { ...data, _receivedAt: Date.now() };
   if (data.sessionId && data.kg != null) {
     await saveSensorValue(data.sessionId, "weight", data.kg);
     console.log("💾 Weight saved from sensor:", data);
@@ -95,7 +95,7 @@ subscribe("risecare/sensors/weight", async (data) => {
 });
 
 subscribe("risecare/sensors/height", async (data) => {
-  latestReadings["height"] = data;
+  latestReadings["height"] = { ...data, _receivedAt: Date.now() };
   if (data.sessionId && data.cm != null) {
     await saveSensorValue(data.sessionId, "height", data.cm);
     console.log("💾 Height saved from sensor:", data);

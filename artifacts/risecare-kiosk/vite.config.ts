@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const rawPort = process.env.PORT ?? "5173";
+const rawPort = process.env.PORT ?? "3000";
 const port = Number(rawPort);
 const basePath = process.env.BASE_PATH ?? "/";
 const apiPort = process.env.API_PORT ?? "5000";
@@ -53,12 +53,16 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
-    // Proxy /api to the backend when running locally (Replit uses its own reverse proxy)
+    // Proxy /api and /ws to the backend when running locally (Replit uses its own reverse proxy)
     ...(process.env.REPL_ID === undefined && process.env.NODE_ENV !== "production" && {
       proxy: {
         "/api": {
           target: `http://localhost:${apiPort}`,
           changeOrigin: true,
+        },
+        "/ws": {
+          target: `ws://localhost:${apiPort}`,
+          ws: true,
         },
       },
     }),

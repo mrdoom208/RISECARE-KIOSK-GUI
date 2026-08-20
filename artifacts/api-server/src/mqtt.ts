@@ -1,4 +1,5 @@
 import mqtt from "mqtt";
+import crypto from "crypto";
 
 const MQTT_BROKER = process.env.MQTT_BROKER || "mqtt://localhost:1883";
 const MQTT_TOPIC = process.env.MQTT_TOPIC || "risecare/#";
@@ -31,7 +32,15 @@ export function connectMQTT() {
 
   client.on("message", (topic, payload) => {
     try {
-      const data = JSON.parse(payload.toString());
+      const raw = JSON.parse(payload.toString());
+      // Enrich sensor payloads with server-side timestamp and unique reading ID
+      if (!raw.readingId) {
+        raw.readingId = crypto.randomUUID();
+      }
+      if (!raw.receivedAt) {
+        raw.receivedAt = Date.now();
+      }
+      const data = raw;
       console.log(`📥 MQTT received [${topic}]:`, data);
 
       // Call registered handlers

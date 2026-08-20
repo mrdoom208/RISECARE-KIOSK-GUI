@@ -12,6 +12,7 @@ interface KioskHeaderProps {
   showBack?: boolean;
   backTo?: string;
   onLogout?: () => void;
+  wsConnected?: boolean;
 }
 
 export function KioskHeader({
@@ -19,6 +20,7 @@ export function KioskHeader({
   showBack = false,
   backTo = "/",
   onLogout,
+  wsConnected,
 }: KioskHeaderProps) {
   const { isRateLimited } = useRateLimit(1000);
   const [time, setTime] = useState(new Date());
@@ -65,6 +67,12 @@ export function KioskHeader({
         </h1>
 
         <div className="flex items-center justify-end gap-1.5 sm:gap-2 w-1/3 text-muted-foreground">
+          {wsConnected !== undefined && (
+            <span
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ${wsConnected ? "bg-green-500" : "bg-red-500"}`}
+              title={wsConnected ? "Sensors connected" : "Sensors disconnected"}
+            />
+          )}
           <span className="hidden sm:flex items-center gap-1.5">
             <Clock className="w-4.5 h-4.5" />
             <span className="text-base md:text-lg font-medium font-sans">
