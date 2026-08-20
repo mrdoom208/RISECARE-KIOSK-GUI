@@ -39,7 +39,7 @@ def advertise_sensors():
     mqtt_client.publish("risecare/sensors/availability", {
         "heartrate": hr_sensor is not None and hr_sensor.handle is not None,
         "spo2": hr_sensor is not None and hr_sensor.handle is not None,
-        "height": True,
+        "height": ultrasonic.gpio_available,
         "weight": loadcell.sensor_available,
         "temperature": temp_sensor is not None and temp_sensor.handle is not None,
         "printer": printer.printer_status()
@@ -73,14 +73,20 @@ def handle_command(sensor, session_id, value, payload):
         mode = 1
         running = True
         if sensor == "heartrate":
-            hr_enabled = True
-            spo2_enabled = True
-            hr_sensor.clear_buffer()
-            hr_sensor.setup()
+            if hr_sensor is not None:
+                hr_enabled = True
+                spo2_enabled = True
+                hr_sensor.clear_buffer()
+                hr_sensor.setup()
+            else:
+                print("⚠️ Heart rate sensor not available")
         elif sensor == "spo2":
-            spo2_enabled = True
-            hr_sensor.clear_buffer()
-            hr_sensor.setup()
+            if hr_sensor is not None:
+                spo2_enabled = True
+                hr_sensor.clear_buffer()
+                hr_sensor.setup()
+            else:
+                print("⚠️ SpO2 sensor not available")
         elif sensor == "height":
             height_enabled = True
         elif sensor == "weight":
@@ -151,29 +157,38 @@ def handle_command(sensor, session_id, value, payload):
                 result = {"kg": weight}
                 success = True
         elif sensor == "heartrate":
-            hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
-            if hr_valid:
-                print(f"HeartRate: {hr:.2f} bpm")
-                result = {"bpm": hr}
-                success = True
+            if hr_sensor is not None:
+                hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
+                if hr_valid:
+                    print(f"HeartRate: {hr:.2f} bpm")
+                    result = {"bpm": hr}
+                    success = True
+                else:
+                    print("HeartRate: Invalid reading")
             else:
-                print("HeartRate: Invalid reading")
+                print("⚠️ Heart rate sensor not available")
         elif sensor == "spo2":
-            hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
-            if spo2_valid:
-                print(f"SpO2: {spo2:.2f}%")
-                result = {"value": spo2}
-                success = True
+            if hr_sensor is not None:
+                hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
+                if spo2_valid:
+                    print(f"SpO2: {spo2:.2f}%")
+                    result = {"value": spo2}
+                    success = True
+                else:
+                    print("SpO2: Invalid reading")
             else:
-                print("SpO2: Invalid reading")
+                print("⚠️ SpO2 sensor not available")
         elif sensor == "temperature":
-            celsius = temp_sensor.get_temperature()
-            if celsius is not None:
-                print(f"Temperature: {celsius:.2f} C")
-                result = {"celsius": celsius}
-                success = True
+            if temp_sensor is not None:
+                celsius = temp_sensor.get_temperature()
+                if celsius is not None:
+                    print(f"Temperature: {celsius:.2f} C")
+                    result = {"celsius": celsius}
+                    success = True
+                else:
+                    print("Temperature: Invalid reading")
             else:
-                print("Temperature: Invalid reading")
+                print("⚠️ Temperature sensor not available")
         elif sensor == "printer":
             success = printer.test_print()
             result = {"status": "success" if success else "failed"}
@@ -206,12 +221,14 @@ def handle_command(sensor, session_id, value, payload):
         if sensor == "heartrate":
             hr_enabled = False
             spo2_enabled = False
-            hr_sensor.shutdown()
-            hr_sensor.clear_buffer()
+            if hr_sensor is not None:
+                hr_sensor.shutdown()
+                hr_sensor.clear_buffer()
         elif sensor == "spo2":
             spo2_enabled = False
-            hr_sensor.shutdown()
-            hr_sensor.clear_buffer()
+            if hr_sensor is not None:
+                hr_sensor.shutdown()
+                hr_sensor.clear_buffer()
         elif sensor == "height":
             height_enabled = False
         elif sensor == "weight":
@@ -232,8 +249,14 @@ def main():
     print("Starting RiseCare Health Kiosk...")
 
     print("\nLoading calibration data...")
-    ultrasonic.load_calibration()
-    loadcell.load_calibration()
+    try:
+        ultrasonic.load_calibration()
+    except Exception as e:
+        print(f"⚠️ Ultrasonic calibration load failed: {e}")
+    try:
+        loadcell.load_calibration()
+    except Exception as e:
+        print(f"⚠️ LoadCell calibration load failed: {e}")
 
     print("\nInitializing shared I2C bus...")
     i2c_bus.init_bus(1)
@@ -241,11 +264,35 @@ def main():
 
     print("\nInitializing sensors...")
     global hr_sensor, temp_sensor
+
     hr_sensor = MAX30102(i2c_bus=shared_bus)
-    hr_sensor.shutdown()
+    if hr_sensor.handle is not None:
+        try:
+            hr_sensor.shutdown()
+        except Exception:
+            pass
+        print("✅ Heart rate sensor ready")
+    else:
+        hr_sensor = None
+        print("⚠️ Heart rate sensor not available")
+
     temp_sensor = MLX90614(i2c_bus=shared_bus)
-    ultrasonic.setup()
-    loadcell.setup()
+    if temp_sensor.handle is None:
+        temp_sensor = None
+        print("⚠️ Temperature sensor not available")
+    else:
+        print("✅ Temperature sensor ready")
+
+    try:
+        ultrasonic.setup()
+        print("✅ Ultrasonic sensor ready")
+    except Exception as e:
+        print(f"⚠️ Ultrasonic sensor not available: {e}")
+
+    try:
+        loadcell.setup()
+    except Exception as e:
+        print(f"⚠️ LoadCell sensor not available: {e}")
 
     print("\nConnecting to MQTT...")
     mqtt_client.set_command_callback(handle_command)
@@ -269,7 +316,7 @@ def main():
                 now = time.time()
 
                 hr = hr_valid = spo2 = spo2_valid = None
-                if (hr_enabled or spo2_enabled) and now - hr_last_read >= READ_INTERVAL:
+                if (hr_enabled or spo2_enabled) and hr_sensor is not None and now - hr_last_read >= READ_INTERVAL:
                     try:
                         hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
                         hr_last_read = time.time()
@@ -293,7 +340,7 @@ def main():
                         pass
 
                 temperature = None
-                if temp_enabled and now - temp_last_read >= READ_INTERVAL:
+                if temp_enabled and temp_sensor is not None and now - temp_last_read >= READ_INTERVAL:
                     try:
                         temperature = temp_sensor.get_temperature()
                         temp_last_read = time.time()
@@ -351,7 +398,11 @@ def main():
         print("\nShutting down...")
         mqtt_client.disconnect()
         i2c_bus.close_bus()
-        ultrasonic.GPIO.cleanup()
+        try:
+            if ultrasonic.gpio_available:
+                ultrasonic.GPIO.cleanup()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

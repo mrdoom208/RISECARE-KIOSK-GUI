@@ -1,4 +1,3 @@
-import RPi.GPIO as GPIO
 import time
 import json
 import os
@@ -10,9 +9,19 @@ MIN_DISTANCE_CM = 2
 MAX_DISTANCE_CM = 400
 
 TOTAL_HEIGHT = None
+gpio_available = False
+GPIO = None
+
+try:
+    import RPi.GPIO as GPIO
+    gpio_available = True
+except ImportError:
+    print("Warning: RPi.GPIO not available, ultrasonic sensor disabled")
 
 
 def setup():
+    if not gpio_available:
+        raise RuntimeError("RPi.GPIO not available")
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(TRIG, GPIO.OUT)
     GPIO.setup(ECHO, GPIO.IN)
@@ -20,6 +29,8 @@ def setup():
 
 
 def measure_distance():
+    if not gpio_available:
+        return None
     GPIO.output(TRIG, False)
     time.sleep(0.01)
 
