@@ -1,3 +1,4 @@
+import subprocess
 import ultrasonic
 from max30102 import MAX30102
 from mlx90614 import MLX90614
@@ -47,6 +48,23 @@ def advertise_sensors():
 
 def handle_command(sensor, session_id, value, payload):
     global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, hr_last_read, height_last_read, weight_last_read, temp_last_read
+
+    if sensor == "shutdown":
+        print("Shutdown command received.")
+        mqtt_client.disconnect()
+        subprocess.run(["sudo", "shutdown", "-h", "now"])
+        return
+
+    if sensor == "restart":
+        print("Restart command received.")
+        mqtt_client.disconnect()
+        subprocess.run(["sudo", "shutdown", "-r", "now"])
+        return
+
+    if sensor == "lock":
+        print("Lock command received.")
+        subprocess.run(["loginctl", "lock-session"])
+        return
 
     if session_id:
         current_session_id = session_id
