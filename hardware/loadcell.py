@@ -148,6 +148,25 @@ def setup():
         return
 
     print("Initializing LoadCell (HX711)...")
-    hx.reset()
+    try:
+        import threading
+        result = [None]
+        def _reset():
+            try:
+                result[0] = hx.reset()
+            except Exception as e:
+                result[0] = e
+        t = threading.Thread(target=_reset, daemon=True)
+        t.start()
+        t.join(timeout=3.0)
+        if t.is_alive():
+            print("⚠️ LoadCell (HX711) not responding — sensor may not be connected")
+            return
+        if isinstance(result[0], Exception):
+            print(f"⚠️ LoadCell (HX711) reset failed: {result[0]}")
+            return
+    except Exception as e:
+        print(f"⚠️ LoadCell (HX711) init failed: {e}")
+        return
     load_calibration()
     print(" LoadCell initialized")
