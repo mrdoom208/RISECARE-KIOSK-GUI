@@ -9,22 +9,88 @@ except ImportError:
     print("Warning: python-escpos not installed. Install with: pip install python-escpos")
     printer_available = False
 
-USB_VENDOR_ID = 0x0416 
+try:
+    import usb.core
+    import usb.util
+    usb_available = True
+except ImportError:
+    usb_available = False
+
+USB_VENDOR_ID = 0x0416
 USB_PRODUCT_ID = 0x5011
 
 _printer = None
+_status_readable = True
+
+
+def _detect_endpoints():
+    """Return (in_ep, out_ep, detected) for the printer's configuration.
+
+    python-escpos assumes in_ep=0x82 / out_ep=0x01. When the printer exposes
+    different addresses, paper_status() raises "Invalid endpoint address 0x82".
+    """
+    if not usb_available:
+        return None, None, False
+    try:
+        dev = usb.core.find(idVendor=USB_VENDOR_ID, idProduct=USB_PRODUCT_ID)
+    except Exception as e:
+        print(f"⚠️ USB endpoint scan failed: {e}")
+        return None, None, False
+    if dev is None:
+        return None, None, False
+
+    try:
+        try:
+            cfg = dev.get_active_configuration()
+        except usb.core.USBError:
+            cfg = dev[0]
+        interfaces = sorted(
+            list(cfg), key=lambda i: (i.bInterfaceClass != 7, i.bInterfaceNumber)
+        )
+        in_ep = out_ep = None
+        for intf in interfaces:
+            for ep in intf:
+                addr = ep.bEndpointAddress
+                if usb.util.endpoint_direction(addr) == usb.util.ENDPOINT_IN:
+                    if in_ep is None:
+                        in_ep = addr
+                elif out_ep is None:
+                    out_ep = addr
+            if in_ep is not None and out_ep is not None:
+                break
+        return in_ep, out_ep, True
+    except Exception as e:
+        print(f"⚠️ USB endpoint scan failed: {e}")
+        return None, None, False
+    finally:
+        try:
+            usb.util.dispose_resources(dev)
+        except Exception:
+            pass
 
 
 def find_printer():
-    global _printer
+    global _printer, _status_readable
     if not printer_available:
         print("❌ python-escpos not available")
         return None
     if _printer is not None:
         return _printer
+    in_ep, out_ep, detected = _detect_endpoints()
+    _status_readable = not detected or in_ep is not None
+    kwargs = {}
+    if in_ep is not None:
+        kwargs["in_ep"] = in_ep
+    if out_ep is not None:
+        kwargs["out_ep"] = out_ep
     try:
-        _printer = Usb(USB_VENDOR_ID, USB_PRODUCT_ID)
-        print("✅ Thermal printer connected via USB")
+        _printer = Usb(USB_VENDOR_ID, USB_PRODUCT_ID, **kwargs)
+        print(
+            "✅ Thermal printer connected via USB "
+            f"(in=0x{in_ep:02x}, out=0x{out_ep:02x})"
+            if detected and in_ep is not None and out_ep is not None
+            else "✅ Thermal printer connected via USB"
+        )
         return _printer
     except DeviceNotFoundError:
         print("❌ Thermal printer not found via USB")
@@ -35,26 +101,35 @@ def find_printer():
 
 
 def close_printer():
-    global _printer
+    global _printer, _status_readable
     if _printer is not None:
         try:
             _printer.close()
         except Exception:
             pass
         _printer = None
+    _status_readable = True
 
 
 def printer_status():
     p = find_printer()
     if p is None:
-        return {"connected": False, "paper": False}
+        return {"connected": False, "paper": False, "paperStatus": "unknown"}
+    if not _status_readable:
+        return {"connected": True, "paper": True, "paperStatus": "unknown"}
     try:
         status = p.paper_status()
         value = getattr(status, "value", status)
-        return {"connected": True, "paper": value != 0}
+        if value == 0:
+            return {"connected": True, "paper": False, "paperStatus": "empty"}
+        if value == 1:
+            return {"connected": True, "paper": True, "paperStatus": "low"}
+        if value == 2:
+            return {"connected": True, "paper": True, "paperStatus": "ok"}
+        return {"connected": True, "paper": True, "paperStatus": "unknown"}
     except Exception as e:
         print(f"⚠️ Printer paper status check failed: {e}")
-        return {"connected": True, "paper": False}
+        return {"connected": True, "paper": True, "paperStatus": "unknown"}
 
 
 def print_receipt(data):

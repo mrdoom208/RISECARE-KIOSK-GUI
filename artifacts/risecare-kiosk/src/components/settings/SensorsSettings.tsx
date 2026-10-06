@@ -398,7 +398,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   };
 
   const printerStatus = sensorStatus?.sensors?.printer as
-    | { connected?: boolean; paper?: boolean }
+    | { connected?: boolean; paper?: boolean; paperStatus?: string }
     | undefined;
 
   const printTestMutation = useMutation({
@@ -661,6 +661,20 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                 {!printerStatus?.connected ? (
                   <Badge variant="destructive" className="shrink-0 px-3 py-1.5 text-sm">
                     Not detected
+                  </Badge>
+                ) : printerStatus?.paperStatus === "unknown" ? (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground border-border/60"
+                  >
+                    Paper status unavailable
+                  </Badge>
+                ) : printerStatus?.paperStatus === "low" ? (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 px-3 py-1.5 text-sm text-amber-600 border-amber-500/30 bg-amber-500/10"
+                  >
+                    Paper low
                   </Badge>
                 ) : printerStatus?.paper ? (
                   <Badge
