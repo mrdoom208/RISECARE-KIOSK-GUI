@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { ChevronRight, Eye, EyeOff, Loader2, LogOut, X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,8 @@ import { PowerSettings } from "./PowerSettings";
 import { ProfileSettings } from "./ProfileSettings";
 import { SensorsSettings } from "./SensorsSettings";
 import { DeviceInformationSettings } from "./DeviceInformationSettings";
+import { ModalShell } from "@/components/ModalShell";
+import { apiErrorMessage } from "@/lib/api-error";
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -24,7 +26,7 @@ interface SettingsDialogProps {
   onLogout: () => void;
 }
 
-export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsDialogProps) {
+export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isRateLimited } = useRateLimit(800);
@@ -69,7 +71,7 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
           data.role === "admin" ? "Failed to create admin" : "Failed to create super admin";
         try {
           const err = await res.json();
-          msg = err.error || err.message || msg;
+          msg = apiErrorMessage(err, msg, res.status);
         } catch {
           msg = `Server error (${res.status})`;
         }
@@ -111,7 +113,7 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
         let msg = "Failed to update account";
         try {
           const err = await res.json();
-          msg = err.error || err.message || msg;
+          msg = apiErrorMessage(err, msg, res.status);
         } catch {
           msg = `Server error (${res.status})`;
         }
@@ -229,6 +231,13 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
     setAdminError("");
   };
 
+  const openSensors = useCallback(() => setShowSensors(true), []);
+  const closeSensors = useCallback(() => setShowSensors(false), []);
+  const openPower = useCallback(() => setShowPowerModal(true), []);
+  const closePower = useCallback(() => setShowPowerModal(false), []);
+  const openLogoutConfirm = useCallback(() => setShowLogoutConfirm(true), []);
+  const closeLogoutConfirm = useCallback(() => setShowLogoutConfirm(false), []);
+
   const handleClose = () => {
     setActiveSubmenu(null);
     resetAdminForm();
@@ -286,18 +295,18 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
 
   return (
     <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
-          style={{ paddingBottom: "calc(1rem + var(--vk-height, 0px))" }}
-        >
-          <div className="bg-card rounded-3xl shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
+      <ModalShell
+        open={isOpen}
+        zIndex={50}
+        backdrop="blur"
+        panelClassName="bg-card rounded-3xl shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
+      >
+          <div className="flex justify-between items-center mb-6">
               <button
                 onClick={
                   showBackArrow
                     ? handleBack
-                    : () => setShowLogoutConfirm(true)
+                    : openLogoutConfirm
                 }
                 className="p-2 rounded-full hover:bg-muted"
                 aria-label={showBackArrow ? "Go back" : "Logout"}
@@ -501,30 +510,35 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
                 isSuperadmin={isSuperadmin}
                 isRateLimited={isRateLimited}
                 onNavigate={setActiveSubmenu}
-                onOpenSensors={() => setShowSensors(true)}
-                onOpenPower={() => setShowPowerModal(true)}
+                onOpenSensors={openSensors}
+                onOpenPower={openPower}
               />
             )}
-          </div>
-        </div>
+      </ModalShell>
+
+      {showSensors && (
+        <SensorsSettings isOpen onClose={closeSensors} />
       )}
 
-      <SensorsSettings isOpen={showSensors} onClose={() => setShowSensors(false)} />
+      {showPowerModal && (
+        <PowerSettings
+          isOpen
+          onClose={closePower}
+          account={account}
+          isRateLimited={isRateLimited}
+        />
+      )}
 
-      <PowerSettings
-        isOpen={showPowerModal}
-        onClose={() => setShowPowerModal(false)}
-        account={account}
-        isRateLimited={isRateLimited}
-      />
-
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50">
+      <ModalShell
+        open={showLogoutConfirm}
+        zIndex={70}
+        backdrop="scrim"
+        panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+      >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-bold">Logout</h2>
               <button
-                onClick={() => setShowLogoutConfirm(false)}
+                onClick={closeLogoutConfirm}
                 className="p-2 rounded-full hover:bg-muted"
               >
                 <X className="w-6 h-6" />
@@ -541,15 +555,13 @@ export function SettingsDialog({ account, isOpen, onClose, onLogout }: SettingsD
                 Confirm
               </button>
               <button
-                onClick={() => setShowLogoutConfirm(false)}
+                onClick={closeLogoutConfirm}
                 className="flex-1 h-14 rounded-xl bg-secondary text-lg font-semibold"
               >
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </ModalShell>
     </>
   );
-}
+});

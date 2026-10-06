@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SettingsAccount } from "@/components/LoginDialog";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export const ADMIN_SESSION_EVENT = "risecare-admin-session";
 
@@ -67,7 +68,7 @@ export function useAdminAuth() {
           return true;
         }
 
-        setError(data.error || "Invalid username or password");
+        setError(apiErrorMessage(data, "Invalid username or password", res.status));
         return false;
       } catch {
         setError("Failed to login");

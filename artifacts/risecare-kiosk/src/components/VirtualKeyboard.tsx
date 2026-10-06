@@ -24,6 +24,20 @@ function isNumeric(el: HTMLElement): boolean {
   return type === "number" || type === "tel" || mode === "numeric" || mode === "decimal";
 }
 
+// True when the element sits inside a `position: fixed` overlay, i.e. a modal.
+// `ModalShell` already reserves room for the keyboard via `--vk-height`, so a
+// smooth `scrollIntoView` here buys nothing and costs a scroll animation that
+// repaints the overlay's `backdrop-filter` on every frame. Page-level fields are
+// deliberately still scrolled into view.
+function isInFixedOverlay(el: HTMLElement): boolean {
+  let node: HTMLElement | null = el.parentElement;
+  while (node && node !== document.body) {
+    if (getComputedStyle(node).position === "fixed") return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
 type Layout = "qwerty" | "numeric";
 
 const QWERTY_ROWS = [
@@ -139,6 +153,7 @@ export function VirtualKeyboard() {
       setLayout(isNumeric(target) ? "numeric" : "qwerty");
       setShift(false);
       window.setTimeout(() => {
+        if (isInFixedOverlay(target)) return;
         target.scrollIntoView({ block: "center", behavior: "smooth" });
       }, 50);
     };

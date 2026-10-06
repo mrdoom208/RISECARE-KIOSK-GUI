@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { SettingsAccount } from "@/components/LoginDialog";
 import { ReauthPrompt } from "./ReauthPrompt";
+import { apiErrorMessage } from "@/lib/api-error";
 
 interface DeviceInfo {
   deviceUid: string;
@@ -80,7 +81,9 @@ export function DeviceInformationSettings({
         body: JSON.stringify({ activationCode: activationCodeInput.trim() }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to activate device");
+      if (!res.ok || data.error) {
+        throw new Error(apiErrorMessage(data, "Failed to activate device", res.status));
+      }
       return data as DeviceInfo;
     },
     onSuccess: () => {
@@ -92,6 +95,12 @@ export function DeviceInformationSettings({
       toast({ title: "Activation failed", description: err.message, variant: "destructive" });
     },
   });
+
+  const closeActivateReauth = useCallback(() => setShowActivateReauth(false), []);
+
+  const activateRef = useRef(activateMutation.mutate);
+  activateRef.current = activateMutation.mutate;
+  const handleActivateConfirmed = useCallback(() => activateRef.current(), []);
 
   const handleActivateClick = () => {
     if (isRateLimited("device-activate")) return;
@@ -239,8 +248,8 @@ export function DeviceInformationSettings({
         open={showActivateReauth}
         title="Activate Device"
         description="Re-enter your password to send the activation code to the configured server and provision this kiosk."
-        onClose={() => setShowActivateReauth(false)}
-        onConfirmed={() => activateMutation.mutate()}
+        onClose={closeActivateReauth}
+        onConfirmed={handleActivateConfirmed}
       />
     </div>
   );

@@ -1,0 +1,40 @@
+RiseCare Health Kiosk - Pins / Interfaces Inventory
+====================================================
+
+GPIO PINS (Raspberry Pi, BCM numbering)
+---------------------------------------
+GPIO 2  (Physical 3)  - I2C1 SDA - shared I2C bus (see I2C below)
+GPIO 3  (Physical 5)  - I2C1 SCL - shared I2C bus
+GPIO 5  (Physical 29) - HX711 DT (load cell data pin)     [loadcell.py]
+GPIO 6  (Physical 31) - HX711 SCK (load cell clock pin)   [loadcell.py]
+GPIO 14 (Physical 8)  - UART TXD -> EBP305A MRX (BP monitor serial) [bp_bootloader_control.py]
+GPIO 15 (Physical 10) - UART RXD <- EBP305A MTX (BP monitor serial) [bp_bootloader_control.py]
+GPIO 17 (Physical 11) - BOOT pin for EBP305A blood pressure monitor bootloader control
+                       (HIGH = bootloader mode, LOW = normal mode)   [bp_bootloader_control.py]
+                         Also used as TEST_PIN in bptest.py to monitor the TX line level.
+GPIO 23 (Physical 16) - Ultrasonic TRIG (height sensor trigger)     [ultrasonic.py]
+GPIO 24 (Physical 18) - Ultrasonic ECHO (height sensor echo)        [ultrasonic.py]
+
+I2C BUS (bus 1, via GPIO 2/3)
+-----------------------------
+MAX30102 - Heart rate / SpO2 sensor, address 0x57   [max30102.py]
+MLX90614 - Infrared temperature sensor, address 0x5A [mlx90614.py]
+(i2c_bus.py initializes a shared SMBus(1) passed to both sensors.)
+
+UART / SERIAL
+-------------
+/dev/ttyS0  alt /dev/serial0 /dev/ttyAMA0 - BP monitor data @, base 9600 baud
+            (bptest1.py / bp_bootloader_control.py also try 115200, 19200, etc.)
+
+BLE
+---
+Indoplas blood pressure monitor - MAC 62:2A:F4:9E:B9:E8 (GATT notification) [indoplas.py]
+
+USB
+---
+Thermal printer (python-escpos) - USB vendor 0x0416, product 0x5011 [printer.py]
+
+APP ACCESS PIN
+--------------
+superadmin login: username "admin", password "082405"
+(seeded in lib/db/src/index.ts only if no accounts exist)

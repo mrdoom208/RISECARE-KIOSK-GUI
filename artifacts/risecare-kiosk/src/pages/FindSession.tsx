@@ -6,6 +6,7 @@ import { useFindSessions } from "@workspace/api-client-react";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { KioskHeader } from "@/components/KioskHeader";
+import { apiErrorMessage } from "@/lib/api-error";
 
 const PH_PREFIX = "+63";
 
@@ -49,8 +50,11 @@ export default function FindSession() {
 
   const errorMessage =
     findSessions.isError && !findSessions.isPending
-      ? findSessions.error?.data?.message ??
-        "Something went wrong. Please try again."
+      ? apiErrorMessage(
+          findSessions.error?.data,
+          "Something went wrong. Please try again.",
+          findSessions.error?.status,
+        )
       : "";
 
   const handleSearch = () => {

@@ -13,7 +13,9 @@ import {
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import LoginDialog from "@/components/LoginDialog";
-import { useState } from "react";
+import { ModalShell } from "@/components/ModalShell";
+import { apiErrorMessage } from "@/lib/api-error";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const readingFields = [
@@ -64,7 +66,7 @@ export default function History() {
     error: authError,
   } = useAdminAuth();
 
-  const { data: sessions, isLoading, isError } = useQuery<any[]>({
+  const { data: sessions, isLoading, isError, error } = useQuery<any[]>({
     queryKey: ["history-sessions"],
 
     queryFn: async () => {
@@ -77,11 +79,14 @@ export default function History() {
 
         await logout();
 
-        throw new Error("Unauthorized");
+        throw new Error("Your session has expired. Please sign in again.");
       }
 
       if (!res.ok) {
-        throw new Error("Failed to load history");
+        const body = await res.json().catch(() => null);
+        throw new Error(
+          apiErrorMessage(body, "Unable to load records. Please try again.", res.status),
+        );
       }
 
       return res.json();
@@ -107,6 +112,13 @@ export default function History() {
     }
   };
 
+  const requestLogout = useCallback(() => {
+    if (isRateLimited("history-logout")) return;
+    setShowLogoutConfirm(true);
+  }, [isRateLimited]);
+
+  const closeLogoutConfirm = useCallback(() => setShowLogoutConfirm(false), []);
+
   const searchTerm = searchQuery.trim().toLowerCase();
   const filteredSessions = Array.isArray(sessions)
     ? sessions.filter((session) =>
@@ -120,14 +132,7 @@ export default function History() {
         title="Session History"
         showBack={!hasAccess}
         backTo="/"
-        onLogout={
-          hasAccess
-            ? () => {
-                if (isRateLimited("history-logout")) return;
-                setShowLogoutConfirm(true);
-              }
-            : undefined
-        }
+        onLogout={hasAccess ? requestLogout : undefined}
       />
 
       <main className="flex-1 min-h-0 overflow-y-auto">
@@ -212,7 +217,7 @@ export default function History() {
                     </h3>
 
                     <p className="mt-1 text-base text-muted-foreground">
-                      Please try again.
+                      {error instanceof Error ? error.message : "Please try again."}
                     </p>
                   </div>
                 ) : filteredSessions.length > 0 ? (
@@ -337,9 +342,12 @@ export default function History() {
         onSubmit={handleLogin}
       />
 
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50">
+      <ModalShell
+        open={showLogoutConfirm}
+        zIndex={70}
+        backdrop="blur"
+        panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+      >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-bold">Logout</h2>
               <button
@@ -370,9 +378,7 @@ export default function History() {
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </ModalShell>
     </div>
   );
 }

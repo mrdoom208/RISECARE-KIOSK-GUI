@@ -1,5 +1,6 @@
 import { SensorGuide } from "@/types/sensorGuide";
 import { useRateLimit } from "@/hooks/use-rate-limit";
+import { ModalShell } from "@/components/ModalShell";
 
 interface InstructionModalProps {
   isOpen: boolean;
@@ -16,11 +17,12 @@ export default function InstructionModal({
 }: InstructionModalProps) {
   const { isRateLimited } = useRateLimit(1000);
   return (
-    <>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
-          >
+    <ModalShell
+      open={isOpen}
+      zIndex={50}
+      backdrop="blur"
+      panelClassName="bg-white rounded-lg shadow-lg p-4 sm:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+    >
             <h2 className="text-xl sm:text-2xl font-bold mb-4">{sensorGuide?.name}</h2>
             <div className="flex flex-col-reverse lg:flex-row gap-3 justify-center items-stretch mb-6">
               <div className="flex-1 border border-border rounded-lg p-4">
@@ -78,9 +80,6 @@ export default function InstructionModal({
                 Start
               </button>
             </div>
-          </div>
-        </div>
-      )}
-    </>
+    </ModalShell>
   );
 }

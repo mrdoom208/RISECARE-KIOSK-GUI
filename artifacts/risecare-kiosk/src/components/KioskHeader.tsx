@@ -1,6 +1,6 @@
+import { memo, useCallback, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, Clock, LogOut, Settings } from "lucide-react";
-import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import LoginDialog from "@/components/LoginDialog";
@@ -15,7 +15,28 @@ interface KioskHeaderProps {
   wsConnected?: boolean;
 }
 
-export function KioskHeader({
+// Owns the 1 Hz tick. Isolating it here means the clock no longer re-renders the
+// header's siblings -- previously it dragged the entire settings subtree, and
+// whatever the user was typing into, once a second.
+const ClockDisplay = memo(function ClockDisplay() {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <span className="hidden sm:flex items-center gap-1.5">
+      <Clock className="w-4.5 h-4.5" />
+      <span className="text-base md:text-lg font-medium font-sans">
+        {format(time, "HH:mm")}
+      </span>
+    </span>
+  );
+});
+
+export const KioskHeader = memo(function KioskHeader({
   title,
   showBack = false,
   backTo = "/",
@@ -23,17 +44,39 @@ export function KioskHeader({
   wsConnected,
 }: KioskHeaderProps) {
   const { isRateLimited } = useRateLimit(1000);
-  const [time, setTime] = useState(new Date());
   const [showSettings, setShowSettings] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const { account, hasAccess, loggingIn, error: authError, login, logout } =
     useAdminAuth();
   const [, setLocation] = useLocation();
 
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const openSettings = useCallback(() => setShowSettings(true), []);
+  const closeSettings = useCallback(() => setShowSettings(false), []);
+  const closeLogin = useCallback(() => setShowLogin(false), []);
+
+  const handleSettingsClick = useCallback(() => {
+    if (isRateLimited("settings")) return;
+    if (hasAccess) setShowSettings(true);
+    else setShowLogin(true);
+  }, [hasAccess, isRateLimited]);
+
+  const handleLoginSubmit = useCallback(
+    async (username: string, password: string) => {
+      const ok = await login(username, password, "settings");
+      if (ok) {
+        setShowLogin(false);
+        setShowSettings(true);
+      }
+    },
+    [login],
+  );
+
+  const handleLogout = useCallback(() => {
+    void logout();
+    setShowSettings(false);
+  }, [logout]);
+
+  const navigateBack = useCallback(() => setLocation(backTo), [backTo, setLocation]);
 
   return (
     <>
@@ -49,7 +92,7 @@ export function KioskHeader({
             </button>
           ) : showBack ? (
             <button
-              onClick={() => setLocation(backTo)}
+              onClick={navigateBack}
               className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-secondary text-secondary-foreground shrink-0"
             >
               <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -73,18 +116,9 @@ export function KioskHeader({
               title={wsConnected ? "Sensors connected" : "Sensors disconnected"}
             />
           )}
-          <span className="hidden sm:flex items-center gap-1.5">
-            <Clock className="w-4.5 h-4.5" />
-            <span className="text-base md:text-lg font-medium font-sans">
-              {format(time, "HH:mm")}
-            </span>
-          </span>
+          <ClockDisplay />
           <button
-            onClick={() => {
-              if (isRateLimited("settings")) return;
-              if (hasAccess) setShowSettings(true);
-              else setShowLogin(true);
-            }}
+            onClick={handleSettingsClick}
             className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-secondary text-secondary-foreground shrink-0"
             title="Settings"
           >
@@ -98,24 +132,15 @@ export function KioskHeader({
         onOpenChange={setShowLogin}
         error={authError}
         verifying={loggingIn}
-        onSubmit={async (username, password) => {
-          const ok = await login(username, password, "settings");
-          if (ok) {
-            setShowLogin(false);
-            setShowSettings(true);
-          }
-        }}
+        onSubmit={handleLoginSubmit}
       />
 
-       <SettingsDialog
-         isOpen={showSettings}
-         onClose={() => setShowSettings(false)}
-         account={account}
-         onLogout={() => {
-           void logout();
-           setShowSettings(false);
-         }}
-       />
+      <SettingsDialog
+        isOpen={showSettings}
+        onClose={closeSettings}
+        account={account}
+        onLogout={handleLogout}
+      />
     </>
   );
-}
+});

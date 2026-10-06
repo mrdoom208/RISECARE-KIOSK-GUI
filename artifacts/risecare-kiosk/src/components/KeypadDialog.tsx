@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Delete, Check } from "lucide-react";
 import { useRateLimit } from "@/hooks/use-rate-limit";
+import { ModalShell } from "@/components/ModalShell";
 
 interface KeypadDialogProps {
   isOpen: boolean;
@@ -56,8 +57,12 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="bg-card w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-border/50 max-h-[90vh] flex flex-col">
+    <ModalShell
+      open={isOpen}
+      zIndex={50}
+      backdrop="blur"
+      panelClassName="bg-card w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-border/50 max-h-[90vh] flex flex-col"
+    >
             <div className="p-6 border-b border-border flex justify-between items-center bg-secondary/30 shrink-0">
               <h3 className="text-3xl font-bold">{title}</h3>
               <button onClick={onClose} className="p-3 bg-muted rounded-full">
@@ -148,7 +153,6 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
                 </button>
               </div>
             </div>
-          </div>
-    </div>
+    </ModalShell>
   );
 }

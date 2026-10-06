@@ -25,6 +25,7 @@ import { KioskHeader } from "@/components/KioskHeader";
 import { VitalCard } from "@/components/VitalCard";
 import InstructionModal from "@/components/InstructionModal";
 import { KeypadDialog } from "@/components/KeypadDialog";
+import { ModalShell } from "@/components/ModalShell";
 import type { Vitals } from "@/types/vitals";
 import {
   AlertDialog,
@@ -672,10 +673,14 @@ const handleCancelReading = async () => {
       />
 
       {/* Reading Display - shows real-time MQTT value */}
-        {readingVital && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-            <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
-            >
+        <ModalShell
+          open={readingVital !== null}
+          zIndex={50}
+          backdrop="blur"
+          panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+        >
+          {readingVital && (
+            <>
               {(() => {
                 const display = getReadingDisplay(readingVital);
                 const isHrSpo2 = readingVital === "hr";
@@ -763,9 +768,9 @@ const handleCancelReading = async () => {
                   Done {!isStable && `(${stableCount}/${sensorStabilityConfig[vitalToSensorId[readingVital]]?.stableCount ?? 5})`}
                 </button>
               </div>
-            </div>
-          </div>
-        )}
+            </>
+          )}
+      </ModalShell>
     </div>
   );
 }

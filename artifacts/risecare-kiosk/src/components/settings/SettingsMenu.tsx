@@ -72,7 +72,10 @@ export function SettingsMenu({
       return res.json();
     },
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    // Only meaningful while the menu is on screen. Refetching in the background
+    // re-rendered the settings subtree (and any focused field under it) every 5s
+    // with no visible effect.
+    refetchIntervalInBackground: false,
   });
 
   return (

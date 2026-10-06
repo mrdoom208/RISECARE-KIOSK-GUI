@@ -7,6 +7,7 @@ import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import LoginDialog from "@/components/LoginDialog";
 import TermsAgreementDialog from "@/components/TermsAgreementDialog";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function Home() {
   const { isRateLimited } = useRateLimit(1000);
@@ -15,11 +16,16 @@ export default function Home() {
   const [showLogin, setShowLogin] = useState(false);
   const { hasAccess, loggingIn, error: authError, login } = useAdminAuth();
 
-  const { data: sessions, isLoading } = useQuery<any[]>({
+  const { data: sessions, isLoading, isError, error } = useQuery<any[]>({
     queryKey: ["home-history-sessions"],
     queryFn: async () => {
       const res = await fetch("/api/sessions");
-      if (!res.ok) throw new Error("Failed to load history");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(
+          apiErrorMessage(body, "Unable to load records. Please try again.", res.status),
+        );
+      }
       return res.json();
     },
     enabled: hasAccess,
@@ -160,6 +166,15 @@ export default function Home() {
             ) : isLoading ? (
               <div className="p-6 text-center text-lg text-muted-foreground">
                 Loading history...
+              </div>
+            ) : isError ? (
+              <div className="p-6 text-center">
+                <p className="text-xl font-semibold text-foreground">
+                  Unable to load records
+                </p>
+                <p className="text-base text-muted-foreground mt-1">
+                  {error instanceof Error ? error.message : "Please try again."}
+                </p>
               </div>
             ) : Array.isArray(sessions) && sessions.length > 0 ? (
               <div className="divide-y divide-border/50">

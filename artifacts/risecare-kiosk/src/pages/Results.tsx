@@ -1,6 +1,7 @@
 import { useLocation, useSearch } from "wouter";
 import { useHistoryState } from "wouter/use-browser-location";
 import { KioskHeader } from "@/components/KioskHeader";
+import { ModalShell } from "@/components/ModalShell";
 import { format } from "date-fns";
 import {
   Printer,
@@ -777,9 +778,12 @@ Assessment:`;
         </div>
       </div>
 
-      {showDoneConfirm && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50">
+      <ModalShell
+        open={showDoneConfirm}
+        zIndex={70}
+        backdrop="blur"
+        panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+      >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-bold">
                 {returnTo === "/history"
@@ -819,9 +823,7 @@ Assessment:`;
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </ModalShell>
     </div>
   );
 }

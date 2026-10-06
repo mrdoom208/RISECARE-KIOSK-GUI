@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import type { SettingsAccount } from "@/components/LoginDialog";
+import { ModalShell } from "@/components/ModalShell";
+import { apiErrorMessage } from "@/lib/api-error";
 
 interface AccountsSettingsProps {
   account: SettingsAccount | null;
@@ -68,7 +70,7 @@ export function AccountsSettings({
         let msg = "Failed to remove account";
         try {
           const err = await res.json();
-          msg = err.error || err.message || msg;
+          msg = apiErrorMessage(err, msg, res.status);
         } catch {
           msg = `Server error (${res.status})`;
         }
@@ -316,9 +318,14 @@ export function AccountsSettings({
         </div>
       )}
 
-      {confirmRemove && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
-          <div className="rounded-md bg-card shadow-2xl p-8 w-full max-w-md border border-border/50">
+      <ModalShell
+        open={confirmRemove !== null}
+        zIndex={70}
+        backdrop="scrim"
+        panelClassName="rounded-md bg-card shadow-2xl p-8 w-full max-w-md border border-border/50"
+      >
+        {confirmRemove && (
+          <>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-bold">Remove account?</h2>
               <button
@@ -355,9 +362,9 @@ export function AccountsSettings({
                 )}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalShell>
     </div>
   );
 }

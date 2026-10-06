@@ -11,6 +11,8 @@ import {
   X,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { ModalShell } from "@/components/ModalShell";
+import { apiErrorMessage } from "@/lib/api-error";
 
 interface NetworkSettingsProps {
   isRateLimited: (key: string) => boolean;
@@ -98,7 +100,9 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
         body: JSON.stringify({ enabled }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to update");
+      if (!res.ok || data.error) {
+        throw new Error(apiErrorMessage(data, "Failed to update", res.status));
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -185,7 +189,9 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
         body: JSON.stringify({ ssid, password: password || undefined }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to connect");
+      if (!res.ok || data.error) {
+        throw new Error(apiErrorMessage(data, "Failed to connect", res.status));
+      }
       return data;
     },
     onSuccess: () => {
@@ -205,7 +211,9 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
     mutationFn: async () => {
       const res = await fetch("/api/network/wifi/disconnect", { method: "POST" });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to disconnect");
+      if (!res.ok || data.error) {
+        throw new Error(apiErrorMessage(data, "Failed to disconnect", res.status));
+      }
       return data;
     },
     onSuccess: () => {
@@ -512,12 +520,14 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
         </>
       )}
 
-      {connectTarget && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
-          style={{ paddingBottom: "calc(1rem + var(--vk-height, 0px))" }}
-        >
-          <div className="relative bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50">
+      <ModalShell
+        open={connectTarget !== null}
+        zIndex={60}
+        backdrop="scrim"
+        panelClassName="relative bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+      >
+        {connectTarget && (
+          <>
             <button
               onClick={() => {
                 setConnectTarget(null);
@@ -601,9 +611,9 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
                 </button>
               </>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalShell>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useCreateSession } from "@workspace/api-client-react";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { KioskHeader } from "@/components/KioskHeader";
+import { apiErrorMessage } from "@/lib/api-error";
 
 const PH_PREFIX = "+63";
 
@@ -40,6 +41,17 @@ export default function Register() {
   const ageError = age.length > 0 && !Number.isNaN(ageNum) && (ageNum < 1 || ageNum > 120) ? "Age must be between 1 and 120" : "";
 
   const allFilled = nameValid && phoneValid && ageValid && gender;
+
+  // A failed submit used to surface nothing at all, leaving the button inert
+  // with no explanation. Render the API's message next to the action instead.
+  const submitError =
+    createSession.isError && !createSession.isPending
+      ? apiErrorMessage(
+          createSession.error?.data,
+          "Could not start the session. Please try again.",
+          createSession.error?.status,
+        )
+      : "";
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "").slice(0, 10);
@@ -187,8 +199,15 @@ export default function Register() {
           </div>
 
           <div className="p-4 bg-secondary/30 border-t border-border flex flex-col items-end gap-1">
-            {!allFilled && !createSession.isPending && (
-              <p className="text-sm text-muted-foreground">Fill in all required fields to continue</p>
+            {submitError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {submitError}
+              </p>
+            ) : (
+              !allFilled &&
+              !createSession.isPending && (
+                <p className="text-sm text-muted-foreground">Fill in all required fields to continue</p>
+              )
             )}
             <button
               onClick={() => {

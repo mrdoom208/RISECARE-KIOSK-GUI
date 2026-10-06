@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
+import { ModalShell } from "@/components/ModalShell";
 
 interface SensorsSettingsProps {
   isOpen: boolean;
@@ -425,12 +426,12 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
 
   return (
     <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm"
-          style={{ paddingBottom: "calc(1rem + var(--vk-height, 0px))" }}
-        >
-          <div className="bg-card rounded-3xl shadow-2xl p-5 sm:p-6 md:p-10 w-full max-w-5xl border border-border/50 max-h-[90vh] overflow-y-auto">
+      <ModalShell
+        open={isOpen}
+        zIndex={50}
+        backdrop="scrim"
+        panelClassName="bg-card rounded-3xl shadow-2xl p-5 sm:p-6 md:p-10 w-full max-w-5xl border border-border/50 max-h-[90vh] overflow-y-auto"
+      >
             {/* Header */}
             <div className="flex items-center justify-between gap-3 mb-8">
               <div className="flex items-center gap-3">
@@ -843,9 +844,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                 </Button>
               )}
             </div>
-          </div>
-        </div>
-      )}
+      </ModalShell>
     </>
   );
 }
