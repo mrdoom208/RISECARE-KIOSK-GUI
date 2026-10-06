@@ -143,9 +143,10 @@ def get_stable_weight():
 
 
 def setup():
+    global sensor_available
     if not sensor_available:
         print(" LoadCell sensor not available")
-        return
+        return False
 
     print("Initializing LoadCell (HX711)...")
     try:
@@ -161,12 +162,19 @@ def setup():
         t.join(timeout=3.0)
         if t.is_alive():
             print("⚠️ LoadCell (HX711) not responding — sensor may not be connected")
-            return
+            sensor_available = False
+            return False
         if isinstance(result[0], Exception):
             print(f"⚠️ LoadCell (HX711) reset failed: {result[0]}")
-            return
+            sensor_available = False
+            return False
     except Exception as e:
         print(f"⚠️ LoadCell (HX711) init failed: {e}")
-        return
-    load_calibration()
+        sensor_available = False
+        return False
+    try:
+        load_calibration()
+    except Exception as e:
+        print(f"⚠️ LoadCell calibration load failed: {e}")
     print(" LoadCell initialized")
+    return True

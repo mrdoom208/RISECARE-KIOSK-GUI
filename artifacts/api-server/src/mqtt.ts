@@ -4,8 +4,10 @@ import crypto from "crypto";
 const MQTT_BROKER = process.env.MQTT_BROKER || "mqtt://localhost:1883";
 const MQTT_TOPIC = process.env.MQTT_TOPIC || "risecare/#";
 
+type MessageHandler = (payload: any, topic?: string) => void;
+
 let client: mqtt.MqttClient | null = null;
-let messageHandlers: Map<string, (payload: any, topic?: string) => void> = new Map();
+let messageHandlers: Map<string, MessageHandler[]> = new Map();
 
 export function connectMQTT() {
   if (client?.connected) return client;
@@ -44,19 +46,19 @@ export function connectMQTT() {
       console.log(`📥 MQTT received [${topic}]:`, data);
 
       // Call registered handlers
-      const handler = messageHandlers.get(topic);
-      if (handler) {
-        handler(data, topic);
+      const handlers = messageHandlers.get(topic);
+      if (handlers) {
+        handlers.forEach((handler) => handler(data, topic));
       }
 
       // Also call wildcard handlers
-      messageHandlers.forEach((fn, pattern) => {
+      messageHandlers.forEach((fns, pattern) => {
         if (pattern.includes("#") || pattern.includes("+")) {
           const regex = new RegExp(
             "^" + pattern.replace(/\/#$/, "/.*").replace(/\+/, "[^/]+") + "$"
           );
           if (regex.test(topic)) {
-            fn(data, topic);
+            fns.forEach((fn) => fn(data, topic));
           }
         }
       });
@@ -107,11 +109,13 @@ export function publish(topic: string, payload: any): boolean {
   return true;
 }
 
-export function subscribe(
-  topic: string,
-  handler: (payload: any, topic?: string) => void
-) {
-  messageHandlers.set(topic, handler);
+export function subscribe(topic: string, handler: MessageHandler) {
+  const handlers = messageHandlers.get(topic);
+  if (handlers) {
+    handlers.push(handler);
+  } else {
+    messageHandlers.set(topic, [handler]);
+  }
   console.log(`📡 Registered handler for: ${topic}`);
 }
 

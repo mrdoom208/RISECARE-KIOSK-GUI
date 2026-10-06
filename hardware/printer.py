@@ -69,6 +69,14 @@ def _detect_endpoints():
             pass
 
 
+def _is_disconnected(exc):
+    """True when the printer is physically gone, not just unreadable."""
+    text = str(exc).lower()
+    if "not found" in text or "no such device" in text or "entity not found" in text:
+        return True
+    return getattr(exc, "errno", None) in (19, 6, -4)
+
+
 def find_printer():
     global _printer, _status_readable
     if not printer_available:
@@ -84,7 +92,12 @@ def find_printer():
     if out_ep is not None:
         kwargs["out_ep"] = out_ep
     try:
-        _printer = Usb(USB_VENDOR_ID, USB_PRODUCT_ID, **kwargs)
+        p = Usb(USB_VENDOR_ID, USB_PRODUCT_ID, **kwargs)
+        # python-escpos 3.x opens the device lazily, so Usb() succeeds even with
+        # no printer attached. Force it open now so "connected" is truthful.
+        if hasattr(p, "open"):
+            p.open()
+        _printer = p
         print(
             "✅ Thermal printer connected via USB "
             f"(in=0x{in_ep:02x}, out=0x{out_ep:02x})"
@@ -128,6 +141,10 @@ def printer_status():
             return {"connected": True, "paper": True, "paperStatus": "ok"}
         return {"connected": True, "paper": True, "paperStatus": "unknown"}
     except Exception as e:
+        if _is_disconnected(e):
+            print(f"❌ Thermal printer disconnected: {e}")
+            close_printer()
+            return {"connected": False, "paper": False, "paperStatus": "unknown"}
         print(f"⚠️ Printer paper status check failed: {e}")
         return {"connected": True, "paper": True, "paperStatus": "unknown"}
 

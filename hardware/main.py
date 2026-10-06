@@ -39,7 +39,7 @@ def advertise_sensors():
     mqtt_client.publish("risecare/sensors/availability", {
         "heartrate": hr_sensor is not None and hr_sensor.handle is not None,
         "spo2": hr_sensor is not None and hr_sensor.handle is not None,
-        "height": ultrasonic.gpio_available,
+        "height": ultrasonic.sensor_available,
         "weight": loadcell.sensor_available,
         "temperature": temp_sensor is not None and temp_sensor.handle is not None,
         "printer": printer.printer_status()
@@ -284,14 +284,17 @@ def main():
         print("✅ Temperature sensor ready")
 
     try:
-        ultrasonic.setup()
-        print("✅ Ultrasonic sensor ready")
+        if ultrasonic.setup():
+            print("✅ Ultrasonic sensor ready")
     except Exception as e:
+        ultrasonic.sensor_available = False
         print(f"⚠️ Ultrasonic sensor not available: {e}")
 
     try:
-        loadcell.setup()
+        if loadcell.setup():
+            print("✅ LoadCell sensor ready")
     except Exception as e:
+        loadcell.sensor_available = False
         print(f"⚠️ LoadCell sensor not available: {e}")
 
     print("\nConnecting to MQTT...")

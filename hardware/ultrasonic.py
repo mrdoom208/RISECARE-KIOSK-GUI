@@ -10,6 +10,7 @@ MAX_DISTANCE_CM = 400
 
 TOTAL_HEIGHT = None
 gpio_available = False
+sensor_available = False
 GPIO = None
 
 try:
@@ -19,13 +20,31 @@ except ImportError:
     print("Warning: RPi.GPIO not available, ultrasonic sensor disabled")
 
 
-def setup():
+def probe(samples=3):
+    """Return True when the sensor answers with a plausible echo."""
     if not gpio_available:
+        return False
+    for _ in range(samples):
+        if _is_valid_distance(measure_distance()):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def setup():
+    global sensor_available
+    if not gpio_available:
+        sensor_available = False
         raise RuntimeError("RPi.GPIO not available")
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(TRIG, GPIO.OUT)
     GPIO.setup(ECHO, GPIO.IN)
+    sensor_available = probe()
+    if not sensor_available:
+        print("⚠️ Ultrasonic sensor not responding — sensor may not be connected")
+        return False
     print("✓ Ultrasonic sensor initialized")
+    return True
 
 
 def measure_distance():
