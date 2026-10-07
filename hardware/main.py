@@ -158,6 +158,12 @@ def handle_command(sensor, session_id, value, payload):
                 success = True
         elif sensor == "heartrate":
             if hr_sensor is not None:
+                # The sensor is shut down after startup and when dashboard
+                # readings stop. A test command does not pass through the
+                # normal start-reading (value=1) path, so wake/configure it
+                # before attempting to read the FIFO.
+                hr_sensor.setup()
+                hr_sensor.clear_buffer()
                 hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
                 if hr_valid:
                     print(f"HeartRate: {hr:.2f} bpm")
@@ -169,6 +175,8 @@ def handle_command(sensor, session_id, value, payload):
                 print("⚠️ Heart rate sensor not available")
         elif sensor == "spo2":
             if hr_sensor is not None:
+                hr_sensor.setup()
+                hr_sensor.clear_buffer()
                 hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
                 if spo2_valid:
                     print(f"SpO2: {spo2:.2f}%")
