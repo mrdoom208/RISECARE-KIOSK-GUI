@@ -1,4 +1,5 @@
 import time
+import traceback
 
 try:
     from smbus2 import SMBus
@@ -31,6 +32,13 @@ class MLX90614:
             self._read_with_retry(RAM_TA, retries=3)
             self.handle = bus
         except Exception as e:
+            bus_type = (
+                f"{type(self.bus).__module__}.{type(self.bus).__name__}"
+                if self.bus is not None else "None"
+            )
+            bus_fd = getattr(self.bus, "fd", None)
+            print(f"MLX90614 debug: bus object={bus_type}, fd={bus_fd!r}")
+            traceback.print_exc()
             self.close()
             print(f"⚠️ MLX90614 not detected on I2C bus {bus} at 0x{address:02X}: {e}")
             print("   Run 'i2cdetect -y 1' to check connected devices.")
