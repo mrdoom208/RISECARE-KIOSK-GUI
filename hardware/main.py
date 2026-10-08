@@ -40,8 +40,7 @@ def publish_calibration_progress(sensor, message):
 
 def advertise_sensors():
     mqtt_client.publish("risecare/sensors/availability", {
-        "heartrate": hr_sensor is not None and hr_sensor.handle is not None,
-        "spo2": hr_sensor is not None and hr_sensor.handle is not None,
+        "max30102": hr_sensor is not None and hr_sensor.handle is not None,
         "height": ultrasonic.sensor_available,
         "weight": loadcell.sensor_available,
         "temperature": temp_sensor is not None and temp_sensor.handle is not None,

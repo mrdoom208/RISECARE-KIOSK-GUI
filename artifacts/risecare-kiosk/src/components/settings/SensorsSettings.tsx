@@ -473,7 +473,8 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                     ? progress.message
                     : null;
                 const feedbackMessage = progressMessage ?? fb?.message;
-                const detected = sensorStatus?.sensors?.[sensor.id];
+                const availabilityId = sensor.id === "heartrate" ? "max30102" : sensor.id;
+                const detected = sensorStatus?.sensors?.[availabilityId];
                 const calibrationSaved =
                   (sensor.id === "height" || sensor.id === "weight") &&
                   calibrationResults?.[sensor.id]?.status === "ok" &&

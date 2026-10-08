@@ -135,9 +135,11 @@ export default function Dashboard() {
   });
 
   const mqttConnected = sensorStatus?.connected ?? false;
+  const max30102Available = sensorStatus?.sensors?.max30102;
 
   const isVitalDisabled = (vital: VitalType) => {
-    return !mqttConnected || !isVitalEnabled(vital);
+    const usesMax30102 = vital === "hr" || vital === "spo2";
+    return !mqttConnected || !isVitalEnabled(vital) || (usesMax30102 && max30102Available === false);
   };
 
   const { data: session, isLoading } = useQuery<Session>({
@@ -457,7 +459,11 @@ const handleCancelReading = async () => {
               Vital Signs
             </h2>
             <p className="text-base text-muted-foreground mt-1">
-              {mqttConnected ? "Tap any card to record a measurement." : "MQTT disconnected — sensors unavailable."}
+              {!mqttConnected
+                ? "MQTT disconnected — sensors unavailable."
+                : max30102Available === false
+                  ? "MAX30102 not detected at I²C address 0x57 — heart rate and SpO₂ are unavailable."
+                  : "Tap any card to record a measurement."}
             </p>
           </div>
         </div>
@@ -514,7 +520,7 @@ const handleCancelReading = async () => {
                {isVitalDisabled("hr") && isVitalDisabled("spo2") ? (
                  <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
                    <Lock className="w-4 h-4" />
-                   <span>Disabled</span>
+                   <span>{max30102Available === false ? "Not detected" : "Disabled"}</span>
                  </div>
                ) : (
                  <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
