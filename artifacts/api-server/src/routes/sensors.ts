@@ -28,7 +28,12 @@ let latestReadings: Record<string, any> = {};
 let calibrationResults: Record<string, any> = {};
 let calibrationProgress: Record<string, any> = {};
 let testResults: Record<string, any> = {};
-let sensorAvailability: Record<string, boolean> = {};
+let sensorAvailability: Record<string, any> = {};
+let sensorAvailabilityAt = 0;
+
+// The hardware process re-advertises every 10s; three missed cycles means the
+// snapshot can no longer be trusted to reflect what is plugged in.
+const AVAILABILITY_STALE_MS = 30_000;
 
 // Test-all state
 let testAllState: {
@@ -104,6 +109,7 @@ subscribe("risecare/sensors/height", async (data) => {
 
 subscribe("risecare/sensors/availability", async (data) => {
   sensorAvailability = data;
+  sensorAvailabilityAt = Date.now();
   console.log("📡 Sensor availability:", data);
 });
 
@@ -267,7 +273,25 @@ router.get("/sensors/status", async (_req, res) => {
     connected: isConnected(),
     broker: process.env.MQTT_BROKER || "mqtt://localhost:1883",
     sensors: sensorAvailability,
+    sensorsUpdatedAt: sensorAvailabilityAt || null,
+    sensorsStale:
+      sensorAvailabilityAt === 0 ||
+      Date.now() - sensorAvailabilityAt > AVAILABILITY_STALE_MS,
   });
+});
+
+// Ask the hardware process to re-probe sensors and re-publish availability
+router.post("/sensors/refresh", async (_req, res) => {
+  const sent = publish("risecare/command/status", {
+    sensor: "status",
+    timestamp: new Date().toISOString(),
+  });
+
+  if (sent) {
+    res.json({ status: "requested" });
+  } else {
+    res.status(500).json({ error: "MQTT not connected" });
+  }
 });
 
 // Reset all calibration data

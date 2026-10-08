@@ -34,6 +34,8 @@ class MAX30102:
         self.handle = None
         self.bus = None
         self._owns_bus = i2c_bus is None
+        self._shared_bus = i2c_bus
+        self._bus_number = bus
         self._red_buffer = []
         self._ir_buffer = []
         self._smoothed_hr = 0
@@ -142,6 +144,31 @@ class MAX30102:
             except Exception:
                 pass
         self.bus = None
+
+    def probe(self):
+        """Re-check that the chip still answers on I2C.
+
+        Safe to call after a failed __init__ or an unplug: reattaches the
+        shared bus first, then clears self.handle when the chip is gone so
+        callers can tell "not present" apart from "present".
+        """
+        if not smbus_available:
+            self.handle = None
+            return False
+        if self.bus is None and self._shared_bus is not None:
+            self.bus = self._shared_bus
+        if self.bus is None:
+            self.handle = None
+            return False
+        try:
+            # FIFO write pointer is a plain read. REG_INTR_STATUS_1 would also
+            # work but reading it clears the interrupt status bits.
+            self._read(self.REG_FIFO_WR_PTR, 1)
+        except Exception:
+            self.handle = None
+            return False
+        self.handle = self._bus_number
+        return True
 
     _BUFFER_MAX = 400
 

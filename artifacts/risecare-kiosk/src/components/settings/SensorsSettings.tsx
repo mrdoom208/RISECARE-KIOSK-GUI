@@ -40,9 +40,11 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const [printFeedback, setPrintFeedback] = useState<Feedback | null>(null);
   const [doneCooldown, setDoneCooldown] = useState<Record<string, boolean>>({});
   const [feedback, setFeedback] = useState<Record<string, Feedback | null>>({});
+  const [refreshing, setRefreshing] = useState(false);
   const testTimestamps = useRef<Record<string, number>>({});
   const calTimestamps = useRef<Record<string, number>>({});
   const feedbackTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAction = useRef<Record<string, number>>({});
   const isRateLimited = (sensorId: string) => {
     const last = lastAction.current[sensorId];
@@ -50,6 +52,12 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   };
 
   const hasPending = Object.values(feedback).some((f) => f?.status === "pending");
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("enabledSensors");
@@ -74,7 +82,9 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
       return res.json();
     },
     enabled: isOpen,
-    refetchInterval: isOpen ? 5000 : false,
+    // Poll faster right after a refresh: the device publishes once for the
+    // cheap I2C checks and again a few seconds later once GPIO/USB probes land.
+    refetchInterval: isOpen ? (refreshing ? 1500 : 5000) : false,
   });
 
   const { data: calibrationResults } = useQuery({
@@ -165,6 +175,27 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     },
     enabled: isOpen && hasPending,
     refetchInterval: hasPending ? 1000 : false,
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/sensors/refresh", { method: "POST" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      setRefreshing(true);
+      refetch();
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(() => setRefreshing(false), 8000);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to ask the sensors to re-probe",
+        variant: "destructive",
+      });
+    },
   });
 
   const clearFeedbackAfter = (sensorId: string, delay = 4000) => {
@@ -397,6 +428,10 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     saveEnabledState(newState);
   };
 
+  // When the last availability snapshot is too old, badges say "Status unknown"
+  // instead of claiming hardware is present or absent.
+  const availabilityStale = sensorStatus?.sensorsStale === true;
+
   const printerStatus = sensorStatus?.sensors?.printer as
     | { connected?: boolean; paper?: boolean; paperStatus?: string }
     | undefined;
@@ -496,19 +531,25 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           <p className="text-sm text-muted-foreground">{sensor.unit}</p>
                         </div>
                       </div>
-                      {detected === false && (
+                      {availabilityStale ? (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground border-border/60"
+                        >
+                          Status unknown
+                        </Badge>
+                      ) : detected === false ? (
                         <Badge variant="destructive" className="shrink-0 px-3 py-1.5 text-sm">
                           Not detected
                         </Badge>
-                      )}
-                      {detected === true && (
+                      ) : detected === true ? (
                         <Badge
                           variant="outline"
                           className="shrink-0 px-3 py-1.5 text-sm text-green-600 border-green-500/30 bg-green-500/10"
                         >
                           Detected
                         </Badge>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="h-px bg-border/60" />
@@ -659,7 +700,14 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                     <p className="text-sm text-muted-foreground">USB · 80mm receipt</p>
                   </div>
                 </div>
-                {!printerStatus?.connected ? (
+                {availabilityStale ? (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground border-border/60"
+                  >
+                    Status unknown
+                  </Badge>
+                ) : !printerStatus?.connected ? (
                   <Badge variant="destructive" className="shrink-0 px-3 py-1.5 text-sm">
                     Not detected
                   </Badge>
@@ -776,13 +824,21 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
             {/* Footer actions */}
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <Button
-                onClick={() => { if (isGloballyRateLimited("refresh")) return; refetch(); }}
+                onClick={() => {
+                  if (isGloballyRateLimited("refresh")) return;
+                  refreshMutation.mutate();
+                }}
+                disabled={refreshMutation.isPending || refreshing}
                 variant="outline"
                 size="lg"
                 className="sm:flex-1 h-12 text-base"
               >
-                <RefreshCw className="w-5 h-5" />
-                Refresh Status
+                <RefreshCw
+                  className={`w-5 h-5 ${
+                    refreshMutation.isPending || refreshing ? "animate-spin" : ""
+                  }`}
+                />
+                {refreshing ? "Re-probing sensors…" : "Refresh Status"}
               </Button>
               <Button
                 onClick={handleTestAll}

@@ -1,6 +1,7 @@
 import time
 import json
 import os
+import threading
 
 TRIG = 23
 ECHO = 24
@@ -13,6 +14,11 @@ gpio_available = False
 sensor_available = False
 GPIO = None
 
+# One pulse train at a time: the background availability probe and the main
+# reading loop share these pins. Measurement paths take this without blocking
+# and skip a sample if the bus is busy, so the reading loop never stalls.
+hw_lock = threading.Lock()
+
 try:
     import RPi.GPIO as GPIO
     gpio_available = True
@@ -20,9 +26,18 @@ except ImportError:
     print("Warning: RPi.GPIO not available, ultrasonic sensor disabled")
 
 
-def probe(samples=3):
-    """Return True when the sensor answers with a plausible echo."""
+def _ensure_pins():
     if not gpio_available:
+        return False
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(TRIG, GPIO.OUT)
+    GPIO.setup(ECHO, GPIO.IN)
+    return True
+
+
+def probe(samples=5):
+    """Return True when the sensor answers with a plausible echo."""
+    if not _ensure_pins():
         return False
     for _ in range(samples):
         if _is_valid_distance(measure_distance()):
@@ -33,12 +48,9 @@ def probe(samples=3):
 
 def setup():
     global sensor_available
-    if not gpio_available:
+    if not _ensure_pins():
         sensor_available = False
         raise RuntimeError("RPi.GPIO not available")
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(TRIG, GPIO.OUT)
-    GPIO.setup(ECHO, GPIO.IN)
     sensor_available = probe()
     if not sensor_available:
         print("⚠️ Ultrasonic sensor not responding — sensor may not be connected")
@@ -50,29 +62,35 @@ def setup():
 def measure_distance():
     if not gpio_available:
         return None
-    GPIO.output(TRIG, False)
-    time.sleep(0.01)
+    if not hw_lock.acquire(blocking=False):
+        return None
+    try:
+        GPIO.output(TRIG, False)
+        time.sleep(0.01)
 
-    GPIO.output(TRIG, True)
-    time.sleep(0.00001)
-    GPIO.output(TRIG, False)
+        GPIO.output(TRIG, True)
+        time.sleep(0.00001)
+        GPIO.output(TRIG, False)
 
-    timeout_start = time.monotonic()
-    pulse_start = time.monotonic()
-
-    while GPIO.input(ECHO) == 0:
+        timeout_start = time.monotonic()
         pulse_start = time.monotonic()
-        if time.monotonic() - timeout_start > TIMEOUT:
-            return None
 
-    while GPIO.input(ECHO) == 1:
-        pulse_end = time.monotonic()
-        if time.monotonic() - timeout_start > TIMEOUT:
-            return None
+        while GPIO.input(ECHO) == 0:
+            pulse_start = time.monotonic()
+            if time.monotonic() - timeout_start > TIMEOUT:
+                return None
 
-    pulse_duration = pulse_end - pulse_start
-    distance = pulse_duration * 17150
-    return round(distance, 2)
+        while GPIO.input(ECHO) == 1:
+            pulse_end = time.monotonic()
+            if time.monotonic() - timeout_start > TIMEOUT:
+                return None
+
+        pulse_duration = pulse_end - pulse_start
+        duration_us = pulse_duration * 1_000_000
+        distance = duration_us * 0.037 / 2
+        return round(distance, 2)
+    finally:
+        hw_lock.release()
 
 
 def _is_valid_distance(distance):

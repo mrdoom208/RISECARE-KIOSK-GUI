@@ -21,6 +21,8 @@ class MLX90614:
         self.bus = None
         self.handle = None
         self._owns_bus = i2c_bus is None
+        self._shared_bus = i2c_bus
+        self._bus_number = bus
 
         if not smbus_available:
             print("❌ smbus2 not available")
@@ -66,6 +68,28 @@ class MLX90614:
         except Exception as e:
             print(f"⚠️ MLX90614 read error at reg 0x{reg:02X}: {e}")
             return None
+
+    def probe(self):
+        """Re-check that the sensor still answers on I2C.
+
+        Safe to call after a failed __init__ or an unplug: reattaches the
+        shared bus first, then clears self.handle when the sensor is gone.
+        """
+        if not smbus_available:
+            self.handle = None
+            return False
+        if self.bus is None and self._shared_bus is not None:
+            self.bus = self._shared_bus
+        if self.bus is None:
+            self.handle = None
+            return False
+        try:
+            self._read_with_retry(RAM_TA, retries=1)
+        except Exception:
+            self.handle = None
+            return False
+        self.handle = self._bus_number
+        return True
 
     def read_ambient(self):
         raw = self.read_reg(RAM_TA)

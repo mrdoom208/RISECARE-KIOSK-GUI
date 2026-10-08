@@ -136,10 +136,14 @@ export default function Dashboard() {
 
   const mqttConnected = sensorStatus?.connected ?? false;
   const max30102Available = sensorStatus?.sensors?.max30102;
+  const availabilityStale = sensorStatus?.sensorsStale === true;
 
   const isVitalDisabled = (vital: VitalType) => {
     const usesMax30102 = vital === "hr" || vital === "spo2";
-    return !mqttConnected || !isVitalEnabled(vital) || (usesMax30102 && max30102Available === false);
+    // A stale snapshot can't tell us the chip is missing, so don't lock the
+    // operator out of HR/SpO2 based on old data.
+    const max30102Missing = !availabilityStale && max30102Available === false;
+    return !mqttConnected || !isVitalEnabled(vital) || (usesMax30102 && max30102Missing);
   };
 
   const { data: session, isLoading } = useQuery<Session>({

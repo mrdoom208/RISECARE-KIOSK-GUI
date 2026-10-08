@@ -1,4 +1,5 @@
 import time
+import threading
 from datetime import datetime
 
 try:
@@ -21,6 +22,10 @@ USB_PRODUCT_ID = 0x5011
 
 _printer = None
 _status_readable = True
+
+# The escpos device is not safe for concurrent USB traffic. Status checks run
+# on the background probe thread while printing runs on the command thread.
+_lock = threading.Lock()
 
 
 def _detect_endpoints():
@@ -125,6 +130,11 @@ def close_printer():
 
 
 def printer_status():
+    with _lock:
+        return _printer_status()
+
+
+def _printer_status():
     p = find_printer()
     if p is None:
         return {"connected": False, "paper": False, "paperStatus": "unknown"}
@@ -150,6 +160,11 @@ def printer_status():
 
 
 def print_receipt(data):
+    with _lock:
+        return _print_receipt(data)
+
+
+def _print_receipt(data):
     p = find_printer()
     if p is None:
         print("⚠️ No printer available, skipping receipt")

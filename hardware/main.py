@@ -1,4 +1,5 @@
 import subprocess
+import threading
 import ultrasonic
 from max30102 import MAX30102
 from mlx90614 import MLX90614
@@ -12,9 +13,15 @@ READ_INTERVAL = 1.0
 HR_POLL_INTERVAL = 0.1
 HR_PUBLISH_INTERVAL = 1.0
 TEMP_READ_INTERVAL = 1.0
+AVAIL_INTERVAL = 10.0
 
 hr_sensor = None
 temp_sensor = None
+# Long-lived handles kept even when the chip is missing at boot, so a later
+# probe can bring the sensor back without a restart. hr_sensor/temp_sensor
+# stay the "usable right now" pointers the rest of the code checks.
+hr_device = None
+temp_device = None
 running = False
 mode = 1
 current_session_id = None
@@ -27,6 +34,10 @@ hr_last_read = 0.0
 height_last_read = 0.0
 weight_last_read = 0.0
 temp_last_read = 0.0
+measure_busy = False
+_last_printer_status = {"connected": False, "paper": False, "paperStatus": "unknown"}
+_probe_thread = None
+_probe_busy = False
 
 
 def publish_calibration_progress(sensor, message):
@@ -38,14 +49,85 @@ def publish_calibration_progress(sensor, message):
     })
 
 
-def advertise_sensors():
-    mqtt_client.publish("risecare/sensors/availability", {
+def _probe_i2c():
+    """Re-check the two I2C chips. Cheap (sub-ms), safe to run inline."""
+    global hr_sensor, temp_sensor, hr_enabled, spo2_enabled, temp_enabled
+
+    if hr_device is not None:
+        was = hr_sensor is not None
+        now = hr_device.probe()
+        if now and not was:
+            hr_sensor = hr_device
+            print("✅ Heart rate sensor reconnected")
+            if hr_enabled or spo2_enabled:
+                try:
+                    hr_sensor.reset()
+                    hr_sensor.setup()
+                    hr_sensor.clear_buffer()
+                except Exception as e:
+                    print(f"⚠️ MAX30102 re-init failed: {e}")
+        elif was and not now:
+            hr_sensor = None
+            hr_enabled = False
+            spo2_enabled = False
+            print("⚠️ Heart rate sensor disconnected")
+
+    if temp_device is not None:
+        was = temp_sensor is not None
+        now = temp_device.probe()
+        if now and not was:
+            temp_sensor = temp_device
+            print("✅ Temperature sensor reconnected")
+        elif was and not now:
+            temp_sensor = None
+            temp_enabled = False
+            print("⚠️ Temperature sensor disconnected")
+
+
+def _probe_slow():
+    """Printer USB scan plus the blocking GPIO probes (ultrasonic, HX711)."""
+    global _last_printer_status
+    _last_printer_status = printer.printer_status()
+    if not measure_busy:
+        ultrasonic.sensor_available = ultrasonic.probe()
+        loadcell.sensor_available = loadcell.probe()
+
+
+def _availability_snapshot():
+    return {
         "max30102": hr_sensor is not None and hr_sensor.handle is not None,
         "height": ultrasonic.sensor_available,
         "weight": loadcell.sensor_available,
         "temperature": temp_sensor is not None and temp_sensor.handle is not None,
-        "printer": printer.printer_status()
-    })
+        "printer": _last_printer_status
+    }
+
+
+def advertise_sensors():
+    """Publish a fast snapshot now, then re-publish once the slow probes land."""
+    mqtt_client.publish("risecare/sensors/availability", _availability_snapshot())
+    _kick_probe_worker()
+
+
+def _kick_probe_worker():
+    """Run the slow probes on a daemon thread; never overlap two runs."""
+    global _probe_thread, _probe_busy
+    if _probe_busy:
+        return
+    _probe_busy = True
+
+    def _run():
+        global _probe_busy
+        try:
+            _probe_slow()
+            mqtt_client.publish("risecare/sensors/availability", _availability_snapshot())
+        except Exception as e:
+            print(f"⚠️ Sensor probe failed: {e}")
+        finally:
+            _probe_busy = False
+
+    _probe_thread = threading.Thread(target=_run, name="sensor-probe", daemon=True)
+    _probe_thread.start()
 
 
 def read_hr_sensor(timeout=3.0):
@@ -64,7 +146,7 @@ def read_hr_sensor(timeout=3.0):
 
 
 def handle_command(sensor, session_id, value, payload):
-    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, hr_last_read, height_last_read, weight_last_read, temp_last_read
+    global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, hr_last_read, height_last_read, weight_last_read, temp_last_read, measure_busy
 
     if sensor == "shutdown":
         print("Shutdown command received.")
@@ -81,6 +163,12 @@ def handle_command(sensor, session_id, value, payload):
     if sensor == "lock":
         print("Lock command received.")
         subprocess.run(["loginctl", "lock-session"])
+        return
+
+    if sensor == "status":
+        print("Status requested — re-probing sensors...")
+        _probe_i2c()
+        advertise_sensors()
         return
 
     if session_id:
@@ -115,119 +203,131 @@ def handle_command(sensor, session_id, value, payload):
 
     elif value == 2:
         print(f"⚙️ Calibrating {sensor}...")
-        if sensor == "height":
-            total_height = ultrasonic.calibrate_height(
-                progress_callback=lambda message: publish_calibration_progress("height", message)
-            )
-            mqtt_client.publish("risecare/calibration/height", {
-                "status": "ok" if total_height is not None else "failed",
-                "totalHeight": total_height,
-                "sessionId": current_session_id,
-                "timestamp": time.time()
-            })
-        elif sensor == "weight":
-            known_weight = payload.get("knownWeightGrams", 1000)
-            tare_ok = loadcell.calibrate_tare()
-            if tare_ok is not None:
-                publish_calibration_progress("weight", f"Tare done. Place {known_weight}g weight and click Done.")
-            else:
-                mqtt_client.publish("risecare/calibration/weight", {
-                    "status": "failed",
+        measure_busy = True
+        try:
+            if sensor == "height":
+                total_height = ultrasonic.calibrate_height(
+                    progress_callback=lambda message: publish_calibration_progress("height", message)
+                )
+                mqtt_client.publish("risecare/calibration/height", {
+                    "status": "ok" if total_height is not None else "failed",
+                    "totalHeight": total_height,
                     "sessionId": current_session_id,
                     "timestamp": time.time()
                 })
-        elif sensor == "heartrate" or sensor == "spo2":
-            print("⚠️ Calibration not implemented for heartrate/spo2")
-        else:
-            print(f"⚠️ Unknown sensor for calibration: {sensor}")
+            elif sensor == "weight":
+                known_weight = payload.get("knownWeightGrams", 1000)
+                tare_ok = loadcell.calibrate_tare()
+                if tare_ok is not None:
+                    publish_calibration_progress("weight", f"Tare done. Place {known_weight}g weight and click Done.")
+                else:
+                    mqtt_client.publish("risecare/calibration/weight", {
+                        "status": "failed",
+                        "sessionId": current_session_id,
+                        "timestamp": time.time()
+                    })
+            elif sensor == "heartrate" or sensor == "spo2":
+                print("⚠️ Calibration not implemented for heartrate/spo2")
+            else:
+                print(f"⚠️ Unknown sensor for calibration: {sensor}")
+        finally:
+            measure_busy = False
         mode = 1
         running = True
 
     elif value == 12:
         if sensor == "weight":
-            known_weight = payload.get("knownWeightGrams", 1000)
-            factor = loadcell.calibrate_finalize(known_weight_grams=known_weight)
-            mqtt_client.publish("risecare/calibration/weight", {
-                "status": "ok" if factor is not None else "failed",
-                "factor": factor,
-                "knownWeightGrams": known_weight,
-                "sessionId": current_session_id,
-                "timestamp": time.time()
-            })
+            measure_busy = True
+            try:
+                known_weight = payload.get("knownWeightGrams", 1000)
+                factor = loadcell.calibrate_finalize(known_weight_grams=known_weight)
+                mqtt_client.publish("risecare/calibration/weight", {
+                    "status": "ok" if factor is not None else "failed",
+                    "factor": factor,
+                    "knownWeightGrams": known_weight,
+                    "sessionId": current_session_id,
+                    "timestamp": time.time()
+                })
+            finally:
+                measure_busy = False
 
     elif value == 3:
         print(f"🧪 Testing {sensor}...")
-        success = False
-        result = {}
-        if sensor == "height":
-            dist = ultrasonic.measure_distance()
-            print(f"Ultrasonic distance: {dist} cm")
-            height = ultrasonic.get_height()
-            if height:
-                print(f"Height: {height} cm")
-                result = {"cm": height}
-                success = True
-        elif sensor == "weight":
-            weight = loadcell.get_stable_weight()
-            if weight:
-                print(f"LoadCell weight: {weight} kg")
-                result = {"kg": weight}
-                success = True
-        elif sensor == "heartrate":
-            if hr_sensor is not None:
-                # The sensor is shut down after startup and when dashboard
-                # readings stop. A test command does not pass through the
-                # normal start-reading (value=1) path, so wake/configure it
-                # before attempting to read the FIFO.
-                hr_sensor.setup()
-                hr_sensor.clear_buffer()
-                hr, hr_valid, spo2, spo2_valid = read_hr_sensor()
-                if hr_valid:
-                    print(f"HeartRate: {hr:.2f} bpm")
-                    result = {"bpm": hr}
+        measure_busy = True
+        try:
+            success = False
+            result = {}
+            if sensor == "height":
+                dist = ultrasonic.measure_distance()
+                print(f"Ultrasonic distance: {dist} cm")
+                height = ultrasonic.get_height()
+                if height:
+                    print(f"Height: {height} cm")
+                    result = {"cm": height}
                     success = True
-                else:
-                    print("HeartRate: Invalid reading")
-            else:
-                print("⚠️ Heart rate sensor not available")
-        elif sensor == "spo2":
-            if hr_sensor is not None:
-                hr_sensor.setup()
-                hr_sensor.clear_buffer()
-                hr, hr_valid, spo2, spo2_valid = read_hr_sensor()
-                if spo2_valid:
-                    print(f"SpO2: {spo2:.2f}%")
-                    result = {"value": spo2}
+            elif sensor == "weight":
+                weight = loadcell.get_stable_weight()
+                if weight:
+                    print(f"LoadCell weight: {weight} kg")
+                    result = {"kg": weight}
                     success = True
+            elif sensor == "heartrate":
+                if hr_sensor is not None:
+                    # The sensor is shut down after startup and when dashboard
+                    # readings stop. A test command does not pass through the
+                    # normal start-reading (value=1) path, so wake/configure it
+                    # before attempting to read the FIFO.
+                    hr_sensor.setup()
+                    hr_sensor.clear_buffer()
+                    hr, hr_valid, spo2, spo2_valid = read_hr_sensor()
+                    if hr_valid:
+                        print(f"HeartRate: {hr:.2f} bpm")
+                        result = {"bpm": hr}
+                        success = True
+                    else:
+                        print("HeartRate: Invalid reading")
                 else:
-                    print("SpO2: Invalid reading")
-            else:
-                print("⚠️ SpO2 sensor not available")
-        elif sensor == "temperature":
-            if temp_sensor is not None:
-                celsius = temp_sensor.get_temperature()
-                if celsius is not None:
-                    print(f"Temperature: {celsius:.2f} C")
-                    result = {"celsius": celsius}
-                    success = True
+                    print("⚠️ Heart rate sensor not available")
+            elif sensor == "spo2":
+                if hr_sensor is not None:
+                    hr_sensor.setup()
+                    hr_sensor.clear_buffer()
+                    hr, hr_valid, spo2, spo2_valid = read_hr_sensor()
+                    if spo2_valid:
+                        print(f"SpO2: {spo2:.2f}%")
+                        result = {"value": spo2}
+                        success = True
+                    else:
+                        print("SpO2: Invalid reading")
                 else:
-                    print("Temperature: Invalid reading")
+                    print("⚠️ SpO2 sensor not available")
+            elif sensor == "temperature":
+                if temp_sensor is not None:
+                    celsius = temp_sensor.get_temperature()
+                    if celsius is not None:
+                        print(f"Temperature: {celsius:.2f} C")
+                        result = {"celsius": celsius}
+                        success = True
+                    else:
+                        print("Temperature: Invalid reading")
+                else:
+                    print("⚠️ Temperature sensor not available")
+            elif sensor == "printer":
+                success = printer.test_print()
+                result = {"status": "success" if success else "failed"}
             else:
-                print("⚠️ Temperature sensor not available")
-        elif sensor == "printer":
-            success = printer.test_print()
-            result = {"status": "success" if success else "failed"}
-        else:
-            print(f"⚠️ Unknown sensor for test: {sensor}")
-        payload = {
-            "sensor": sensor,
-            "sessionId": current_session_id,
-            "timestamp": time.time(),
-            "status": "success" if success else "failed",
-            **result
-        }
-        mqtt_client.publish(f"risecare/test/{sensor}", payload)
-        print(f"   Test {'successful' if success else 'failed'}: {payload}")
+                print(f"⚠️ Unknown sensor for test: {sensor}")
+            payload = {
+                "sensor": sensor,
+                "sessionId": current_session_id,
+                "timestamp": time.time(),
+                "status": "success" if success else "failed",
+                **result
+            }
+            mqtt_client.publish(f"risecare/test/{sensor}", payload)
+            print(f"   Test {'successful' if success else 'failed'}: {payload}")
+        finally:
+            measure_busy = False
         mode = 1
         running = True
 
@@ -288,25 +388,25 @@ def main():
     shared_bus = i2c_bus.get_bus()
 
     print("\nInitializing sensors...")
-    global hr_sensor, temp_sensor
+    global hr_sensor, temp_sensor, hr_device, temp_device
 
-    hr_sensor = MAX30102(i2c_bus=shared_bus)
-    if hr_sensor.handle is not None:
+    hr_device = MAX30102(i2c_bus=shared_bus)
+    if hr_device.handle is not None:
+        hr_sensor = hr_device
         try:
             hr_sensor.shutdown()
         except Exception:
             pass
         print("✅ Heart rate sensor ready")
     else:
-        hr_sensor = None
-        print("⚠️ Heart rate sensor not available")
+        print("⚠️ Heart rate sensor not available — will keep re-probing")
 
-    temp_sensor = MLX90614(i2c_bus=shared_bus)
-    if temp_sensor.handle is None:
-        temp_sensor = None
-        print("⚠️ Temperature sensor not available")
-    else:
+    temp_device = MLX90614(i2c_bus=shared_bus)
+    if temp_device.handle is not None:
+        temp_sensor = temp_device
         print("✅ Temperature sensor ready")
+    else:
+        print("⚠️ Temperature sensor not available — will keep re-probing")
 
     try:
         if ultrasonic.setup():
@@ -328,14 +428,21 @@ def main():
 
     if mqtt_client.wait_for_connection():
         print("✅ MQTT connected, advertising sensors...")
-        advertise_sensors()
     else:
-        print("⚠️ MQTT not connected — sensors will not be advertised")
+        print("⚠️ MQTT not connected — sensors will be advertised once the broker comes back")
+
+    # Probe once on the calling thread so the boot snapshot is truthful, and
+    # publish directly — advertise_sensors() would kick a second probe pass.
+    _probe_i2c()
+    _probe_slow()
+    mqtt_client.publish("risecare/sensors/availability", _availability_snapshot())
 
     running = True
     mode = 1
     tick = 0
-    last_avail = 0.0
+    # Boot already probed, so hold off the first periodic probe for a full
+    # AVAIL_INTERVAL instead of re-probing immediately on the first loop pass.
+    last_avail = time.time()
     hr_last_publish = 0.0
     latest_hr_reading = None
     latest_hr_reading_at = 0.0
@@ -343,6 +450,13 @@ def main():
 
     try:
         while True:
+            # Runs in every mode, so availability keeps updating even after all
+            # sensors are stopped (mode == 0) instead of freezing forever.
+            if time.time() - last_avail >= AVAIL_INTERVAL:
+                last_avail = time.time()
+                _probe_i2c()
+                advertise_sensors()
+
             if mode == 1 and running:
                 tick += 1
                 now = time.time()
@@ -426,10 +540,6 @@ def main():
                         print(f"Weight: {weight} g")
                     if temp_enabled and temperature is not None:
                         print(f"Temperature: {temperature} C")
-
-                if time.time() - last_avail >= 10:
-                    last_avail = time.time()
-                    advertise_sensors()
 
                 time.sleep(0.1)
             elif mode == 0:
