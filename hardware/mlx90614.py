@@ -40,9 +40,9 @@ class MLX90614:
     def _read_with_retry(self, reg, retries=2):
         for attempt in range(retries + 1):
             try:
-                data = self.bus.read_i2c_block_data(self.address, reg, 3)
-                raw = (data[1] << 8) | data[0]
-                return raw
+                # MLX90614 RAM registers use SMBus Read Word transactions.
+                # smbus2 returns the low/high data bytes as a little-endian word.
+                return self.bus.read_word_data(self.address, reg)
             except Exception as e:
                 if attempt < retries:
                     time.sleep(0.1)
