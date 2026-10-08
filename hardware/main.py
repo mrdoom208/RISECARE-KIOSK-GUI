@@ -130,19 +130,25 @@ def _kick_probe_worker():
     _probe_thread.start()
 
 
-def read_hr_sensor(timeout=3.0):
-    """Poll the MAX30102 until it has enough fresh samples for an estimate."""
+def read_hr_sensor(timeout=8.0, require_spo2=False):
+    """Poll the MAX30102 until the requested measurement is valid or time expires."""
     if hr_sensor is None:
         return 0, False, 0, False
 
     deadline = time.monotonic() + timeout
     latest = (0, False, 0, False)
+    latest_valid = None
     while time.monotonic() < deadline:
-        latest = hr_sensor.get_reading()
-        if latest[1] or latest[3]:
-            return latest
+        reading = hr_sensor.get_reading()
+        if reading[1] or reading[3]:
+            latest_valid = reading
+            requested_measurement_valid = reading[3] if require_spo2 else reading[1]
+            if requested_measurement_valid:
+                return reading
+        elif latest_valid is None:
+            latest = reading
         time.sleep(HR_POLL_INTERVAL)
-    return latest
+    return latest_valid if latest_valid is not None else latest
 
 
 def handle_command(sensor, session_id, value, payload):
@@ -279,7 +285,7 @@ def handle_command(sensor, session_id, value, payload):
                     # before attempting to read the FIFO.
                     hr_sensor.setup()
                     hr_sensor.clear_buffer()
-                    hr, hr_valid, spo2, spo2_valid = read_hr_sensor()
+                    hr, hr_valid, spo2, spo2_valid = read_hr_sensor(timeout=8.0)
                     if hr_valid:
                         print(f"HeartRate: {hr:.2f} bpm")
                         result = {"bpm": hr}
@@ -292,7 +298,10 @@ def handle_command(sensor, session_id, value, payload):
                 if hr_sensor is not None:
                     hr_sensor.setup()
                     hr_sensor.clear_buffer()
-                    hr, hr_valid, spo2, spo2_valid = read_hr_sensor()
+                    hr, hr_valid, spo2, spo2_valid = read_hr_sensor(
+                        timeout=8.0,
+                        require_spo2=True,
+                    )
                     if spo2_valid:
                         print(f"SpO2: {spo2:.2f}%")
                         result = {"value": spo2}

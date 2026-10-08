@@ -8,6 +8,7 @@ ECHO = 24
 TIMEOUT = 0.5
 MIN_DISTANCE_CM = 2
 MAX_DISTANCE_CM = 400
+SPEED_OF_SOUND_CM_PER_SECOND = 34_300
 CALIBRATION_SAMPLES = 11
 MIN_CALIBRATION_READINGS = 7
 
@@ -74,22 +75,17 @@ def measure_distance():
         time.sleep(0.00001)
         GPIO.output(TRIG, False)
 
-        timeout_start = time.monotonic()
+        timeout_ms = int(TIMEOUT * 1000)
+        if GPIO.wait_for_edge(ECHO, GPIO.RISING, timeout=timeout_ms) is None:
+            return None
         pulse_start = time.monotonic()
 
-        while GPIO.input(ECHO) == 0:
-            pulse_start = time.monotonic()
-            if time.monotonic() - timeout_start > TIMEOUT:
-                return None
-
-        while GPIO.input(ECHO) == 1:
-            pulse_end = time.monotonic()
-            if time.monotonic() - timeout_start > TIMEOUT:
-                return None
+        if GPIO.wait_for_edge(ECHO, GPIO.FALLING, timeout=timeout_ms) is None:
+            return None
+        pulse_end = time.monotonic()
 
         pulse_duration = pulse_end - pulse_start
-        duration_us = pulse_duration * 1_000_000
-        distance = duration_us * 0.037 / 2
+        distance = pulse_duration * SPEED_OF_SOUND_CM_PER_SECOND / 2
         return round(distance, 2)
     finally:
         hw_lock.release()
