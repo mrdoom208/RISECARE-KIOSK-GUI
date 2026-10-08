@@ -339,6 +339,7 @@ def main():
     hr_last_publish = 0.0
     latest_hr_reading = None
     latest_hr_reading_at = 0.0
+    last_hr_error = None
 
     try:
         while True:
@@ -354,8 +355,12 @@ def main():
                             latest_hr_reading = sample
                             latest_hr_reading_at = time.time()
                         hr_last_read = time.time()
-                    except Exception:
-                        pass
+                        last_hr_error = None
+                    except Exception as e:
+                        error_message = f"{type(e).__name__}: {e}"
+                        if error_message != last_hr_error:
+                            print(f"MAX30102 read failed: {error_message}")
+                            last_hr_error = error_message
 
                 if latest_hr_reading is not None and time.time() - latest_hr_reading_at <= 2.0:
                     hr, hr_valid, spo2, spo2_valid = latest_hr_reading

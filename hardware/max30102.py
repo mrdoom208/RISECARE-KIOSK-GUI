@@ -154,6 +154,10 @@ class MAX30102:
 
     def calc_hr_and_spo2(self, ir_data, red_data):
         SAMPLE_RATE = 100.0
+        # The moving-average fallback uses vector arithmetic when SciPy is
+        # unavailable (as in the hardware Docker image), so normalize lists.
+        ir_data = np.asarray(ir_data, dtype=float)
+        red_data = np.asarray(red_data, dtype=float)
 
         # --- Signal Quality Index: DC check (no finger / low perfusion) ---
         ir_dc = np.mean(ir_data)
