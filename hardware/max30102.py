@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import math
+import threading
 
 try:
     from smbus2 import SMBus
@@ -41,6 +42,7 @@ class MAX30102:
         self._smoothed_hr = 0
         self._smoothed_spo2 = 0
         self._last_calc_at = 0.0
+        self._reading_lock = threading.Lock()
 
         if not smbus_available:
             print("❌ smbus2 not available")
@@ -286,40 +288,49 @@ class MAX30102:
         return int(heart_rate), hr_valid, int(min(spo2, 100)), spo2_valid
 
     def get_reading(self):
-        red_new, ir_new = self.read_sequential(samples=100, delay=0.005)
-
-        if len(red_new) < 10 or len(ir_new) < 10:
-            print("[get_reading] Too few samples:", len(red_new), len(ir_new))
+        if not self._reading_lock.acquire(blocking=False):
             return 0, False, 0, False
 
-        self._red_buffer.extend(red_new)
-        self._ir_buffer.extend(ir_new)
+        try:
+            red_new, ir_new = self.read_available_fifo()
+            if not red_new:
+                return 0, False, 0, False
 
-        if len(self._ir_buffer) > self._BUFFER_MAX:
-            excess = len(self._ir_buffer) - self._BUFFER_MAX
-            self._red_buffer = self._red_buffer[excess:]
-            self._ir_buffer = self._ir_buffer[excess:]
+            self._red_buffer.extend(red_new)
+            self._ir_buffer.extend(ir_new)
 
-        raw_hr, hr_valid, raw_spo2, spo2_valid = self.calc_hr_and_spo2(
-            self._ir_buffer, self._red_buffer
-        )
+            if len(self._ir_buffer) > self._BUFFER_MAX:
+                excess = len(self._ir_buffer) - self._BUFFER_MAX
+                self._red_buffer = self._red_buffer[excess:]
+                self._ir_buffer = self._ir_buffer[excess:]
 
-        if hr_valid:
-            if self._smoothed_hr == 0:
-                self._smoothed_hr = raw_hr
+            now = time.monotonic()
+            if len(self._ir_buffer) < 100 or now - self._last_calc_at < 0.5:
+                return 0, False, 0, False
+            self._last_calc_at = now
+
+            raw_hr, hr_valid, raw_spo2, spo2_valid = self.calc_hr_and_spo2(
+                self._ir_buffer, self._red_buffer
+            )
+
+            if hr_valid:
+                if self._smoothed_hr == 0:
+                    self._smoothed_hr = raw_hr
+                else:
+                    self._smoothed_hr = int(0.7 * self._smoothed_hr + 0.3 * raw_hr)
+                hr = self._smoothed_hr
             else:
-                self._smoothed_hr = int(0.7 * self._smoothed_hr + 0.3 * raw_hr)
-            hr = self._smoothed_hr
-        else:
-            hr = raw_hr
+                hr = raw_hr
 
-        if spo2_valid:
-            if self._smoothed_spo2 == 0:
-                self._smoothed_spo2 = raw_spo2
+            if spo2_valid:
+                if self._smoothed_spo2 == 0:
+                    self._smoothed_spo2 = raw_spo2
+                else:
+                    self._smoothed_spo2 = int(0.8 * self._smoothed_spo2 + 0.2 * raw_spo2)
+                spo2 = self._smoothed_spo2
             else:
-                self._smoothed_spo2 = int(0.8 * self._smoothed_spo2 + 0.2 * raw_spo2)
-            spo2 = self._smoothed_spo2
-        else:
-            spo2 = raw_spo2
+                spo2 = raw_spo2
 
-        return hr, hr_valid, spo2, spo2_valid
+            return hr, hr_valid, spo2, spo2_valid
+        finally:
+            self._reading_lock.release()

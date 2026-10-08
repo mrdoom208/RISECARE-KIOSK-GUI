@@ -6,8 +6,7 @@ risecare.sqlite
 *.db
 *.db-journal
 
-# Local hardware calibration and Python bytecode
-/hardware/calibration.json
+# Python bytecode
 __pycache__/
 *.py[cod]
 
