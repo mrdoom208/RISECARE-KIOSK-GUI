@@ -32,6 +32,7 @@ class MAX30102:
         self.address = address
         self.handle = None
         self.bus = None
+        self._owns_bus = i2c_bus is None
         self._red_buffer = []
         self._ir_buffer = []
         self._smoothed_hr = 0
@@ -108,12 +109,12 @@ class MAX30102:
 
     def close(self):
         self.handle = None
-        if self.bus is not None:
+        if self.bus is not None and self._owns_bus:
             try:
                 self.bus.close()
             except Exception:
                 pass
-            self.bus = None
+        self.bus = None
 
     _BUFFER_MAX = 400
 
