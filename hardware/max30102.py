@@ -1,7 +1,6 @@
 import time
 import numpy as np
 import math
-import threading
 
 try:
     from smbus2 import SMBus
@@ -22,7 +21,6 @@ except ImportError:
 class MAX30102:
     REG_INTR_STATUS_1 = 0x00
     REG_FIFO_WR_PTR = 0x04
-    REG_OVF_COUNTER = 0x05
     REG_FIFO_RD_PTR = 0x06
     REG_FIFO_DATA = 0x07
     REG_MODE_CONFIG = 0x09
@@ -35,14 +33,10 @@ class MAX30102:
         self.handle = None
         self.bus = None
         self._owns_bus = i2c_bus is None
-        self._shared_bus = i2c_bus
-        self._bus_number = bus
         self._red_buffer = []
         self._ir_buffer = []
         self._smoothed_hr = 0
         self._smoothed_spo2 = 0
-        self._last_calc_at = 0.0
-        self._reading_lock = threading.Lock()
 
         if not smbus_available:
             print("❌ smbus2 not available")
@@ -101,30 +95,6 @@ class MAX30102:
             return red, ir
         return 0, 0
 
-    def read_available_fifo(self):
-        """Drain only samples the sensor has produced since the last poll."""
-        write_ptr = self.read_reg(self.REG_FIFO_WR_PTR) & 0x1F
-        read_ptr = self.read_reg(self.REG_FIFO_RD_PTR) & 0x1F
-        overflow = self.read_reg(self.REG_OVF_COUNTER) & 0x1F
-        available = (write_ptr - read_ptr) & 0x1F
-
-        if overflow:
-            # The 32-sample hardware FIFO overran. Discard its stale contents
-            # and restart collection with a clean software window.
-            self.write_reg(self.REG_OVF_COUNTER, 0)
-            self.write_reg(self.REG_FIFO_RD_PTR, write_ptr)
-            self._red_buffer.clear()
-            self._ir_buffer.clear()
-            return [], []
-
-        red_samples = []
-        ir_samples = []
-        for _ in range(available):
-            red, ir = self.read_fifo()
-            red_samples.append(red)
-            ir_samples.append(ir)
-        return red_samples, ir_samples
-
     def read_sequential(self, samples=100, delay=0.005):
         red_samples = []
         ir_samples = []
@@ -146,31 +116,6 @@ class MAX30102:
                 pass
         self.bus = None
 
-    def probe(self):
-        """Re-check that the chip still answers on I2C.
-
-        Safe to call after a failed __init__ or an unplug: reattaches the
-        shared bus first, then clears self.handle when the chip is gone so
-        callers can tell "not present" apart from "present".
-        """
-        if not smbus_available:
-            self.handle = None
-            return False
-        if self.bus is None and self._shared_bus is not None:
-            self.bus = self._shared_bus
-        if self.bus is None:
-            self.handle = None
-            return False
-        try:
-            # FIFO write pointer is a plain read. REG_INTR_STATUS_1 would also
-            # work but reading it clears the interrupt status bits.
-            self._read(self.REG_FIFO_WR_PTR, 1)
-        except Exception:
-            self.handle = None
-            return False
-        self.handle = self._bus_number
-        return True
-
     _BUFFER_MAX = 400
 
     def clear_buffer(self):
@@ -178,41 +123,15 @@ class MAX30102:
         self._ir_buffer = []
         self._smoothed_hr = 0
         self._smoothed_spo2 = 0
-        self._last_calc_at = 0.0
-
-    def get_signal_diagnostics(self):
-        sample_count = min(len(self._ir_buffer), len(self._red_buffer))
-        if sample_count == 0:
-            return {
-                "samples": 0,
-                "ir": None,
-                "red": None,
-                "ir_mean": None,
-                "red_mean": None,
-            }
-
-        ir_samples = self._ir_buffer[-sample_count:]
-        red_samples = self._red_buffer[-sample_count:]
-        return {
-            "samples": sample_count,
-            "ir": ir_samples[-1],
-            "red": red_samples[-1],
-            "ir_mean": sum(ir_samples) / sample_count,
-            "red_mean": sum(red_samples) / sample_count,
-        }
 
     def calc_hr_and_spo2(self, ir_data, red_data):
         SAMPLE_RATE = 100.0
-        # The moving-average fallback uses vector arithmetic when SciPy is
-        # unavailable (as in the hardware Docker image), so normalize lists.
-        ir_data = np.asarray(ir_data, dtype=float)
-        red_data = np.asarray(red_data, dtype=float)
 
         # --- Signal Quality Index: DC check (no finger / low perfusion) ---
         ir_dc = np.mean(ir_data)
         red_dc = np.mean(red_data)
 
-        if len(ir_data) < 100 or ir_dc < 10000 or red_dc < 10000:
+        if len(ir_data) < 50 or ir_dc < 10000:
             return 0, False, 0, False
 
         # --- Bandpass filter 0.7 - 4 Hz (42-240 BPM) ---
@@ -276,61 +195,52 @@ class MAX30102:
         ir_ac_rms = np.sqrt(np.mean(ir_filt ** 2))
         red_ac_rms = np.sqrt(np.mean(red_filt ** 2))
 
-        if ir_dc <= 0 or red_dc <= 0 or ir_ac_rms <= 0 or red_ac_rms <= 0:
+        if ir_dc == 0 or ir_ac_rms == 0:
             return int(heart_rate), False, 0, False
 
         r_ratio = (red_ac_rms / red_dc) / (ir_ac_rms / ir_dc)
         spo2 = -45.060 * r_ratio ** 2 + 30.354 * r_ratio + 94.845
 
-        hr_valid = math.isfinite(heart_rate) and 30 <= heart_rate <= 250
-        spo2_valid = math.isfinite(spo2) and 70 <= spo2 <= 100
+        hr_valid = not math.isnan(heart_rate) and 30 <= heart_rate <= 250
+        spo2_valid = 70 <= spo2 <= 100
 
         return int(heart_rate), hr_valid, int(min(spo2, 100)), spo2_valid
 
     def get_reading(self):
-        if not self._reading_lock.acquire(blocking=False):
+        red_new, ir_new = self.read_sequential(samples=100, delay=0.005)
+
+        if len(red_new) < 10 or len(ir_new) < 10:
+            print("[get_reading] Too few samples:", len(red_new), len(ir_new))
             return 0, False, 0, False
 
-        try:
-            red_new, ir_new = self.read_available_fifo()
-            if not red_new:
-                return 0, False, 0, False
+        self._red_buffer.extend(red_new)
+        self._ir_buffer.extend(ir_new)
 
-            self._red_buffer.extend(red_new)
-            self._ir_buffer.extend(ir_new)
+        if len(self._ir_buffer) > self._BUFFER_MAX:
+            excess = len(self._ir_buffer) - self._BUFFER_MAX
+            self._red_buffer = self._red_buffer[excess:]
+            self._ir_buffer = self._ir_buffer[excess:]
 
-            if len(self._ir_buffer) > self._BUFFER_MAX:
-                excess = len(self._ir_buffer) - self._BUFFER_MAX
-                self._red_buffer = self._red_buffer[excess:]
-                self._ir_buffer = self._ir_buffer[excess:]
+        raw_hr, hr_valid, raw_spo2, spo2_valid = self.calc_hr_and_spo2(
+            self._ir_buffer, self._red_buffer
+        )
 
-            now = time.monotonic()
-            if len(self._ir_buffer) < 100 or now - self._last_calc_at < 0.5:
-                return 0, False, 0, False
-            self._last_calc_at = now
-
-            raw_hr, hr_valid, raw_spo2, spo2_valid = self.calc_hr_and_spo2(
-                self._ir_buffer, self._red_buffer
-            )
-
-            if hr_valid:
-                if self._smoothed_hr == 0:
-                    self._smoothed_hr = raw_hr
-                else:
-                    self._smoothed_hr = int(0.7 * self._smoothed_hr + 0.3 * raw_hr)
-                hr = self._smoothed_hr
+        if hr_valid:
+            if self._smoothed_hr == 0:
+                self._smoothed_hr = raw_hr
             else:
-                hr = raw_hr
+                self._smoothed_hr = int(0.7 * self._smoothed_hr + 0.3 * raw_hr)
+            hr = self._smoothed_hr
+        else:
+            hr = raw_hr
 
-            if spo2_valid:
-                if self._smoothed_spo2 == 0:
-                    self._smoothed_spo2 = raw_spo2
-                else:
-                    self._smoothed_spo2 = int(0.8 * self._smoothed_spo2 + 0.2 * raw_spo2)
-                spo2 = self._smoothed_spo2
+        if spo2_valid:
+            if self._smoothed_spo2 == 0:
+                self._smoothed_spo2 = raw_spo2
             else:
-                spo2 = raw_spo2
+                self._smoothed_spo2 = int(0.8 * self._smoothed_spo2 + 0.2 * raw_spo2)
+            spo2 = self._smoothed_spo2
+        else:
+            spo2 = raw_spo2
 
-            return hr, hr_valid, spo2, spo2_valid
-        finally:
-            self._reading_lock.release()
+        return hr, hr_valid, spo2, spo2_valid
