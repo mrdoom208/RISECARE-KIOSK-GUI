@@ -85,7 +85,6 @@ class MAX30102:
         self.write_reg(self.REG_LED1_PA, 0x1F)
         self.write_reg(self.REG_LED2_PA, 0x1F)
         self.write_reg(self.REG_FIFO_WR_PTR, 0x00)
-        self.write_reg(self.REG_OVF_COUNTER, 0x00)
         self.write_reg(self.REG_FIFO_RD_PTR, 0x00)
 
     def shutdown(self):
@@ -105,6 +104,7 @@ class MAX30102:
         write_ptr = self.read_reg(self.REG_FIFO_WR_PTR) & 0x1F
         read_ptr = self.read_reg(self.REG_FIFO_RD_PTR) & 0x1F
         overflow = self.read_reg(self.REG_OVF_COUNTER) & 0x1F
+        available = (write_ptr - read_ptr) & 0x1F
 
         if overflow:
             # The 32-sample hardware FIFO overran. Discard its stale contents
@@ -115,7 +115,6 @@ class MAX30102:
             self._ir_buffer.clear()
             return [], []
 
-        available = (write_ptr - read_ptr) & 0x1F
         red_samples = []
         ir_samples = []
         for _ in range(available):
@@ -287,8 +286,10 @@ class MAX30102:
         return int(heart_rate), hr_valid, int(min(spo2, 100)), spo2_valid
 
     def get_reading(self):
-        red_new, ir_new = self.read_available_fifo()
-        if not red_new:
+        red_new, ir_new = self.read_sequential(samples=100, delay=0.005)
+
+        if len(red_new) < 10 or len(ir_new) < 10:
+            print("[get_reading] Too few samples:", len(red_new), len(ir_new))
             return 0, False, 0, False
 
         self._red_buffer.extend(red_new)
@@ -298,13 +299,6 @@ class MAX30102:
             excess = len(self._ir_buffer) - self._BUFFER_MAX
             self._red_buffer = self._red_buffer[excess:]
             self._ir_buffer = self._ir_buffer[excess:]
-
-        # Poll FIFO frequently to prevent overruns, but run SciPy/NumPy signal
-        # processing twice per second; the UI only publishes once per second.
-        now = time.monotonic()
-        if len(self._ir_buffer) < 100 or now - self._last_calc_at < 0.5:
-            return 0, False, 0, False
-        self._last_calc_at = now
 
         raw_hr, hr_valid, raw_spo2, spo2_valid = self.calc_hr_and_spo2(
             self._ir_buffer, self._red_buffer
@@ -317,7 +311,7 @@ class MAX30102:
                 self._smoothed_hr = int(0.7 * self._smoothed_hr + 0.3 * raw_hr)
             hr = self._smoothed_hr
         else:
-            hr = 0
+            hr = raw_hr
 
         if spo2_valid:
             if self._smoothed_spo2 == 0:
@@ -326,6 +320,6 @@ class MAX30102:
                 self._smoothed_spo2 = int(0.8 * self._smoothed_spo2 + 0.2 * raw_spo2)
             spo2 = self._smoothed_spo2
         else:
-            spo2 = 0
+            spo2 = raw_spo2
 
         return hr, hr_valid, spo2, spo2_valid

@@ -149,7 +149,8 @@ def read_hr_sensor(timeout=8.0, require_spo2=False):
                 f"samples={diagnostics['samples']}, "
                 f"IR={diagnostics['ir']}, red={diagnostics['red']}, "
                 f"mean IR={diagnostics['ir_mean']}, "
-                f"mean red={diagnostics['red_mean']}",
+                f"mean red={diagnostics['red_mean']}, "
+                f"valid HR={reading[1]}, valid SpO2={reading[3]}",
                 flush=True,
             )
             next_diagnostic_at = now + 1.0
