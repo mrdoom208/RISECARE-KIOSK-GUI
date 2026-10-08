@@ -75,13 +75,16 @@ def measure_distance():
         time.sleep(0.00001)
         GPIO.output(TRIG, False)
 
-        timeout_ms = int(TIMEOUT * 1000)
-        if GPIO.wait_for_edge(ECHO, GPIO.RISING, timeout=timeout_ms) is None:
-            return None
+        timeout_start = time.monotonic()
+        while GPIO.input(ECHO) == 0:
+            if time.monotonic() - timeout_start > TIMEOUT:
+                return None
         pulse_start = time.monotonic()
 
-        if GPIO.wait_for_edge(ECHO, GPIO.FALLING, timeout=timeout_ms) is None:
-            return None
+        timeout_start = pulse_start
+        while GPIO.input(ECHO) == 1:
+            if time.monotonic() - timeout_start > TIMEOUT:
+                return None
         pulse_end = time.monotonic()
 
         pulse_duration = pulse_end - pulse_start
