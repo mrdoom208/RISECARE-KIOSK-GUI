@@ -136,10 +136,24 @@ def read_hr_sensor(timeout=8.0, require_spo2=False):
         return 0, False, 0, False
 
     deadline = time.monotonic() + timeout
+    next_diagnostic_at = time.monotonic() + 1.0
     latest = (0, False, 0, False)
     latest_valid = None
     while time.monotonic() < deadline:
         reading = hr_sensor.get_reading()
+        now = time.monotonic()
+        if now >= next_diagnostic_at:
+            diagnostics = hr_sensor.get_signal_diagnostics()
+            print(
+                "MAX30102 test signal: "
+                f"samples={diagnostics['samples']}, "
+                f"IR={diagnostics['ir']}, red={diagnostics['red']}, "
+                f"mean IR={diagnostics['ir_mean']}, "
+                f"mean red={diagnostics['red_mean']}",
+                flush=True,
+            )
+            next_diagnostic_at = now + 1.0
+
         if reading[1] or reading[3]:
             latest_valid = reading
             requested_measurement_valid = reading[3] if require_spo2 else reading[1]

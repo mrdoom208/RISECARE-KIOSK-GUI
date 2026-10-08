@@ -179,6 +179,27 @@ class MAX30102:
         self._smoothed_spo2 = 0
         self._last_calc_at = 0.0
 
+    def get_signal_diagnostics(self):
+        sample_count = min(len(self._ir_buffer), len(self._red_buffer))
+        if sample_count == 0:
+            return {
+                "samples": 0,
+                "ir": None,
+                "red": None,
+                "ir_mean": None,
+                "red_mean": None,
+            }
+
+        ir_samples = self._ir_buffer[-sample_count:]
+        red_samples = self._red_buffer[-sample_count:]
+        return {
+            "samples": sample_count,
+            "ir": ir_samples[-1],
+            "red": red_samples[-1],
+            "ir_mean": sum(ir_samples) / sample_count,
+            "red_mean": sum(red_samples) / sample_count,
+        }
+
     def calc_hr_and_spo2(self, ir_data, red_data):
         SAMPLE_RATE = 100.0
         # The moving-average fallback uses vector arithmetic when SciPy is
