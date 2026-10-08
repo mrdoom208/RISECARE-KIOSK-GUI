@@ -19,6 +19,7 @@ class MLX90614:
         self.address = address
         self.bus = None
         self.handle = None
+        self._owns_bus = i2c_bus is None
 
         if not smbus_available:
             print("❌ smbus2 not available")
@@ -26,9 +27,9 @@ class MLX90614:
 
         try:
             self.bus = i2c_bus if i2c_bus is not None else SMBus(bus)
-            self.handle = bus
             time.sleep(0.5)
             self._read_with_retry(RAM_TA, retries=3)
+            self.handle = bus
         except Exception as e:
             self.close()
             print(f"⚠️ MLX90614 not detected on I2C bus {bus} at 0x{address:02X}: {e}")
@@ -78,9 +79,9 @@ class MLX90614:
 
     def close(self):
         self.handle = None
-        if self.bus is not None:
+        if self.bus is not None and self._owns_bus:
             try:
                 self.bus.close()
             except Exception:
                 pass
-            self.bus = None
+        self.bus = None
