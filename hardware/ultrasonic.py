@@ -8,6 +8,8 @@ ECHO = 24
 TIMEOUT = 0.5
 MIN_DISTANCE_CM = 2
 MAX_DISTANCE_CM = 400
+CALIBRATION_SAMPLES = 11
+MIN_CALIBRATION_READINGS = 7
 
 TOTAL_HEIGHT = None
 gpio_available = False
@@ -104,6 +106,14 @@ def _average_readings(readings):
     return sum(sorted_readings) / len(sorted_readings)
 
 
+def _median_readings(readings):
+    sorted_readings = sorted(readings)
+    middle = len(sorted_readings) // 2
+    if len(sorted_readings) % 2:
+        return sorted_readings[middle]
+    return (sorted_readings[middle - 1] + sorted_readings[middle]) / 2
+
+
 # ---------------------------
 # 2. Calibration function
 # ---------------------------
@@ -117,11 +127,11 @@ def calibrate_height(progress_callback=None):
     time.sleep(2)
     readings = []
 
-    for _ in range(7):
+    for _ in range(CALIBRATION_SAMPLES):
         d = measure_distance()
         if _is_valid_distance(d):
             readings.append(d)
-            message = f"Reading {len(readings)}/7: {d} cm"
+            message = f"Reading {len(readings)}/{CALIBRATION_SAMPLES}: {d} cm"
             print(message)
             if progress_callback:
                 progress_callback(message)
@@ -130,16 +140,19 @@ def calibrate_height(progress_callback=None):
             print(message)
             if progress_callback:
                 progress_callback(message)
-        time.sleep(0.5)
+        time.sleep(0.2)
 
-    if len(readings) < 3:
-        message = "Calibration failed: no valid readings"
+    if len(readings) < MIN_CALIBRATION_READINGS:
+        message = (
+            f"Calibration failed: only {len(readings)} valid readings; "
+            f"at least {MIN_CALIBRATION_READINGS} are required"
+        )
         print(message)
         if progress_callback:
             progress_callback(message)
         return None
 
-    TOTAL_HEIGHT = _average_readings(readings)
+    TOTAL_HEIGHT = _median_readings(readings)
 
     # SAVE to file
     if os.path.exists(CALIBRATION_FILE):
