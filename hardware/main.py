@@ -51,7 +51,16 @@ def publish_calibration_progress(sensor, message):
 
 def _probe_i2c():
     """Re-check the two I2C chips. Cheap (sub-ms), safe to run inline."""
-    global hr_sensor, temp_sensor, hr_enabled, spo2_enabled, temp_enabled
+    global hr_device, hr_sensor, temp_sensor, hr_enabled, spo2_enabled, temp_enabled
+
+    if hr_device is None:
+        try:
+            hr_device = MAX30102(i2c_bus=i2c_bus.get_bus())
+        except Exception as e:
+            print(f"⚠️ MAX30102 reconnect failed: {e}")
+        else:
+            hr_sensor = hr_device
+            print("✅ Heart rate sensor reconnected")
 
     if hr_device is not None:
         was = hr_sensor is not None
@@ -140,16 +149,22 @@ def read_hr_sensor(timeout=8.0, require_spo2=False):
     latest = (0, False, 0, False)
     latest_valid = None
     while time.monotonic() < deadline:
-        reading = hr_sensor.get_reading()
+        result = hr_sensor.get_reading()
+        reading = (
+            result["heart_rate"],
+            result["heart_rate_valid"],
+            result["spo2"],
+            result["spo2_valid"],
+        )
         now = time.monotonic()
         if now >= next_diagnostic_at:
-            diagnostics = hr_sensor.get_signal_diagnostics()
             print(
                 "MAX30102 test signal: "
-                f"samples={diagnostics['samples']}, "
-                f"IR={diagnostics['ir']}, red={diagnostics['red']}, "
-                f"mean IR={diagnostics['ir_mean']}, "
-                f"mean red={diagnostics['red_mean']}, "
+                f"samples={result['samples']}, "
+                f"new={result.get('new_samples', 0)}, "
+                f"quality={result['quality']:.2f}, "
+                f"FIFO available={result.get('fifo_available', 0)}, "
+                f"overflow={result.get('fifo_overflow', 0)}, "
                 f"valid HR={reading[1]}, valid SpO2={reading[3]}",
                 flush=True,
             )
@@ -414,16 +429,18 @@ def main():
     print("\nInitializing sensors...")
     global hr_sensor, temp_sensor, hr_device, temp_device
 
-    hr_device = MAX30102(i2c_bus=shared_bus)
-    if hr_device.handle is not None:
+    try:
+        hr_device = MAX30102(i2c_bus=shared_bus)
         hr_sensor = hr_device
         try:
             hr_sensor.shutdown()
         except Exception:
             pass
         print("✅ Heart rate sensor ready")
-    else:
-        print("⚠️ Heart rate sensor not available — will keep re-probing")
+    except Exception as e:
+        hr_device = None
+        hr_sensor = None
+        print(f"⚠️ Heart rate sensor not available — will keep re-probing: {e}")
 
     temp_device = MLX90614(i2c_bus=shared_bus)
     if temp_device.handle is not None:
@@ -488,7 +505,13 @@ def main():
                 hr = hr_valid = spo2 = spo2_valid = None
                 if (hr_enabled or spo2_enabled) and hr_sensor is not None and now - hr_last_read >= HR_POLL_INTERVAL:
                     try:
-                        sample = hr_sensor.get_reading()
+                        result = hr_sensor.get_reading()
+                        sample = (
+                            result["heart_rate"],
+                            result["heart_rate_valid"],
+                            result["spo2"],
+                            result["spo2_valid"],
+                        )
                         if sample[1] or sample[3]:
                             latest_hr_reading = sample
                             latest_hr_reading_at = time.time()

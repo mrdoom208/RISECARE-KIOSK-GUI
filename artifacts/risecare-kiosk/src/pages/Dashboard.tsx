@@ -644,6 +644,9 @@ const handleCancelReading = async () => {
                 </div>
               )}
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Adult BMI screening range; pediatric BMI requires age- and sex-specific growth charts.
+            </p>
           </div>
         </div>
       </main>
