@@ -9,6 +9,9 @@ import mqtt_client
 import printer
 
 READ_INTERVAL = 1.0
+HR_POLL_INTERVAL = 0.1
+HR_PUBLISH_INTERVAL = 1.0
+TEMP_READ_INTERVAL = 1.0
 
 hr_sensor = None
 temp_sensor = None
@@ -44,6 +47,21 @@ def advertise_sensors():
         "temperature": temp_sensor is not None and temp_sensor.handle is not None,
         "printer": printer.printer_status()
     })
+
+
+def read_hr_sensor(timeout=3.0):
+    """Poll the MAX30102 until it has enough fresh samples for an estimate."""
+    if hr_sensor is None:
+        return 0, False, 0, False
+
+    deadline = time.monotonic() + timeout
+    latest = (0, False, 0, False)
+    while time.monotonic() < deadline:
+        latest = hr_sensor.get_reading()
+        if latest[1] or latest[3]:
+            return latest
+        time.sleep(HR_POLL_INTERVAL)
+    return latest
 
 
 def handle_command(sensor, session_id, value, payload):
@@ -164,7 +182,7 @@ def handle_command(sensor, session_id, value, payload):
                 # before attempting to read the FIFO.
                 hr_sensor.setup()
                 hr_sensor.clear_buffer()
-                hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
+                hr, hr_valid, spo2, spo2_valid = read_hr_sensor()
                 if hr_valid:
                     print(f"HeartRate: {hr:.2f} bpm")
                     result = {"bpm": hr}
@@ -177,7 +195,7 @@ def handle_command(sensor, session_id, value, payload):
             if hr_sensor is not None:
                 hr_sensor.setup()
                 hr_sensor.clear_buffer()
-                hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
+                hr, hr_valid, spo2, spo2_valid = read_hr_sensor()
                 if spo2_valid:
                     print(f"SpO2: {spo2:.2f}%")
                     result = {"value": spo2}
@@ -319,6 +337,9 @@ def main():
     mode = 1
     tick = 0
     last_avail = 0.0
+    hr_last_publish = 0.0
+    latest_hr_reading = None
+    latest_hr_reading_at = 0.0
 
     try:
         while True:
@@ -327,12 +348,18 @@ def main():
                 now = time.time()
 
                 hr = hr_valid = spo2 = spo2_valid = None
-                if (hr_enabled or spo2_enabled) and hr_sensor is not None and now - hr_last_read >= READ_INTERVAL:
+                if (hr_enabled or spo2_enabled) and hr_sensor is not None and now - hr_last_read >= HR_POLL_INTERVAL:
                     try:
-                        hr, hr_valid, spo2, spo2_valid = hr_sensor.get_reading()
+                        sample = hr_sensor.get_reading()
+                        if sample[1] or sample[3]:
+                            latest_hr_reading = sample
+                            latest_hr_reading_at = time.time()
                         hr_last_read = time.time()
                     except Exception:
                         pass
+
+                if latest_hr_reading is not None and time.time() - latest_hr_reading_at <= 2.0:
+                    hr, hr_valid, spo2, spo2_valid = latest_hr_reading
 
                 height = None
                 if height_enabled and now - height_last_read >= READ_INTERVAL:
@@ -351,7 +378,7 @@ def main():
                         pass
 
                 temperature = None
-                if temp_enabled and temp_sensor is not None and now - temp_last_read >= READ_INTERVAL:
+                if temp_enabled and temp_sensor is not None and now - temp_last_read >= TEMP_READ_INTERVAL:
                     try:
                         temperature = temp_sensor.get_temperature()
                         temp_last_read = time.time()
@@ -361,7 +388,7 @@ def main():
                 published = False
 
                 payload = {"sessionId": current_session_id, "timestamp": now}
-                if hr_enabled or spo2_enabled:
+                if (hr_enabled or spo2_enabled) and now - hr_last_publish >= HR_PUBLISH_INTERVAL:
                     if hr_valid:
                         payload["bpm"] = hr
                     if spo2_valid:
@@ -369,6 +396,7 @@ def main():
                     if hr_valid or spo2_valid:
                         mqtt_client.publish("risecare/sensors/vitals", payload)
                         published = True
+                        hr_last_publish = now
 
                 if height_enabled and height is not None:
                     mqtt_client.publish("risecare/sensors/height",

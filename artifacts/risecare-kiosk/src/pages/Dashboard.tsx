@@ -75,17 +75,26 @@ export default function Dashboard() {
   const [readingVital, setReadingVital] = useState<VitalType | null>(null);
   const [stableCount, setStableCount] = useState(0);
   const prevValueRef = useRef<any>(null);
+  const readingVitalRef = useRef<VitalType | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
   const [liveReadings, setLiveReadings] = useState<Record<string, any>>({});
-  const liveReadingsRef = useRef<Record<string, any>>({});
+  readingVitalRef.current = readingVital;
 
   // WebSocket: receive live sensor data pushed from server
   const { connected: wsConnected } = useSensorWebSocket({
     onSensorReading: useCallback((sensor: string, data: any) => {
+      const activeVital = readingVitalRef.current;
+      if (!activeVital) return;
+
+      // HR and SpO2 are sent together on the heartrate topic.
+      const expectedSensor = activeVital === "hr" || activeVital === "spo2"
+        ? "heartrate"
+        : vitalToSensorId[activeVital];
+      if (sensor !== expectedSensor) return;
+
       setLiveReadings((prev) => {
         const next = { ...prev, [sensor]: { ...data, _receivedAt: Date.now() } };
-        liveReadingsRef.current = next;
         return next;
       });
     }, []),
@@ -154,7 +163,9 @@ export default function Dashboard() {
   }, [session]);
 
   const getLiveReadingValue = (vital: VitalType) => {
-    const sensorId = vitalToSensorId[vital];
+    const sensorId = vital === "hr" || vital === "spo2"
+      ? "heartrate"
+      : vitalToSensorId[vital];
     const reading = liveReadings[sensorId];
 
     if (!reading || String(reading.sessionId) !== String(session?.id)) return null;
@@ -199,10 +210,10 @@ export default function Dashboard() {
             : null);
         break;
       case "hr":
-        currentValue = getLiveReadingValue("hr") ?? currentVitals.heartRate;
+        currentValue = getLiveReadingValue("hr");
         break;
       case "spo2":
-        currentValue = getLiveReadingValue("spo2") ?? currentVitals.oxygenSaturation;
+        currentValue = getLiveReadingValue("spo2");
         break;
       case "weight":
         currentValue = getLiveReadingValue("weight") ?? currentVitals.weight;
@@ -286,6 +297,7 @@ const handleStartReading = async () => {
     return;
   }
 
+  setLiveReadings({});
   setReadingVital(activeKeypad);
   setActiveSensor(null);
 };
@@ -310,7 +322,6 @@ const stopSensor = async () => {
   setReadingVital(null);
   setStableCount(0);
   setLiveReadings({});
-  liveReadingsRef.current = {};
 };
 
 const handleDoneReading = async () => {
@@ -373,7 +384,8 @@ const handleCancelReading = async () => {
         };
       }
       case "hr": {
-        const value = getLiveReadingValue("hr") ?? currentVitals.heartRate;
+        const liveValue = getLiveReadingValue("hr");
+        const value = readingVital === "hr" ? liveValue : liveValue ?? currentVitals.heartRate;
         return {
           title: "Heart Rate",
           value: value != null ? Number(value).toFixed(0) : "Reading...",
@@ -382,7 +394,8 @@ const handleCancelReading = async () => {
         };
       }
       case "spo2": {
-        const value = getLiveReadingValue("spo2") ?? currentVitals.oxygenSaturation;
+        const liveValue = getLiveReadingValue("spo2");
+        const value = readingVital === "spo2" ? liveValue : liveValue ?? currentVitals.oxygenSaturation;
         return {
           title: "SpO2",
           value: value != null ? Number(value).toFixed(0) : "Reading...",
@@ -686,7 +699,7 @@ const handleCancelReading = async () => {
                 const isHrSpo2 = readingVital === "hr";
                 const hrDisplay = isHrSpo2 ? getReadingDisplay("hr") : null;
                 const spo2Display = isHrSpo2 ? (() => {
-                  const spo2Value = getLiveReadingValue("spo2") ?? currentVitals.oxygenSaturation;
+                  const spo2Value = getLiveReadingValue("spo2");
                   return {
                     title: "SpO2",
                     value: spo2Value != null ? Number(spo2Value).toFixed(0) : "Reading...",
@@ -719,8 +732,8 @@ const handleCancelReading = async () => {
                   </div>
                   <p className="text-center text-muted-foreground mb-6">
                     {hrDisplay?.hasValue && spo2Display?.hasValue
-                      ? "Reading from sensor..."
-                      : "Waiting for sensor data..."}
+                      ? "Keep your finger still and lightly covering the sensor while the reading stabilizes."
+                      : "Place your finger gently over the sensor and keep still. Collecting a stable reading..."}
                   </p>
                 </>
               ) : (

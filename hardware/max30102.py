@@ -21,6 +21,7 @@ except ImportError:
 class MAX30102:
     REG_INTR_STATUS_1 = 0x00
     REG_FIFO_WR_PTR = 0x04
+    REG_OVF_COUNTER = 0x05
     REG_FIFO_RD_PTR = 0x06
     REG_FIFO_DATA = 0x07
     REG_MODE_CONFIG = 0x09
@@ -37,6 +38,7 @@ class MAX30102:
         self._ir_buffer = []
         self._smoothed_hr = 0
         self._smoothed_spo2 = 0
+        self._last_calc_at = 0.0
 
         if not smbus_available:
             print("❌ smbus2 not available")
@@ -81,6 +83,7 @@ class MAX30102:
         self.write_reg(self.REG_LED1_PA, 0x1F)
         self.write_reg(self.REG_LED2_PA, 0x1F)
         self.write_reg(self.REG_FIFO_WR_PTR, 0x00)
+        self.write_reg(self.REG_OVF_COUNTER, 0x00)
         self.write_reg(self.REG_FIFO_RD_PTR, 0x00)
 
     def shutdown(self):
@@ -94,6 +97,30 @@ class MAX30102:
             ir = (data[3] << 16 | data[4] << 8 | data[5]) & 0x3FFFF
             return red, ir
         return 0, 0
+
+    def read_available_fifo(self):
+        """Drain only samples the sensor has produced since the last poll."""
+        write_ptr = self.read_reg(self.REG_FIFO_WR_PTR) & 0x1F
+        read_ptr = self.read_reg(self.REG_FIFO_RD_PTR) & 0x1F
+        overflow = self.read_reg(self.REG_OVF_COUNTER) & 0x1F
+
+        if overflow:
+            # The 32-sample hardware FIFO overran. Discard its stale contents
+            # and restart collection with a clean software window.
+            self.write_reg(self.REG_OVF_COUNTER, 0)
+            self.write_reg(self.REG_FIFO_RD_PTR, write_ptr)
+            self._red_buffer.clear()
+            self._ir_buffer.clear()
+            return [], []
+
+        available = (write_ptr - read_ptr) & 0x1F
+        red_samples = []
+        ir_samples = []
+        for _ in range(available):
+            red, ir = self.read_fifo()
+            red_samples.append(red)
+            ir_samples.append(ir)
+        return red_samples, ir_samples
 
     def read_sequential(self, samples=100, delay=0.005):
         red_samples = []
@@ -123,6 +150,7 @@ class MAX30102:
         self._ir_buffer = []
         self._smoothed_hr = 0
         self._smoothed_spo2 = 0
+        self._last_calc_at = 0.0
 
     def calc_hr_and_spo2(self, ir_data, red_data):
         SAMPLE_RATE = 100.0
@@ -131,7 +159,7 @@ class MAX30102:
         ir_dc = np.mean(ir_data)
         red_dc = np.mean(red_data)
 
-        if len(ir_data) < 50 or ir_dc < 10000:
+        if len(ir_data) < 100 or ir_dc < 10000 or red_dc < 10000:
             return 0, False, 0, False
 
         # --- Bandpass filter 0.7 - 4 Hz (42-240 BPM) ---
@@ -195,22 +223,20 @@ class MAX30102:
         ir_ac_rms = np.sqrt(np.mean(ir_filt ** 2))
         red_ac_rms = np.sqrt(np.mean(red_filt ** 2))
 
-        if ir_dc == 0 or ir_ac_rms == 0:
+        if ir_dc <= 0 or red_dc <= 0 or ir_ac_rms <= 0 or red_ac_rms <= 0:
             return int(heart_rate), False, 0, False
 
         r_ratio = (red_ac_rms / red_dc) / (ir_ac_rms / ir_dc)
         spo2 = -45.060 * r_ratio ** 2 + 30.354 * r_ratio + 94.845
 
-        hr_valid = not math.isnan(heart_rate) and 30 <= heart_rate <= 250
-        spo2_valid = 70 <= spo2 <= 100
+        hr_valid = math.isfinite(heart_rate) and 30 <= heart_rate <= 250
+        spo2_valid = math.isfinite(spo2) and 70 <= spo2 <= 100
 
         return int(heart_rate), hr_valid, int(min(spo2, 100)), spo2_valid
 
     def get_reading(self):
-        red_new, ir_new = self.read_sequential(samples=100, delay=0.005)
-
-        if len(red_new) < 10 or len(ir_new) < 10:
-            print("[get_reading] Too few samples:", len(red_new), len(ir_new))
+        red_new, ir_new = self.read_available_fifo()
+        if not red_new:
             return 0, False, 0, False
 
         self._red_buffer.extend(red_new)
@@ -220,6 +246,13 @@ class MAX30102:
             excess = len(self._ir_buffer) - self._BUFFER_MAX
             self._red_buffer = self._red_buffer[excess:]
             self._ir_buffer = self._ir_buffer[excess:]
+
+        # Poll FIFO frequently to prevent overruns, but run SciPy/NumPy signal
+        # processing twice per second; the UI only publishes once per second.
+        now = time.monotonic()
+        if len(self._ir_buffer) < 100 or now - self._last_calc_at < 0.5:
+            return 0, False, 0, False
+        self._last_calc_at = now
 
         raw_hr, hr_valid, raw_spo2, spo2_valid = self.calc_hr_and_spo2(
             self._ir_buffer, self._red_buffer
@@ -232,7 +265,7 @@ class MAX30102:
                 self._smoothed_hr = int(0.7 * self._smoothed_hr + 0.3 * raw_hr)
             hr = self._smoothed_hr
         else:
-            hr = raw_hr
+            hr = 0
 
         if spo2_valid:
             if self._smoothed_spo2 == 0:
@@ -241,6 +274,6 @@ class MAX30102:
                 self._smoothed_spo2 = int(0.8 * self._smoothed_spo2 + 0.2 * raw_spo2)
             spo2 = self._smoothed_spo2
         else:
-            spo2 = raw_spo2
+            spo2 = 0
 
         return hr, hr_valid, spo2, spo2_valid

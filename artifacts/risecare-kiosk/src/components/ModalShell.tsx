@@ -7,13 +7,7 @@ interface ModalShellProps {
   open: boolean;
   /** Explicit stacking order. Must stay below the virtual keyboard (9999). */
   zIndex?: number;
-  /**
-   * "blur" paints the frosted backdrop and "scrim" only darkens. `backdrop-filter`
-   * forces the compositor to snapshot and blur everything behind the layer, and a
-   * nested blurred layer blurs the already-blurred result. At most one modal in a
-   * stack may use "blur"; deeper levels use "scrim" to keep the frosted look for
-   * a single blur's worth of work.
-   */
+  /** "blur" is retained as a legacy option; both options use GPU-cheap scrims. */
   backdrop?: ModalBackdrop;
   /**
    * Shrinks the centering area by the virtual keyboard height so a focused field
@@ -25,7 +19,9 @@ interface ModalShellProps {
 }
 
 const BACKDROP_CLASS: Record<ModalBackdrop, string> = {
-  blur: "bg-foreground/20 backdrop-blur-sm",
+  // Keep the modal backdrop cheap to composite on Raspberry Pi kiosk GPUs.
+  // A full-screen backdrop-filter causes repeated off-screen blur passes.
+  blur: "bg-foreground/25",
   scrim: "bg-foreground/10",
 };
 
