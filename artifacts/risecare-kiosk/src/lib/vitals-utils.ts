@@ -1,47 +1,60 @@
 export type VitalStatus = 'normal' | 'warning' | 'critical' | 'unknown';
 
 export function getBPStatus(sys?: number | null, dia?: number | null): VitalStatus {
-  if (!sys || !dia) return 'unknown';
+  if (
+    sys == null ||
+    dia == null ||
+    !Number.isFinite(sys) ||
+    !Number.isFinite(dia) ||
+    sys <= dia ||
+    sys > 300 ||
+    dia < 20 ||
+    dia > 200
+  ) return 'unknown';
+  if (sys >= 180 || dia >= 120) return 'critical';
+  if (sys < 90 || dia < 60) return 'warning';
   if (sys < 120 && dia < 80) return 'normal';
-  if ((sys >= 120 && sys <= 129) && dia < 80) return 'warning'; // Elevated
-  if (sys >= 130 || dia >= 80) return 'critical'; // High BP
-  return 'unknown';
+  return 'warning';
 }
 
 export function getHRStatus(hr?: number | null): VitalStatus {
-  if (!hr) return 'unknown';
+  if (hr == null || !Number.isFinite(hr) || hr <= 0 || hr > 300) return 'unknown';
   if (hr >= 60 && hr <= 100) return 'normal';
-  if (hr >= 50 && hr < 60) return 'warning';
-  if (hr > 100 && hr <= 110) return 'warning';
-  return 'critical';
+  if (hr < 40 || hr >= 150) return 'critical';
+  return 'warning';
 }
 
 export function getSpO2Status(spo2?: number | null): VitalStatus {
-  if (!spo2) return 'unknown';
+  if (spo2 == null || !Number.isFinite(spo2) || spo2 <= 0 || spo2 > 100) return 'unknown';
   if (spo2 >= 95) return 'normal';
-  if (spo2 >= 90) return 'warning';
-  return 'critical';
+  if (spo2 <= 90) return 'critical';
+  return 'warning';
 }
 
 export function getTempStatus(temp?: number | null): VitalStatus {
-  if (!temp) return 'unknown';
-  if (temp >= 36.1 && temp <= 37.2) return 'normal';
-  if ((temp >= 35.5 && temp < 36.1) || (temp > 37.2 && temp <= 38.0)) return 'warning';
-  return 'critical';
+  if (temp == null || !Number.isFinite(temp) || temp < 20 || temp > 50) return 'unknown';
+  if (temp < 35 || temp >= 40) return 'critical';
+  if (temp < 36 || temp >= 38) return 'warning';
+  return 'normal';
 }
 
 export function calculateBMI(weight?: number | null, height?: number | null): number | null {
-  if (!weight || !height) return null;
+  if (
+    weight == null ||
+    height == null ||
+    !Number.isFinite(weight) ||
+    !Number.isFinite(height) ||
+    weight <= 0 ||
+    height <= 0
+  ) return null;
   const heightM = height / 100;
   return Number((weight / (heightM * heightM)).toFixed(1));
 }
 
 export function getBMIStatus(bmi?: number | null): VitalStatus {
-  if (!bmi) return 'unknown';
+  if (bmi == null || !Number.isFinite(bmi) || bmi <= 0 || bmi > 100) return 'unknown';
   if (bmi >= 18.5 && bmi < 25) return 'normal';
-  if (bmi >= 25 && bmi < 30) return 'warning'; // Overweight
-  if (bmi < 18.5) return 'warning'; // Underweight
-  return 'critical'; // Obese
+  return 'warning';
 }
 
 export function getStatusColor(status: VitalStatus): string {
@@ -56,8 +69,8 @@ export function getStatusColor(status: VitalStatus): string {
 export function getStatusText(status: VitalStatus): string {
   switch (status) {
     case 'normal': return 'Normal';
-    case 'warning': return 'Attention';
+    case 'warning': return 'Warning';
     case 'critical': return 'Critical';
-    default: return 'Pending';
+    default: return 'Not assessed';
   }
 }

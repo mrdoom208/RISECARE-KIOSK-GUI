@@ -23,9 +23,10 @@ import {
   getBMIStatus,
   calculateBMI,
   VitalStatus,
+  getStatusText,
 } from "@/lib/vitals-utils";
 import type { Vitals } from "@/types/vitals";
-import { useMemo, useEffect, useState, useRef, useCallback } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
@@ -49,40 +50,8 @@ export default function Results() {
   const { toast } = useToast();
   const { isRateLimited } = useRateLimit(1000);
   const [countdown, setCountdown] = useState(60);
-  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState(false);
-  const [displayedText, setDisplayedText] = useState("");
-  const aiTextRef = useRef("");
-  const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const aiCalledRef = useRef(false);
   const [printCooldown, setPrintCooldown] = useState(false);
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
-
-  const { data: recEnabled } = useQuery({
-    queryKey: ["recommendation-enabled"],
-    queryFn: async () => {
-      const res = await fetch("/api/settings/recommendation");
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
-      return data.enabled as boolean;
-    },
-  });
-
-  const startTyping = useCallback((text: string) => {
-    aiTextRef.current = text;
-    setDisplayedText("");
-    if (typingRef.current) clearInterval(typingRef.current);
-    let i = 0;
-    typingRef.current = setInterval(() => {
-      i++;
-      setDisplayedText(text.slice(0, i));
-      if (i >= text.length) {
-        if (typingRef.current) clearInterval(typingRef.current);
-        typingRef.current = null;
-      }
-    }, 20);
-  }, []);
 
   const printMutation = useMutation({
     mutationFn: async (data: { sessionId: number; recommendation: string }) => {
@@ -143,12 +112,17 @@ export default function Results() {
       );
       return {
         name: "Blood Pressure",
-        val: currentVitals.bloodPressureSystolic
+        val: currentVitals.bloodPressureSystolic != null &&
+          currentVitals.bloodPressureDiastolic != null
           ? `${currentVitals.bloodPressureSystolic}/${currentVitals.bloodPressureDiastolic}`
           : null,
         unit: "mmHg",
         status,
-        msg: getBPMessage(status),
+        msg: getBPMessage(
+          status,
+          currentVitals.bloodPressureSystolic,
+          currentVitals.bloodPressureDiastolic,
+        ),
       };
     })(),
     (() => {
@@ -158,7 +132,7 @@ export default function Results() {
         val: currentVitals.heartRate,
         unit: "bpm",
         status,
-        msg: getHRMessage(status),
+        msg: getHRMessage(status, currentVitals.heartRate),
       };
     })(),
     (() => {
@@ -168,7 +142,7 @@ export default function Results() {
         val: currentVitals.oxygenSaturation,
         unit: "%",
         status,
-        msg: getSpO2Message(status),
+        msg: getSpO2Message(status, currentVitals.oxygenSaturation),
       };
     })(),
     (() => {
@@ -185,15 +159,15 @@ export default function Results() {
       name: "Weight",
       val: currentVitals.weight,
       unit: "kg",
-      status: "normal" as VitalStatus,
-      msg: "Recorded body weight.",
+      status: "unknown" as VitalStatus,
+      msg: "Recorded value; no standalone screening category is assigned.",
     },
     {
       name: "Height",
       val: currentVitals.height,
       unit: "cm",
-      status: "normal" as VitalStatus,
-      msg: "Recorded body height.",
+      status: "unknown" as VitalStatus,
+      msg: "Recorded value; no standalone screening category is assigned.",
     },
     (() => {
       const status = getBMIStatus(autoBMI);
@@ -202,296 +176,60 @@ export default function Results() {
         val: autoBMI,
         unit: "kg/m²",
         status,
-        msg: getBMIMessage(status),
+        msg: getBMIMessage(status, session?.patientAge),
       };
     })(),
   ].filter((r) => r.val !== undefined && r.val !== null);
 
-  // AI Overall Recommendation with varied advice (MUST be before conditional returns)
+  // Use fixed screening rules so the on-screen and printed assessment agree.
   const overallRecommendation = useMemo(() => {
-    const criticalCount = resultsList.filter(
-      (r) => r.status === "critical",
-    ).length;
-    const warningCount = resultsList.filter(
-      (r) => r.status === "warning",
-    ).length;
-    const normalCount = resultsList.filter((r) => r.status === "normal").length;
-
-    // Check specific conditions for varied advice
-    const hasCriticalBP = resultsList.find(
-      (r) => r.name === "Blood Pressure" && r.status === "critical",
-    );
-    const hasCriticalHR = resultsList.find(
-      (r) => r.name === "Heart Rate" && r.status === "critical",
-    );
-    const hasCriticalSpO2 = resultsList.find(
-      (r) => r.name === "SpO2 Oxygen" && r.status === "critical",
-    );
-    const hasCriticalTemp = resultsList.find(
-      (r) => r.name === "Body Temp" && r.status === "critical",
-    );
-    const hasWarningBP = resultsList.find(
-      (r) => r.name === "Blood Pressure" && r.status === "warning",
-    );
-    const hasWarningBMI = resultsList.find(
-      (r) => r.name === "BMI" && r.status === "warning",
-    );
-    const hasHighBMI = resultsList.find(
-      (r) => r.name === "BMI" && r.status === "critical",
-    );
+    const criticalCount = resultsList.filter((r) => r.status === "critical").length;
+    const warningCount = resultsList.filter((r) => r.status === "warning").length;
+    const assessedCount = resultsList.filter((r) => r.status !== "unknown").length;
 
     if (criticalCount > 0) {
-      // Emergency / Clinic Visit
-      if (
-        hasCriticalSpO2 ||
-        (hasCriticalTemp && (currentVitals.temperature ?? 0) > 39) ||
-        (hasCriticalTemp && (currentVitals.temperature ?? 0) < 35)
-      ) {
-        const isHypothermia = (currentVitals.temperature ?? 0) < 35;
-        return {
-          status: "critical",
-          title: "🚨 Emergency: Seek Immediate Care",
-          message: isHypothermia
-            ? "Very low body temperature detected — possible hypothermia. This requires emergency medical attention."
-            : "Critical oxygen levels or high fever detected. This requires emergency medical attention.",
-          action:
-            "Go to the nearest emergency room or call emergency services (911) immediately. Do not wait.",
-        };
-      }
-
-      if (hasCriticalBP) {
-        return {
-          status: "critical",
-          title: "🏥 Clinic Visit Required",
-          message:
-            "Your blood pressure is dangerously high. This needs immediate medical evaluation.",
-          action:
-            "Visit an urgent care clinic or hospital today. Avoid strenuous activity until cleared by a doctor.",
-        };
-      }
-
-      if (hasCriticalHR) {
-        return {
-          status: "critical",
-          title: "🏥 Clinic Visit Required",
-          message:
-            "Your heart rate is at a critical level requiring medical assessment.",
-          action:
-            "Schedule an appointment with a cardiologist within 24 hours. Avoid caffeine and stress.",
-        };
-      }
-
       return {
         status: "critical",
-        title: "⚠️ Immediate Medical Attention Recommended",
-        message: `You have ${criticalCount} critical reading(s). Please consult a healthcare professional as soon as possible.`,
-        action:
-          "Schedule an appointment with your doctor immediately and bring this report.",
+        title: criticalCount === 1 ? "Critical-range measurement" : "Critical-range measurements",
+        message: `${criticalCount} ${criticalCount === 1 ? "measurement crossed" : "measurements crossed"} a high-risk screening threshold. A single kiosk reading cannot confirm a diagnosis.`,
+        action: "Repeat the measurement if safe. If it remains critical, or you have concerning symptoms, seek urgent medical care. Severe symptoms require emergency care.",
       };
     }
-
-    if (warningCount >= 2) {
-      // Retake instructions + Lifestyle suggestion
-      if (hasWarningBP) {
-        return {
-          status: "warning",
-          title: "⚠️ Blood Pressure Elevated",
-          message:
-            "Your blood pressure is above normal. This could be due to stress, salt intake, or lack of exercise.",
-          action:
-            "Retake your BP after 15 minutes of rest in a quiet room. Reduce salt intake and practice stress management (meditation, walking).",
-        };
-      }
-
-      if (hasHighBMI) {
-        return {
-          status: "warning",
-          title: "⚠️ Weight Management Needed",
-          message:
-            "Your BMI indicates you're in an obesity risk category. Lifestyle changes can help.",
-          action:
-            "Consult a nutritionist for a personalized meal plan. Aim for 150 minutes of moderate exercise per week (walking, swimming).",
-        };
-      }
-
+    if (warningCount > 0) {
       return {
         status: "warning",
-        title: "⚠️ Multiple Values Need Monitoring",
-        message: `You have ${warningCount} readings outside normal range. Monitor these trends closely.`,
-        action:
-          "Book a check-up within the next week. Bring this report and discuss lifestyle changes with your doctor.",
+        title: warningCount === 1 ? "Measurement needs attention" : "Measurements need attention",
+        message: `${warningCount} ${warningCount === 1 ? "measurement is" : "measurements are"} outside the usual screening range.`,
+        action: "Rest quietly and repeat the affected measurement using the correct technique. If it remains outside range, discuss it with a healthcare professional.",
       };
     }
-
-    if (warningCount === 1) {
-      // Hydration / Rest advice
-      const hasLowBP = resultsList.find(
-        (r) =>
-          r.name === "Blood Pressure" &&
-          r.status === "warning" &&
-          (currentVitals.bloodPressureSystolic ?? 0) < 100,
-      );
-      const hasHighHR = resultsList.find(
-        (r) =>
-          r.name === "Heart Rate" &&
-          r.status === "warning" &&
-          (currentVitals.heartRate ?? 0) > 100,
-      );
-      const hasLowSpO2 = resultsList.find(
-        (r) => r.name === "SpO2 Oxygen" && r.status === "warning",
-      );
-
-      if (hasLowBP) {
-        return {
-          status: "warning",
-          title: "⚠️ Low Blood Pressure Detected",
-          message:
-            "Your blood pressure is lower than normal. This can cause dizziness or fatigue.",
-          action:
-            "Increase hydration (drink 2-3 glasses of water now). Rest for 20 minutes with your feet elevated. Eat a salty snack if feeling faint.",
-        };
-      }
-
-      if (hasHighHR) {
-        return {
-          status: "warning",
-          title: "⚠️ Elevated Heart Rate",
-          message:
-            "Your heart rate is above normal resting range. This could be due to stress, caffeine, or dehydration.",
-          action:
-            "Rest for 10-15 minutes in a calm environment. Drink water and avoid caffeine for the next 4 hours. Retake measurement after resting.",
-        };
-      }
-
-      if (hasLowSpO2) {
-        return {
-          status: "warning",
-          title: "⚠️ Low Oxygen Saturation",
-          message:
-            "Your oxygen levels are slightly below optimal. This may indicate respiratory issues.",
-          action:
-            "Practice deep breathing exercises (inhale 4 sec, hold 4 sec, exhale 4 sec). Avoid smoking and polluted areas. Retake after 10 minutes of fresh air.",
-        };
-      }
-
+    if (assessedCount === 0) {
       return {
-        status: "warning",
-        title: "⚠️ One Reading Needs Attention",
-        message:
-          "One of your vital signs is slightly outside the normal range.",
-        action:
-          "Retake this measurement in a few days to see if it was a temporary fluctuation.",
+        status: "unknown",
+        title: "No classifiable measurements",
+        message: "There are no measurements available for screening assessment.",
+        action: "Record relevant measurements and review them with a healthcare professional.",
       };
     }
-
-    if (normalCount === resultsList.length && resultsList.length >= 4) {
-      return {
-        status: "normal",
-        title: "✅ All Vitals Looking Great!",
-        message:
-          "All your vital signs are within healthy ranges. Excellent work maintaining your health!",
-        action:
-          "Keep up your healthy habits! Continue regular check-ups every 6-12 months. Stay hydrated and keep active.",
-      };
-    }
-
     return {
       status: "normal",
-      title: "✅ Generally Healthy",
-      message:
-        "Most of your readings are within normal ranges. You're doing well!",
-      action:
-        "Maintain a balanced diet, stay physically active, and monitor your health regularly.",
+      title: "No out-of-range measurements detected",
+      message: "The classifiable measurements are within the selected screening ranges. This does not rule out a health problem.",
+      action: "Use these results as a screening snapshot, not a diagnosis. Repeat or seek clinical advice if you feel unwell.",
     };
-  }, [resultsList, currentVitals]);
+  }, [resultsList]);
 
-  const fetchAiRecommendation = useCallback(() => {
-    if (!session?.vitals) return;
-    setAiLoading(true);
-    setAiError(false);
-    const prompt = `You are a health assistant. Based on the following vital signs, provide a brief health assessment and recommendation in 2 sentences. Keep it clear and actionable.
-
-Patient Vitals:
-${Object.entries(currentVitals)
-  .filter(([, v]) => v != null)
-  .map(([key, val]) => `- ${key}: ${val}`)
-  .join("\n")}
-
-Assessment:`;
-    console.log("[AI Debug] Prompt:", prompt);
-    fetch("/api/ai/recommendation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vitals: currentVitals }),
-    })
-      .then(async (r) => {
-        const text = await r.text();
-        console.log("[AI Debug] Raw response:", text);
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = {};
-        }
-        if (data.recommendation) {
-          setAiRecommendation(data.recommendation);
-          startTyping(data.recommendation);
-        } else {
-          setAiError(true);
-          console.error("[AI Debug] Error:", data.error || `HTTP ${r.status}`);
-        }
-      })
-      .catch((e) => {
-        setAiError(true);
-        console.error("[AI Debug] Error:", e);
-      })
-      .finally(() => setAiLoading(false));
-  }, [session, currentVitals, startTyping]);
-
-  // Reset AI state when session token changes
-  useEffect(() => {
-    setAiRecommendation(null);
-    setAiLoading(false);
-    setAiError(false);
-    setDisplayedText("");
-    aiCalledRef.current = false;
-    if (typingRef.current) {
-      clearInterval(typingRef.current);
-      typingRef.current = null;
-    }
-  }, [sessionToken]);
-
-  // Fetch AI when vitals are ready
-  useEffect(() => {
-    const hasVitals = Object.keys(currentVitals).length > 0;
-    if (
-      !hasVitals ||
-      aiRecommendation ||
-      aiLoading ||
-      aiCalledRef.current
-    )
-      return;
-    if (recEnabled === false) {
-      aiCalledRef.current = true;
-      return;
-    }
-    aiCalledRef.current = true;
-    fetchAiRecommendation();
-  }, [
-    currentVitals,
-    aiRecommendation,
-    sessionToken,
-    fetchAiRecommendation,
-    aiLoading,
-    recEnabled,
-  ]);
-
-  // Cleanup typing interval on unmount
-  useEffect(() => {
-    return () => {
-      if (typingRef.current) clearInterval(typingRef.current);
-    };
-  }, []);
+  const printAssessment = [
+    overallRecommendation.title,
+    overallRecommendation.message,
+    `Action: ${overallRecommendation.action}`,
+    "Recorded measurements:",
+    ...resultsList.map(
+      (item) =>
+        `${item.name}: ${item.val} ${item.unit.replace("°", "")} - ${getStatusText(item.status)}. ${item.msg}`,
+    ),
+    "General adult screening thresholds are shown for all ages; pediatric results need age-specific clinical interpretation. The SpO2 value is an unvalidated screening estimate. This report is not a diagnosis.",
+  ].join("\n");
 
   // Auto-reset the session after showing results (kiosk mode only)
   useEffect(() => {
@@ -579,88 +317,52 @@ Assessment:`;
           </p>
         </div>
 
-        {/* AI Overall Recommendation - Top */}
-        {recEnabled !== false && (
         <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div
             className={`p-4 border-b border-border ${
-              aiLoading
-                ? "bg-primary/5"
-                : overallRecommendation.status === "critical"
-                  ? "bg-destructive/10"
-                  : overallRecommendation.status === "warning"
-                    ? "bg-yellow-500/10"
-                    : "bg-primary/5"
+              overallRecommendation.status === "critical"
+                ? "bg-destructive/10"
+                : overallRecommendation.status === "warning"
+                  ? "bg-yellow-500/10"
+                  : "bg-primary/5"
             }`}
           >
             <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
-              Health Summary
+              Screening Summary
             </h3>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Automated summary based on the recorded measurements.
+              General adult screening ranges are shown for all ages. Pediatric interpretation requires age-specific clinical references. SpO2 is an unvalidated screening estimate.
             </p>
           </div>
           <div className="p-6">
-            {aiLoading ? (
-              <div className="flex items-center gap-3 py-4">
-                <div className="rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
-                <span className="text-lg text-muted-foreground">
-                  Generating personalized recommendation...
-                </span>
-              </div>
-            ) : aiRecommendation ? (
-              <>
-                <p className="text-lg text-foreground mb-4 leading-relaxed whitespace-pre-wrap">
-                  {displayedText}
-                  {displayedText.length < (aiRecommendation?.length ?? 0) && (
-                    <span className="inline-block w-0.5 h-5 bg-primary ml-0.5" />
-                  )}
-                </p>
-                <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-base text-muted-foreground italic">
-                    Note: This is an automated assessment based on your recorded
-                    vitals. Please consult a healthcare professional for proper
-                    medical advice.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-lg font-bold text-foreground mb-2">
-                  {overallRecommendation.title}
-                </p>
-                <p className="text-lg text-foreground mb-4">
-                  {overallRecommendation.message}
-                </p>
-                <div
-                  className={`p-4 rounded-xl ${
-                    overallRecommendation.status === "critical"
-                      ? "bg-destructive/5 border border-destructive/20"
-                      : overallRecommendation.status === "warning"
-                        ? "bg-yellow-500/5 border border-yellow-500/20"
-                        : "bg-primary/5 border border-primary/20"
-                  }`}
-                >
-                  <p className="text-base font-semibold text-foreground mb-1">
-                    Recommended Action:
-                  </p>
-                  <p className="text-base text-muted-foreground">
-                    {overallRecommendation.action}
-                  </p>
-                </div>
-                <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-base text-muted-foreground italic">
-                    Note: This is an automated assessment based on your recorded
-                    vitals. Please consult a healthcare professional for proper
-                    medical advice.
-                  </p>
-                </div>
-              </>
-            )}
+            <p className="text-lg font-bold text-foreground mb-2">
+              {overallRecommendation.title}
+            </p>
+            <p className="text-lg text-foreground mb-4">
+              {overallRecommendation.message}
+            </p>
+            <div
+              className={`p-4 rounded-xl ${
+                overallRecommendation.status === "critical"
+                  ? "bg-destructive/5 border border-destructive/20"
+                  : overallRecommendation.status === "warning"
+                    ? "bg-yellow-500/5 border border-yellow-500/20"
+                    : "bg-primary/5 border border-primary/20"
+              }`}
+            >
+              <p className="text-base font-semibold text-foreground mb-1">
+                Recommended Action:
+              </p>
+              <p className="text-base text-muted-foreground">
+                {overallRecommendation.action}
+              </p>
+            </div>
+            <p className="mt-4 text-base text-muted-foreground italic">
+              These readings are for screening only, not diagnosis. Confirm concerns with a healthcare professional.
+            </p>
           </div>
         </div>
-        )}
 
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div className="divide-y divide-border/50">
@@ -704,21 +406,21 @@ Assessment:`;
                           ? "bg-success/10 text-success"
                           : item.status === "warning"
                             ? "bg-yellow-500/10 text-yellow-500"
-                            : "bg-destructive/10 text-destructive"
+                            : item.status === "critical"
+                              ? "bg-destructive/10 text-destructive"
+                              : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {item.status === "normal" ? (
                         <Check className="w-4 h-4" />
                       ) : item.status === "warning" ? (
                         <AlertTriangle className="w-4 h-4" />
-                      ) : (
+                      ) : item.status === "critical" ? (
                         <AlertOctagon className="w-4 h-4" />
+                      ) : (
+                        <Activity className="w-4 h-4" />
                       )}
-                      {item.status === "normal"
-                        ? "Normal"
-                        : item.status === "warning"
-                          ? "Needs Attention"
-                          : "Critical"}
+                      {getStatusText(item.status)}
                     </span>
                   </div>
                 </div>
@@ -738,7 +440,7 @@ Assessment:`;
               setTimeout(() => setPrintCooldown(false), 5000);
               printMutation.mutate({
                 sessionId: session?.id,
-                recommendation: overallRecommendation?.message ?? "",
+                recommendation: printAssessment,
               });
             }}
             disabled={printMutation.isPending || printCooldown}
@@ -828,36 +530,50 @@ Assessment:`;
   );
 }
 // Helper messaging functions
-function getBPMessage(s: VitalStatus) {
-  if (s === "normal") return "Blood pressure is in the healthy range.";
-  if (s === "warning")
-    return "Elevated blood pressure detected. Monitor closely.";
-  if (s === "critical")
-    return "High blood pressure detected. Consult a physician.";
-  return "Insufficient data.";
+function getBPMessage(
+  status: VitalStatus,
+  systolic?: number | null,
+  diastolic?: number | null,
+) {
+  if (status === "normal") return "Below 120/80 mmHg.";
+  if (status === "critical") return "At least 180 systolic or 120 diastolic; repeat and seek urgent clinical advice.";
+  if (status === "warning" && ((systolic ?? 0) < 90 || (diastolic ?? 0) < 60)) {
+    return "Below the usual adult range; repeat and discuss persistent readings with a healthcare professional.";
+  }
+  if (status === "warning" && ((systolic ?? 0) >= 140 || (diastolic ?? 0) >= 90)) {
+    return "High range; repeat correctly and discuss persistent readings with a healthcare professional.";
+  }
+  if (status === "warning") return "Above the usual adult range; repeat after resting.";
+  return "Not assessed.";
 }
-function getHRMessage(s: VitalStatus) {
-  if (s === "normal") return "Heart resting rate is normal.";
-  if (s === "warning") return "Heart rate is slightly outside normal range.";
-  if (s === "critical") return "Abnormal heart rate detected.";
-  return "Insufficient data.";
+function getHRMessage(status: VitalStatus, heartRate?: number | null) {
+  if (status === "normal") return "Within the usual adult resting range (60-100 bpm).";
+  if (status === "warning") return "Outside the usual adult resting range; repeat after sitting quietly.";
+  if (status === "critical" && (heartRate ?? 0) < 40) return "Very low reading; repeat and seek urgent advice if it persists or you feel unwell.";
+  if (status === "critical") return "Very high reading; repeat and seek urgent advice if it persists or you feel unwell.";
+  return "Not assessed.";
 }
-function getSpO2Message(s: VitalStatus) {
-  if (s === "normal") return "Healthy blood oxygen levels.";
-  if (s === "warning") return "Slightly low oxygen saturation.";
-  if (s === "critical") return "Critical: Low oxygen levels detected.";
-  return "Insufficient data.";
+function getSpO2Message(status: VitalStatus, spo2?: number | null) {
+  if (status === "normal") return "At least 95%; pulse-oximeter screening estimate.";
+  if (status === "warning") return "Below the usual range; recheck with warm, still fingers and confirm persistent results clinically.";
+  if (status === "critical" && spo2 != null) return "90% or lower; recheck and seek urgent clinical advice, especially if you have symptoms.";
+  return "Not assessed.";
 }
-function getTempMessage(s: VitalStatus, temp?: number | null) {
-  if (s === "normal") return "Body temperature is normal.";
-  if (s === "warning") return "Slight variance in body temperature.";
-  if (s === "critical" && temp != null && temp < 35) return "Low body temperature detected — possible hypothermia.";
-  if (s === "critical") return "Fever or high temperature detected.";
-  return "Insufficient data.";
+function getTempMessage(status: VitalStatus, temp?: number | null) {
+  if (status === "normal") return "Within the selected screening range (36.0-37.9 °C).";
+  if (status === "warning" && temp != null && temp < 36) return "Below the selected screening range; repeat and seek advice if it persists.";
+  if (status === "warning") return "Fever-range reading (38.0-39.9 °C); repeat and monitor symptoms.";
+  if (status === "critical" && temp != null && temp < 35) return "Below 35 °C; repeat and seek urgent clinical advice.";
+  if (status === "critical") return "At least 40 °C; seek urgent clinical advice, especially if unwell.";
+  return "Not assessed.";
 }
-function getBMIMessage(s: VitalStatus) {
-  if (s === "normal") return "Healthy weight range.";
-  if (s === "warning") return "Outside of standard healthy weight range.";
-  if (s === "critical") return "Indicates obesity risk category.";
-  return "Insufficient data.";
+function getBMIMessage(status: VitalStatus, age?: number | null) {
+  if (status === "normal") return "Within the adult BMI screening range (18.5-24.9).";
+  if (status === "warning") {
+    const pediatricNote = age != null && age < 18
+      ? " For patients under 18, use age- and sex-specific growth charts."
+      : "";
+    return `Outside the adult BMI screening range; this is not a diagnosis.${pediatricNote}`;
+  }
+  return "Not assessed.";
 }

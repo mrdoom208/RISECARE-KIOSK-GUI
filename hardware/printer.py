@@ -1,5 +1,7 @@
 import time
 import threading
+import textwrap
+import unicodedata
 from datetime import datetime
 
 try:
@@ -26,6 +28,19 @@ _status_readable = True
 # The escpos device is not safe for concurrent USB traffic. Status checks run
 # on the background probe thread while printing runs on the command thread.
 _lock = threading.Lock()
+
+
+def _receipt_text(value, width=32):
+    normalized = unicodedata.normalize("NFKD", str(value))
+    normalized = normalized.replace("\u2014", "-").replace("\u2013", "-")
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    lines = []
+    for paragraph in ascii_text.splitlines():
+        if not paragraph.strip():
+            lines.append("")
+        else:
+            lines.extend(textwrap.wrap(paragraph, width=width) or [""])
+    return "\n".join(lines) + "\n"
 
 
 def _detect_endpoints():
@@ -236,18 +251,18 @@ def _print_receipt(data):
         p.text("-" * 32 + "\n")
 
         if recommendation:
-            max_len = min(len(recommendation), 160)
-            short = recommendation[:max_len]
             p.set(align="center", width=1, height=1, font="b")
             p.text("ASSESSMENT\n")
             p.set(align="left", width=1, height=1, font="a")
-            p.text(f"{short}\n")
+            p.text(_receipt_text(recommendation))
 
         p.text("=" * 32 + "\n")
         p.set(align="center", width=1, height=1, font="b")
         p.text("DISCLAIMER\n")
         p.set(align="left", width=1, height=1, font="a")
-        p.text("This report is an automated assessment based on recorded vitals and is for informational purposes only. It does not replace professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider for medical concerns.\n")
+        p.text(_receipt_text(
+            "This report is a screening summary, not a diagnosis. General adult screening thresholds are shown for all ages; pediatric readings need age-specific clinical interpretation. The SpO2 value is an unvalidated screening estimate. Confirm concerning readings with a qualified healthcare professional."
+        ))
         p.text("-" * 32 + "\n")
         p.set(align="center", width=1, height=1, font="a")
         p.text("Thank you for using RiseCare!\n")
