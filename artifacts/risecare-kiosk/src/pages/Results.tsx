@@ -181,54 +181,12 @@ export default function Results() {
     })(),
   ].filter((r) => r.val !== undefined && r.val !== null);
 
-  // Use fixed screening rules so the on-screen and printed assessment agree.
-  const overallRecommendation = useMemo(() => {
-    const criticalCount = resultsList.filter((r) => r.status === "critical").length;
-    const warningCount = resultsList.filter((r) => r.status === "warning").length;
-    const assessedCount = resultsList.filter((r) => r.status !== "unknown").length;
-
-    if (criticalCount > 0) {
-      return {
-        status: "critical",
-        title: criticalCount === 1 ? "Critical-range measurement" : "Critical-range measurements",
-        message: `${criticalCount} ${criticalCount === 1 ? "measurement crossed" : "measurements crossed"} a high-risk screening threshold. A single kiosk reading cannot confirm a diagnosis.`,
-        action: "Repeat the measurement if safe. If it remains critical, or you have concerning symptoms, seek urgent medical care. Severe symptoms require emergency care.",
-      };
-    }
-    if (warningCount > 0) {
-      return {
-        status: "warning",
-        title: warningCount === 1 ? "Measurement needs attention" : "Measurements need attention",
-        message: `${warningCount} ${warningCount === 1 ? "measurement is" : "measurements are"} outside the usual screening range.`,
-        action: "Rest quietly and repeat the affected measurement using the correct technique. If it remains outside range, discuss it with a healthcare professional.",
-      };
-    }
-    if (assessedCount === 0) {
-      return {
-        status: "unknown",
-        title: "No classifiable measurements",
-        message: "There are no measurements available for screening assessment.",
-        action: "Record relevant measurements and review them with a healthcare professional.",
-      };
-    }
-    return {
-      status: "normal",
-      title: "No out-of-range measurements detected",
-      message: "The classifiable measurements are within the selected screening ranges. This does not rule out a health problem.",
-      action: "Use these results as a screening snapshot, not a diagnosis. Repeat or seek clinical advice if you feel unwell.",
-    };
-  }, [resultsList]);
-
   const printAssessment = [
-    overallRecommendation.title,
-    overallRecommendation.message,
-    `Action: ${overallRecommendation.action}`,
-    "Recorded measurements:",
     ...resultsList.map(
       (item) =>
-        `${item.name}: ${item.val} ${item.unit.replace("°", "")} - ${getStatusText(item.status)}. ${item.msg}`,
+        `${item.name}: ${item.val} ${item.unit.replace("°", "")} (${getStatusText(item.status)})`,
     ),
-    "General adult screening thresholds are shown for all ages; pediatric results need age-specific clinical interpretation. The SpO2 value is an unvalidated screening estimate. This report is not a diagnosis.",
+    "Screening only; not a diagnosis.",
   ].join("\n");
 
   // Auto-reset the session after showing results (kiosk mode only)
@@ -315,53 +273,6 @@ export default function Results() {
             {format(new Date(session.startedAt), "MMMM d, yyyy")} •{" "}
             {format(new Date(session.startedAt), "h:mm a")}
           </p>
-        </div>
-
-        <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
-          <div
-            className={`p-4 border-b border-border ${
-              overallRecommendation.status === "critical"
-                ? "bg-destructive/10"
-                : overallRecommendation.status === "warning"
-                  ? "bg-yellow-500/10"
-                  : "bg-primary/5"
-            }`}
-          >
-            <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" />
-              Screening Summary
-            </h3>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              General adult screening ranges are shown for all ages. Pediatric interpretation requires age-specific clinical references. SpO2 is an unvalidated screening estimate.
-            </p>
-          </div>
-          <div className="p-6">
-            <p className="text-lg font-bold text-foreground mb-2">
-              {overallRecommendation.title}
-            </p>
-            <p className="text-lg text-foreground mb-4">
-              {overallRecommendation.message}
-            </p>
-            <div
-              className={`p-4 rounded-xl ${
-                overallRecommendation.status === "critical"
-                  ? "bg-destructive/5 border border-destructive/20"
-                  : overallRecommendation.status === "warning"
-                    ? "bg-yellow-500/5 border border-yellow-500/20"
-                    : "bg-primary/5 border border-primary/20"
-              }`}
-            >
-              <p className="text-base font-semibold text-foreground mb-1">
-                Recommended Action:
-              </p>
-              <p className="text-base text-muted-foreground">
-                {overallRecommendation.action}
-              </p>
-            </div>
-            <p className="mt-4 text-base text-muted-foreground italic">
-              These readings are for screening only, not diagnosis. Confirm concerns with a healthcare professional.
-            </p>
-          </div>
         </div>
 
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
