@@ -2,8 +2,8 @@
 
 Wiring (BCM):
 
-    TM7711 DOUT -> GPIO17  (OUT_PIN, input)
-    TM7711 SCK  -> GPIO27  (SCK_PIN, output)
+    TM7711 DOUT -> GPIO12  (OUT_PIN, input)
+    TM7711 SCK  -> GPIO13  (SCK_PIN, output)
     Pump relay  -> GPIO22  (PUMP)
     Valve relay -> GPIO4   (VALVE)
 
@@ -30,8 +30,8 @@ import RPi.GPIO as GPIO
 # PINS (BCM)
 # ======================================================
 
-OUT_PIN = 17
-SCK_PIN = 27
+OUT_PIN = 12
+SCK_PIN = 13
 PUMP = 22
 VALVE = 4
 
