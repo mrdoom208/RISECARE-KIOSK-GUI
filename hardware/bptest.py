@@ -2,8 +2,8 @@
 
 Wiring (BCM):
 
-    TM7711 DOUT -> GPIO12  (OUT_PIN, input)
-    TM7711 SCK  -> GPIO13  (SCK_PIN, output)
+    TM7711 DOUT -> GPIO17  (OUT_PIN, input; physical pin 11)
+    TM7711 SCK  -> GPIO27  (SCK_PIN, output; physical pin 13)
     Pump relay  -> GPIO22  (PUMP)
     Valve relay -> GPIO4   (VALVE)
 
@@ -31,8 +31,8 @@ import RPi.GPIO as GPIO
 # PINS (BCM)
 # ======================================================
 
-OUT_PIN = 12
-SCK_PIN = 13
+OUT_PIN = 17
+SCK_PIN = 27
 PUMP = 22
 VALVE = 4
 
@@ -102,18 +102,16 @@ RELAYS_ACTIVE_LOW = True
 DEBUG_TIMING = True
 DEBUG_ACTUATORS = True
 
-# Input pull for the DOUT line: "up", "down" or "off". Harmless with a
-# push-pull DOUT, and makes an open-drain or disconnected line deterministic.
-OUT_PULL = "up"
+# Match tm7711.py: use the GPIO's default no-pull input mode for DOUT.
+OUT_PULL = "off"
 
 # Clock pulses after the 24 data bits. HX711/TM7711 use 1 extra (25 total = channel
 # A gain 128); try 2 or 3 if your module needs a different next-conversion setup.
 TM7711_EXTRA_PULSES = 1
 
-# Half-period of the SCK clock in microseconds. 1 us is well inside the TM7711
-# window (0.2-50 us high). `--adc` retries with a much slower clock to rule out
-# a too-fast bit-bang.
-TM7711_CLOCK_DELAY_US = 1
+# Match the standalone TM7711 reference reader's 2 us half-period.
+# `--adc` retries with a slower clock to check for timing sensitivity.
+TM7711_CLOCK_DELAY_US = 2
 
 
 def millis():
@@ -185,6 +183,7 @@ class TM7711:
                 self.last_waited_us = elapsed
                 self._report_timeout(elapsed)
                 return False, 0, elapsed
+            time.sleep(0.0001)
 
         ready_at = micros()
         waited = ready_at - start
