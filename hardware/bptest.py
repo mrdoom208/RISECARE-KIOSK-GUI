@@ -757,58 +757,63 @@ def test_actuators():
 # ======================================================
 
 def test_ready():
-    """Watch DOUT WITHOUT clocking to tell a live chip from a floating line.
+    """Prove DOUT is a real conversion signal, not a floating or dead line.
 
-    A powered, unclocked HX711/TM7711 completes a conversion, pulls DOUT LOW
-    and holds it LOW until it is clocked. So a healthy line shows ONE
-    HIGH->LOW transition and then stays flat LOW. A line that keeps toggling,
-    or never goes LOW, is not being driven by the chip.
+    A single level means nothing: an unpowered/floating pin can read LOW (dragged
+    down through the dead chip) or HIGH. A working converter, once clocked,
+    drives DOUT HIGH (busy) and returns it LOW ~one conversion period later. So
+    back-to-back reads must each wait about one conversion period, and DOUT must
+    be HIGH right after the clock burst. Only that proves a live chip.
     """
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(OUT_PIN, GPIO.IN, pull_up_down=out_pull())
     GPIO.setup(SCK_PIN, GPIO.OUT)
     GPIO.output(SCK_PIN, GPIO.LOW)
-    time.sleep(0.05)
+
+    # Reset to a known state: >60 us HIGH on PD_SCK forces power-down, releasing
+    # it low re-enables normal conversion.
+    GPIO.output(SCK_PIN, GPIO.HIGH)
+    time.sleep(0.0001)
+    GPIO.output(SCK_PIN, GPIO.LOW)
 
     print("================================================")
-    print(" READY-LINE TEST (SCK held LOW, no clocking)")
+    print(" READY-LINE / CONVERSION TEST")
     print(f" DOUT -> GPIO{OUT_PIN}, SCK -> GPIO{SCK_PIN}, pull={OUT_PULL}")
     print("================================================")
-    print(f"start level: {'HIGH' if GPIO.input(OUT_PIN) else 'LOW'}", flush=True)
-    print("Watching DOUT for 5 s...", flush=True)
 
-    start = time.monotonic()
-    transitions = 0
-    prev = GPIO.input(OUT_PIN)
-    first_low = None
-    while time.monotonic() - start < 5.0:
-        level = GPIO.input(OUT_PIN)
-        if level != prev:
-            transitions += 1
-            if level == GPIO.LOW and first_low is None:
-                first_low = time.monotonic() - start
-            if transitions <= 12:
-                print(f"  t={time.monotonic() - start:6.3f}s DOUT -> "
-                      f"{'LOW' if level == GPIO.LOW else 'HIGH'}", flush=True)
-            prev = level
-        time.sleep(0.0002)
-
-    final = GPIO.input(OUT_PIN)
-    print(f"\ntransitions={transitions}  final={'LOW' if final == GPIO.LOW else 'HIGH'}"
-          + (f"  first_low={first_low:.3f}s" if first_low else ""), flush=True)
-
-    if transitions == 1 and final == GPIO.LOW:
-        print("PASS: chip is powered and converting; it holds DOUT LOW until clocked.",
+    adc = TM7711()
+    ok_count = 0
+    timeouts = 0
+    fast = 0
+    for i in range(6):
+        ok, raw, waited = adc.read()
+        if not ok:
+            timeouts += 1
+            print(f"  read {i}: TIMEOUT waiting for DOUT to go LOW", flush=True)
+            time.sleep(0.02)
+            continue
+        ok_count += 1
+        after = "HIGH(busy)" if GPIO.input(OUT_PIN) else "LOW"
+        print(f"  read {i}: raw={raw} waited={waited}us  DOUT after clock={after}",
               flush=True)
-    elif transitions == 0 and final == GPIO.LOW:
-        print("PASS (already ready at start): chip holds DOUT LOW until clocked.",
+        if waited < 1000:
+            fast += 1
+        time.sleep(0.02)
+
+    print("", flush=True)
+    if timeouts == 6:
+        print("FAIL: DOUT stuck HIGH -> not converting / not powered, or SCK not "
+              "connected (chip may be held in power-down).", flush=True)
+    elif ok_count and fast == ok_count:
+        print("FAIL: DOUT reads LOW instantly every read -> line stuck LOW "
+              "(unpowered chip dragging it down, or a short). Not a real ready.",
               flush=True)
-    elif transitions == 0 and final == GPIO.HIGH:
-        print("FAIL: DOUT never went LOW -> chip not converting / not powered, or "
-              "DOUT not connected.", flush=True)
+    elif ok_count >= 5:
+        print("PASS: DOUT goes busy(HIGH) then LOW each conversion -> chip alive.",
+              flush=True)
     else:
-        print(f"FAIL: {transitions} transitions -> DOUT is floating/intermittent, "
-              "not driven by the chip. Re-check DOUT, VCC, GND.", flush=True)
+        print("UNCLEAR: mixed results -> check DOUT/SCK continuity, power, ground.",
+              flush=True)
     GPIO.cleanup()
 
 
