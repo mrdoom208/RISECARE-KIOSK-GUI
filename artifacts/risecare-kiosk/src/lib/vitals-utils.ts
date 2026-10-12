@@ -39,7 +39,14 @@ export function getTempStatus(temp?: number | null): VitalStatus {
 }
 
 export function calculateBMI(weight?: number | null, height?: number | null): number | null {
-  if (!weight || !height) return null;
+  if (
+    weight == null ||
+    height == null ||
+    !Number.isFinite(weight) ||
+    !Number.isFinite(height) ||
+    weight <= 0 ||
+    height <= 0
+  ) return null;
   const heightM = height / 100;
   return Number((weight / (heightM * heightM)).toFixed(1));
 }

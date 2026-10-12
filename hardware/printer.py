@@ -268,7 +268,8 @@ def _print_receipt(data):
         p.text("Thank you for using RiseCare!\n")
         p.text(f"{date_str}\n")
         p.text("\n\n\n")
-
+        p.text("\n\n\n")
+        p.text("\n\n\n")
         p.cut()
         print("✅ Receipt printed successfully")
         return True

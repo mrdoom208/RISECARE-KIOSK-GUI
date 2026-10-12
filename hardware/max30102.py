@@ -5,7 +5,12 @@ from collections import deque
 import numpy as np
 
 try:
+<<<<<<< HEAD
     from smbus2 import SMBus
+=======
+    from smbus2 import SMBus, i2c_msg
+    smbus_available = True
+>>>>>>> 7d70ea4b398a19ab356b86a00029aef594dde969
 except ImportError:
     SMBus = None
 
@@ -96,6 +101,7 @@ class MAX30102:
     # LOW LEVEL I2C
     # ------------------------------------------------------------
 
+<<<<<<< HEAD
     def _write(self, reg, value):
         self.bus.write_byte_data(
             self.address,
@@ -109,6 +115,39 @@ class MAX30102:
             reg,
             count
         )
+=======
+    def _write(self, reg, data):
+        # Use a single combined I2C transaction (i2c_rdwr) instead of
+        # write_byte_data. Back-to-back smbus block calls frequently raise
+        # [Errno 121] Remote I/O error on the Pi's i2c-bcm2835 driver.
+        msg = i2c_msg.write(self.address, [reg, data])
+        self._rdwr(msg)
+
+    def _read(self, reg, count=1):
+        write = i2c_msg.write(self.address, [reg])
+        read = i2c_msg.read(self.address, count)
+        self._rdwr(write, read)
+        return list(read)
+
+    def _rdwr(self, *msgs):
+        last_error = None
+        for attempt in range(3):
+            try:
+                self.bus.i2c_rdwr(*msgs)
+                return
+            except OSError as e:
+                # errno 121 == EREMOTEIO; the bus is momentarily busy.
+                last_error = e
+                if getattr(e, "errno", None) != 121:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+        raise last_error
+
+    def write_reg(self, reg, value):
+        if self.handle is None:
+            return
+        self._write(reg, value)
+>>>>>>> 7d70ea4b398a19ab356b86a00029aef594dde969
 
     def read_reg(self, reg):
         return self._read(reg, 1)[0]
