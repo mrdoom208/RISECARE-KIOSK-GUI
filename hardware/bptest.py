@@ -164,7 +164,16 @@ def read_tm7711():
     start = micros()
 
     while GPIO.input(OUT_PIN) == GPIO.HIGH:
-        if micros() - start > 100000:
+        elapsed = micros() - start
+        if elapsed > 100000:
+            print(
+                f"DEBUG TM7711 TIMEOUT: DOUT(GPIO{OUT_PIN}) stayed HIGH for "
+                f"{elapsed} us. OUT_PIN={GPIO.input(OUT_PIN)}, "
+                f"SCK(GPIO{SCK_PIN})={GPIO.input(SCK_PIN)}. "
+                "Check sensor VCC/GND, DOUT->OUT_PIN, SCK->SCK_PIN wiring, "
+                "and that SCK is idle LOW.",
+                flush=True,
+            )
             return False, 0
 
     value = 0
@@ -603,6 +612,12 @@ def setup():
     GPIO.setup(VALVE, GPIO.OUT)
 
     GPIO.output(SCK_PIN, GPIO.LOW)
+
+    print(
+        f"DEBUG idle levels: DOUT(GPIO{OUT_PIN})="
+        f"{GPIO.input(OUT_PIN)}, SCK(GPIO{SCK_PIN})={GPIO.input(SCK_PIN)}",
+        flush=True,
+    )
 
     # Start inflation with the valve closed.
     GPIO.output(VALVE, GPIO.HIGH)

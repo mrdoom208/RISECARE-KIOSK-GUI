@@ -41,6 +41,7 @@ import NotFound from "./not-found";
 
 import { sensorGuides } from "@/data/sensorGuides";
 import { sensorStabilityConfig } from "@/lib/sensor-stability";
+import { disableMissingSensors } from "@/lib/sensor-availability";
 
 type VitalType =
   | "bp"
@@ -145,6 +146,25 @@ export default function Dashboard() {
     const max30102Missing = !availabilityStale && max30102Available === false;
     return !mqttConnected || !isVitalEnabled(vital) || (usesMax30102 && max30102Missing);
   };
+
+  // Auto-disable sensors the device reports as missing so the kiosk never
+  // offers a vital whose hardware is absent. Persist + notify other views.
+  useEffect(() => {
+    const { next, disabled } = disableMissingSensors(
+      enabledSensors,
+      sensorStatus?.sensors,
+      {
+        connected: sensorStatus?.connected === true,
+        stale: sensorStatus?.sensorsStale === true,
+      },
+    );
+
+    if (disabled.length === 0) return;
+
+    localStorage.setItem("enabledSensors", JSON.stringify(next));
+    setEnabledSensors(next);
+    window.dispatchEvent(new Event("sensorStateChange"));
+  }, [sensorStatus, enabledSensors]);
 
   const { data: session, isLoading } = useQuery<Session>({
     queryKey: ["session", sessionToken],

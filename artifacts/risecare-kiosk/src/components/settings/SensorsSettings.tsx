@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { ModalShell } from "@/components/ModalShell";
+import { disableMissingSensors } from "@/lib/sensor-availability";
 
 interface SensorsSettingsProps {
   isOpen: boolean;
@@ -86,6 +87,31 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     // cheap I2C checks and again a few seconds later once GPIO/USB probes land.
     refetchInterval: isOpen ? (refreshing ? 1500 : 5000) : false,
   });
+
+  // Auto-disable any sensor the device reports as missing, so the kiosk never
+  // waits on absent hardware. Only acts on a fresh, connected snapshot.
+  useEffect(() => {
+    const { next, disabled } = disableMissingSensors(
+      enabledSensors,
+      sensorStatus?.sensors,
+      {
+        connected: sensorStatus?.connected === true,
+        stale: sensorStatus?.sensorsStale === true,
+      },
+    );
+
+    if (disabled.length === 0) return;
+
+    saveEnabledState(next);
+    const names = disabled
+      .map((id) => sensors.find((s) => s.id === id)?.name ?? id)
+      .join(", ");
+    toast({
+      title: "Sensor disabled",
+      description: `${names} not detected — turned off automatically.`,
+      variant: "destructive",
+    });
+  }, [sensorStatus, enabledSensors]);
 
   const { data: calibrationResults } = useQuery({
     queryKey: ["calibration-results"],
@@ -562,7 +588,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           if (isGloballyRateLimited("toggle-" + sensor.id)) return;
                           toggleSensor(sensor.id);
                         }}
-                        disabled={commandMutation.isPending || !sensorStatus?.connected}
+                        disabled={commandMutation.isPending || !sensorStatus?.connected || (!availabilityStale && detected === false)}
                         className="flex-1 min-w-0 text-left disabled:opacity-50"
                       >
                         <p className="text-base font-medium">Sensor enabled</p>
@@ -580,7 +606,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           if (isGloballyRateLimited("toggle-" + sensor.id)) return;
                           toggleSensor(sensor.id, checked === true);
                         }}
-                        disabled={commandMutation.isPending || !sensorStatus?.connected}
+                        disabled={commandMutation.isPending || !sensorStatus?.connected || (!availabilityStale && detected === false)}
                         className="h-8 w-[52px] shrink-0 [&>span]:h-6! [&>span]:w-6! [&>span]:data-[state=checked]:translate-x-6! [&>span]:data-[state=unchecked]:translate-x-0!"
                       />
                     </div>
