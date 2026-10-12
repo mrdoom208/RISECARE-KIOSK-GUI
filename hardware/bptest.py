@@ -10,6 +10,7 @@ Wiring (BCM):
 Run a measurement:      python bptest.py
 Verify the actuators:   python bptest.py --test
 Debug the ADC line:     python bptest.py --adc
+Test the ready line:    python bptest.py --ready
 
 The algorithm is a prototype oscillometric estimator: the cuff is inflated to
 PUMP_OFF_PRESSURE, held briefly, then bled down while the pulsatile component of
@@ -752,6 +753,66 @@ def test_actuators():
 
 
 # ======================================================
+# READY-LINE TEST
+# ======================================================
+
+def test_ready():
+    """Watch DOUT WITHOUT clocking to tell a live chip from a floating line.
+
+    A powered, unclocked HX711/TM7711 completes a conversion, pulls DOUT LOW
+    and holds it LOW until it is clocked. So a healthy line shows ONE
+    HIGH->LOW transition and then stays flat LOW. A line that keeps toggling,
+    or never goes LOW, is not being driven by the chip.
+    """
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(OUT_PIN, GPIO.IN, pull_up_down=out_pull())
+    GPIO.setup(SCK_PIN, GPIO.OUT)
+    GPIO.output(SCK_PIN, GPIO.LOW)
+    time.sleep(0.05)
+
+    print("================================================")
+    print(" READY-LINE TEST (SCK held LOW, no clocking)")
+    print(f" DOUT -> GPIO{OUT_PIN}, SCK -> GPIO{SCK_PIN}, pull={OUT_PULL}")
+    print("================================================")
+    print(f"start level: {'HIGH' if GPIO.input(OUT_PIN) else 'LOW'}", flush=True)
+    print("Watching DOUT for 5 s...", flush=True)
+
+    start = time.monotonic()
+    transitions = 0
+    prev = GPIO.input(OUT_PIN)
+    first_low = None
+    while time.monotonic() - start < 5.0:
+        level = GPIO.input(OUT_PIN)
+        if level != prev:
+            transitions += 1
+            if level == GPIO.LOW and first_low is None:
+                first_low = time.monotonic() - start
+            if transitions <= 12:
+                print(f"  t={time.monotonic() - start:6.3f}s DOUT -> "
+                      f"{'LOW' if level == GPIO.LOW else 'HIGH'}", flush=True)
+            prev = level
+        time.sleep(0.0002)
+
+    final = GPIO.input(OUT_PIN)
+    print(f"\ntransitions={transitions}  final={'LOW' if final == GPIO.LOW else 'HIGH'}"
+          + (f"  first_low={first_low:.3f}s" if first_low else ""), flush=True)
+
+    if transitions == 1 and final == GPIO.LOW:
+        print("PASS: chip is powered and converting; it holds DOUT LOW until clocked.",
+              flush=True)
+    elif transitions == 0 and final == GPIO.LOW:
+        print("PASS (already ready at start): chip holds DOUT LOW until clocked.",
+              flush=True)
+    elif transitions == 0 and final == GPIO.HIGH:
+        print("FAIL: DOUT never went LOW -> chip not converting / not powered, or "
+              "DOUT not connected.", flush=True)
+    else:
+        print(f"FAIL: {transitions} transitions -> DOUT is floating/intermittent, "
+              "not driven by the chip. Re-check DOUT, VCC, GND.", flush=True)
+    GPIO.cleanup()
+
+
+# ======================================================
 # ADC SELF-TEST
 # ======================================================
 
@@ -823,6 +884,10 @@ def main():
 
     if "--adc" in args:
         test_adc()
+        return
+
+    if "--ready" in args:
+        test_ready()
         return
 
     BloodPressureTest().run()
