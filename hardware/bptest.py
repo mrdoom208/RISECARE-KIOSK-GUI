@@ -6,6 +6,7 @@ previous bptest.py. Check them against a reference gauge before use.
 
 from collections import deque
 import statistics
+import sys
 import time
 
 import RPi.GPIO as GPIO
@@ -27,7 +28,7 @@ MEASURE_END_PRESSURE = 60.0
 SETTLE_SECONDS = 2.0
 
 # TM7711 timing copied from hardware/tm7711.py.
-READY_TIMEOUT = 1.0
+READY_TIMEOUT = 2.0
 CLOCK_HALF_PERIOD = 0.000002
 EXTRA_CLOCK_PULSES = 1
 
@@ -37,6 +38,10 @@ PRESSURE_ALPHA = 0.35
 
 # Relay modules commonly energize on LOW. Change only if your board is active-high.
 RELAYS_ACTIVE_LOW = True
+
+# Debug capture runs with the pump off and cuff vented.
+NOISE_DEBUG_SECONDS = 15.0
+NOISE_WINDOW = 20
 
 
 def relay_level(on):
@@ -89,6 +94,67 @@ class TM7711:
         if value & 0x800000:
             value -= 0x1000000
         return value
+
+
+def debug_noise():
+    """Capture raw ADC samples with the actuators safely idle."""
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+    GPIO.setup(OUT_PIN, GPIO.IN)
+    GPIO.setup(SCK_PIN, GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(PUMP, GPIO.OUT, initial=relay_level(False))
+    GPIO.setup(VALVE, GPIO.OUT, initial=relay_level(False))
+    pump_set(False)
+    valve_set(False)  # keep the cuff vented during diagnostics
+
+    adc = TM7711()
+    recent = deque(maxlen=NOISE_WINDOW)
+    valid = []
+    invalid = 0
+    previous_time = None
+    start = time.monotonic()
+    print("TM7711 noise capture: pump OFF, valve OPEN")
+    print("time_s,interval_ms,raw,hex,pressure_mmhg,window_stddev,window_range")
+    try:
+        while time.monotonic() - start < NOISE_DEBUG_SECONDS:
+            raw = adc.read_raw()
+            now = time.monotonic()
+            interval_ms = (now - previous_time) * 1000 if previous_time else 0.0
+            previous_time = now
+
+            if raw is None:
+                invalid += 1
+                print(f"{now - start:.3f},{interval_ms:.1f},TIMEOUT,,,,", flush=True)
+                continue
+
+            # 0xFFFFFF is the all-bits-high read; do not treat it as sensor noise.
+            if raw == -1:
+                invalid += 1
+                print(f"{now - start:.3f},{interval_ms:.1f},-1,0xFFFFFF,INVALID,,",
+                      flush=True)
+                continue
+
+            valid.append(raw)
+            recent.append(raw)
+            stddev = statistics.stdev(recent) if len(recent) > 1 else 0.0
+            span = max(recent) - min(recent)
+            pressure = raw_to_mmhg(raw)
+            print(f"{now - start:.3f},{interval_ms:.1f},{raw},0x{raw & 0xFFFFFF:06X},"
+                  f"{pressure:.3f},{stddev:.1f},{span}", flush=True)
+    except KeyboardInterrupt:
+        print("\nNoise capture stopped")
+    finally:
+        pump_set(False)
+        valve_set(False)
+        GPIO.output(SCK_PIN, GPIO.LOW)
+        GPIO.cleanup()
+
+    print(f"Samples: valid={len(valid)}, invalid/timeouts={invalid}")
+    if len(valid) > 1:
+        print(f"Raw summary: min={min(valid)}, max={max(valid)}, "
+              f"range={max(valid) - min(valid)}, stdev={statistics.stdev(valid):.1f}")
+    if invalid:
+        print("Invalid readings occurred; those are ADC/interface errors, not noise.")
 
 
 class PressureFilter:
@@ -181,4 +247,7 @@ class BloodPressureTest:
 
 
 if __name__ == "__main__":
-    BloodPressureTest().run()
+    if "--noise" in sys.argv[1:]:
+        debug_noise()
+    else:
+        BloodPressureTest().run()
