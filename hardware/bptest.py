@@ -1,4 +1,5 @@
 import math
+import sys
 import time
 
 import RPi.GPIO as GPIO
@@ -60,6 +61,17 @@ PEAK_DROP_THRESHOLD = 0.010
 TM7711_READY_TIMEOUT_US = 1000000   # 1 s (10x the 10 Hz period)
 DEBUG_TIMING = True                 # print ready-wait / sample-rate info
 DEBUG_SAMPLE_WINDOW = 200           # reads used to classify a stuck line
+
+# ======================================================
+# RELAY / ACTUATOR POLARITY
+# Most cheap relay modules are ACTIVE-LOW: the GPIO pin must be
+# pulled LOW to energise the relay (pump runs / valve closes).
+# Set to False for an active-HIGH board or a bare transistor driver.
+# Run `python bptest.py --test` to confirm which one your hardware uses.
+# ======================================================
+
+RELAYS_ACTIVE_LOW = True
+DEBUG_ACTUATORS = True
 
 # ======================================================
 # FILTERING - INITIAL EXPERIMENTAL VALUES
@@ -156,17 +168,40 @@ def micros():
 
 
 # ======================================================
+# ACTUATORS - PUMP / VALVE
+# Pump  : energised = running, released = stopped
+# Valve : energised = CLOSED (holds pressure), released = OPEN (vents)
+# The relay level is derived from RELAYS_ACTIVE_LOW so callers only
+# deal in on/off, not HIGH/LOW.
+# ======================================================
+
+def relay_level(on):
+    if RELAYS_ACTIVE_LOW:
+        return GPIO.LOW if on else GPIO.HIGH
+    return GPIO.HIGH if on else GPIO.LOW
+
+
+def pump_set(on):
+    GPIO.output(PUMP, relay_level(on))
+    if DEBUG_ACTUATORS:
+        print(f"DEBUG PUMP {'ON' if on else 'OFF'} (GPIO{PUMP}={GPIO.input(PUMP)})", flush=True)
+
+
+def valve_set(closed):
+    GPIO.output(VALVE, relay_level(closed))
+    if DEBUG_ACTUATORS:
+        print(f"DEBUG VALVE {'CLOSED' if closed else 'OPEN'} (GPIO{VALVE}={GPIO.input(VALVE)})", flush=True)
+
+
+# ======================================================
 # SAFE STOP
-# Assumptions:
-# Pump HIGH = ON
-# Valve HIGH = CLOSED
-# Valve LOW  = OPEN
+# De-energise both actuators: pump OFF, valve OPEN (vent).
 # ======================================================
 
 def stop_system():
     global pump_running, measuring, waiting_to_measure, finished
-    GPIO.output(PUMP, GPIO.LOW)
-    GPIO.output(VALVE, GPIO.LOW)
+    pump_set(False)
+    valve_set(False)
 
     pump_running = False
     measuring = False
@@ -662,8 +697,18 @@ def setup():
     GPIO.setup(PUMP, GPIO.OUT)
     GPIO.setup(VALVE, GPIO.OUT)
 
+    # Force a known-safe idle state before energising anything.
+    pump_set(False)
+    valve_set(False)
+
     GPIO.output(SCK_PIN, GPIO.LOW)
 
+    print(
+        f"DEBUG relay polarity: "
+        f"{'ACTIVE-LOW' if RELAYS_ACTIVE_LOW else 'ACTIVE-HIGH'} "
+        f"(RELAYS_ACTIVE_LOW={RELAYS_ACTIVE_LOW})",
+        flush=True,
+    )
     print(
         f"DEBUG idle levels: DOUT(GPIO{OUT_PIN})="
         f"{GPIO.input(OUT_PIN)}, SCK(GPIO{SCK_PIN})={GPIO.input(SCK_PIN)}",
@@ -671,8 +716,8 @@ def setup():
     )
 
     # Start inflation with the valve closed.
-    GPIO.output(VALVE, GPIO.HIGH)
-    GPIO.output(PUMP, GPIO.HIGH)
+    valve_set(True)
+    pump_set(True)
 
     pump_running = True
 
@@ -734,7 +779,7 @@ def loop():
 
     # Stop inflation at the target pressure.
     if pump_running and pressure >= PUMP_OFF_PRESSURE:
-        GPIO.output(PUMP, GPIO.LOW)
+        pump_set(False)
 
         pump_running = False
         waiting_to_measure = True
@@ -786,7 +831,53 @@ def loop():
               f"| Wait:{waited}us | Rate:{rate:.1f}Hz")
 
 
+def test_actuators():
+    """Pulse the pump and valve so wiring and polarity can be verified.
+
+    Prints the pin level for each state, so you can compare it against what the
+    hardware actually does. If nothing moves, flip RELAYS_ACTIVE_LOW at the top
+    of this file and run the test again.
+    """
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(PUMP, GPIO.OUT)
+    GPIO.setup(VALVE, GPIO.OUT)
+    pump_set(False)
+    valve_set(False)
+
+    print("================================================")
+    print(" ACTUATOR SELF-TEST")
+    print(f" Mode: {'ACTIVE-LOW' if RELAYS_ACTIVE_LOW else 'ACTIVE-HIGH'}"
+          f" (RELAYS_ACTIVE_LOW={RELAYS_ACTIVE_LOW})")
+    print(" Watch/listen to the pump and valve as each one")
+    print(" is toggled. If nothing happens, flip")
+    print(" RELAYS_ACTIVE_LOW at the top of this file and")
+    print(" run `python bptest.py --test` again.")
+    print("================================================")
+
+    # Valve only first - safe, no pressure involved.
+    print("\n-- VALVE: CLOSED for 3 s (relay energised) --", flush=True)
+    valve_set(True)
+    time.sleep(3)
+    print("-- VALVE: OPEN for 3 s (relay released) --", flush=True)
+    valve_set(False)
+    time.sleep(3)
+
+    # Pump only, with the valve OPEN so no pressure can build.
+    print("\n-- PUMP: ON for 3 s, valve OPEN (no pressure build) --", flush=True)
+    pump_set(True)
+    time.sleep(3)
+    print("-- PUMP: OFF --", flush=True)
+    pump_set(False)
+
+    print("\nSelf-test complete.", flush=True)
+    GPIO.cleanup()
+
+
 def main():
+    if "--test" in sys.argv[1:]:
+        test_actuators()
+        return
+
     setup()
     try:
         while not finished:
