@@ -22,26 +22,43 @@ DURATION = 10  # seconds
 
 def main():
     print("Testing MAX30102...")
-    sensor = MAX30102(bus=BUS)
 
-    if sensor.handle is None:
-        print("FAIL: sensor not found. Check wiring and I2C is enabled.")
+    try:
+        sensor = MAX30102(bus=BUS)
+    except Exception as e:
+        print(f"FAIL: {e}")
+        print("Check wiring and that I2C is enabled (sudo raspi-config).")
         return
 
     print(f"OK: sensor found at 0x{sensor.address:02X} on bus {BUS}")
+
+    try:
+        print(f"Chip temperature: {sensor.read_temperature():.2f} C")
+    except Exception as e:
+        print(f"Temperature read failed: {e}")
+
     print(f"Reading for {DURATION}s - place your finger on the sensor.\n")
 
     start = time.monotonic()
     while time.monotonic() - start < DURATION:
-        hr, hr_valid, spo2, spo2_valid = sensor.get_reading()
-        diag = sensor.get_signal_diagnostics()
+        reading = sensor.get_reading()
+
+        if "error" in reading:
+            print("I2C ERROR:", reading["error"])
+            time.sleep(0.2)
+            continue
+
+        hr = reading["heart_rate"] if reading["heart_rate_valid"] else "--"
+        spo2 = reading["spo2"] if reading["spo2_valid"] else "--"
+
         print(
-            f"IR={diag['ir'] or 0:>7} Red={diag['red'] or 0:>7} "
-            f"samples={diag['samples']:>3} | "
-            f"HR={hr:>3} {'OK ' if hr_valid else '-- '} "
-            f"SpO2={spo2:>3} {'OK' if spo2_valid else '--'}"
+            f"HR={hr:>3} BPM  SpO2={spo2:>3}%  "
+            f"quality={reading['quality']:.2f}  "
+            f"samples={reading['samples']:>3}  "
+            f"new={reading.get('new_samples', 0):>2}  "
+            f"overflow={reading.get('fifo_overflow', 0)}"
         )
-        time.sleep(0.5)
+        time.sleep(0.2)
 
     sensor.close()
     print("\nDone.")

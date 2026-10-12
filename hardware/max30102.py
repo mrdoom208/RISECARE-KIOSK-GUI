@@ -5,14 +5,12 @@ from collections import deque
 import numpy as np
 
 try:
-<<<<<<< HEAD
-    from smbus2 import SMBus
-=======
     from smbus2 import SMBus, i2c_msg
     smbus_available = True
->>>>>>> 7d70ea4b398a19ab356b86a00029aef594dde969
 except ImportError:
     SMBus = None
+    i2c_msg = None
+    smbus_available = False
 
 try:
     from scipy.signal import butter, filtfilt, find_peaks
@@ -101,21 +99,6 @@ class MAX30102:
     # LOW LEVEL I2C
     # ------------------------------------------------------------
 
-<<<<<<< HEAD
-    def _write(self, reg, value):
-        self.bus.write_byte_data(
-            self.address,
-            reg,
-            value & 0xFF
-        )
-
-    def _read(self, reg, count=1):
-        return self.bus.read_i2c_block_data(
-            self.address,
-            reg,
-            count
-        )
-=======
     def _write(self, reg, data):
         # Use a single combined I2C transaction (i2c_rdwr) instead of
         # write_byte_data. Back-to-back smbus block calls frequently raise
@@ -142,12 +125,6 @@ class MAX30102:
                     raise
                 time.sleep(0.01 * (attempt + 1))
         raise last_error
-
-    def write_reg(self, reg, value):
-        if self.handle is None:
-            return
-        self._write(reg, value)
->>>>>>> 7d70ea4b398a19ab356b86a00029aef594dde969
 
     def read_reg(self, reg):
         return self._read(reg, 1)[0]
