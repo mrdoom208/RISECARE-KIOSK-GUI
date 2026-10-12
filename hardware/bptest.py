@@ -50,6 +50,18 @@ MAX_BEAT_INTERVAL = 2000   # ms
 PEAK_DROP_THRESHOLD = 0.010
 
 # ======================================================
+# TM7711 READY-WAIT / DEBUG
+# The TM7711 only runs at 10 Hz or 40 Hz. At 10 Hz a new
+# sample lands about every 100 ms, so the ready-wait must be
+# much longer than that or it races the converter and always
+# reports SENSOR TIMEOUT on otherwise-good wiring.
+# ======================================================
+
+TM7711_READY_TIMEOUT_US = 1000000   # 1 s (10x the 10 Hz period)
+DEBUG_TIMING = True                 # print ready-wait / sample-rate info
+DEBUG_SAMPLE_WINDOW = 200           # reads used to classify a stuck line
+
+# ======================================================
 # FILTERING - INITIAL EXPERIMENTAL VALUES
 # ======================================================
 
@@ -128,6 +140,12 @@ last_sample = 0
 pump_off_time = 0
 last_live_print = 0
 
+# TM7711 ready-timing diagnostics.
+last_ready_time = 0
+last_ready_interval = 0
+last_waited_us = 0
+timing_announced = False
+
 
 def millis():
     return int(time.monotonic() * 1000)
@@ -160,21 +178,54 @@ def stop_system():
 # TM7711 READ WITH TIMEOUT
 # ======================================================
 
+def sample_out_line(samples=DEBUG_SAMPLE_WINDOW):
+    """Read OUT_PIN repeatedly to tell a stuck line from a toggling one."""
+    low = 0
+    for _ in range(samples):
+        if GPIO.input(OUT_PIN) == GPIO.LOW:
+            low += 1
+    return low, samples - low
+
+
+def print_timeout_debug(elapsed):
+    low, high = sample_out_line()
+    if high == 0:
+        diagnosis = "line now LOW (slow converter, floating/shorted line)"
+    elif low == 0:
+        diagnosis = "stuck HIGH (no sensor / no power / wrong pin)"
+    else:
+        diagnosis = f"toggling (low={low} high={high}, floating/noisy line)"
+
+    print(
+        f"DEBUG TM7711 TIMEOUT: DOUT(GPIO{OUT_PIN}) stayed HIGH for "
+        f"{elapsed} us (timeout={TM7711_READY_TIMEOUT_US} us). "
+        f"{diagnosis}. SCK(GPIO{SCK_PIN})={GPIO.input(SCK_PIN)}. "
+        "Check sensor VCC/GND, DOUT->OUT_PIN, SCK->SCK_PIN wiring, "
+        "and that SCK is idle LOW.",
+        flush=True,
+    )
+
+
 def read_tm7711():
+    global last_ready_time, last_ready_interval, last_waited_us
+
     start = micros()
 
     while GPIO.input(OUT_PIN) == GPIO.HIGH:
         elapsed = micros() - start
-        if elapsed > 100000:
-            print(
-                f"DEBUG TM7711 TIMEOUT: DOUT(GPIO{OUT_PIN}) stayed HIGH for "
-                f"{elapsed} us. OUT_PIN={GPIO.input(OUT_PIN)}, "
-                f"SCK(GPIO{SCK_PIN})={GPIO.input(SCK_PIN)}. "
-                "Check sensor VCC/GND, DOUT->OUT_PIN, SCK->SCK_PIN wiring, "
-                "and that SCK is idle LOW.",
-                flush=True,
-            )
-            return False, 0
+        if elapsed > TM7711_READY_TIMEOUT_US:
+            last_waited_us = elapsed
+            print_timeout_debug(elapsed)
+            return False, 0, elapsed
+
+    ready_at = micros()
+    waited = ready_at - start
+
+    # Time between successive ready edges reveals the real sample rate:
+    # ~100 ms => 10 Hz, ~25 ms => 40 Hz.
+    last_ready_interval = ready_at - last_ready_time if last_ready_time else 0
+    last_ready_time = ready_at
+    last_waited_us = waited
 
     value = 0
 
@@ -198,7 +249,7 @@ def read_tm7711():
     if value >= 0x80000000:
         value -= 0x100000000
 
-    return True, value
+    return True, value, waited
 
 
 # ======================================================
@@ -643,7 +694,7 @@ def setup():
 
 def loop():
     global pressure, pump_running, waiting_to_measure, pump_off_time
-    global measuring, last_sample, last_live_print
+    global measuring, last_sample, last_live_print, timing_announced
 
     if finished:
         return
@@ -655,7 +706,7 @@ def loop():
 
     last_sample = now
 
-    ok, raw = read_tm7711()
+    ok, raw, waited = read_tm7711()
 
     if not ok:
         print()
@@ -663,6 +714,17 @@ def loop():
 
         stop_system()
         return
+
+    # Announce the measured TM7711 sample rate once, so the operator can
+    # confirm 10 Hz (~100 ms) vs 40 Hz (~25 ms) without guessing.
+    if DEBUG_TIMING and not timing_announced and last_ready_interval > 0:
+        timing_announced = True
+        print(
+            f"DEBUG TM7711 first sample: ready after {waited} us, "
+            f"conversion interval {last_ready_interval} us "
+            f"(~{1000000.0 / last_ready_interval:.1f} Hz)",
+            flush=True,
+        )
 
     pressure = raw_to_mmhg(raw)
     if (not math.isfinite(pressure) or pressure < -5.0 or pressure > 250.0):
@@ -715,10 +777,13 @@ def loop():
         elif measuring:
             status = "OFF"
 
+        rate = 1000000.0 / last_ready_interval if last_ready_interval > 0 else 0.0
+
         print(f"Raw:{raw} | P:{pressure:.1f} | SYS:{SYS:.1f} | DIA:{DIA:.1f} "
               f"| MAP:{MAP:.1f} | Amp:{pulse_amplitude:.3f} "
               f"| HR:{heart_rate_bpm:.1f} | Beats:{detected_beat_count} "
-              f"| Envelope:{peak_count} | Pump:{status}")
+              f"| Envelope:{peak_count} | Pump:{status} "
+              f"| Wait:{waited}us | Rate:{rate:.1f}Hz")
 
 
 def main():
