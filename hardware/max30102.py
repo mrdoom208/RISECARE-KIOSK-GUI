@@ -3,7 +3,7 @@ import numpy as np
 import math
 
 try:
-    from smbus2 import SMBus
+    from smbus2 import SMBus, i2c_msg
     smbus_available = True
 except ImportError:
     print("Warning: smbus2 not installed. Install with: python -m pip install smbus2")
@@ -59,10 +59,31 @@ class MAX30102:
         self.setup()
 
     def _write(self, reg, data):
-        self.bus.write_byte_data(self.address, reg, data)
+        # Use a single combined I2C transaction (i2c_rdwr) instead of
+        # write_byte_data. Back-to-back smbus block calls frequently raise
+        # [Errno 121] Remote I/O error on the Pi's i2c-bcm2835 driver.
+        msg = i2c_msg.write(self.address, [reg, data])
+        self._rdwr(msg)
 
     def _read(self, reg, count=1):
-        return self.bus.read_i2c_block_data(self.address, reg, count)
+        write = i2c_msg.write(self.address, [reg])
+        read = i2c_msg.read(self.address, count)
+        self._rdwr(write, read)
+        return list(read)
+
+    def _rdwr(self, *msgs):
+        last_error = None
+        for attempt in range(3):
+            try:
+                self.bus.i2c_rdwr(*msgs)
+                return
+            except OSError as e:
+                # errno 121 == EREMOTEIO; the bus is momentarily busy.
+                last_error = e
+                if getattr(e, "errno", None) != 121:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+        raise last_error
 
     def write_reg(self, reg, value):
         if self.handle is None:
