@@ -9,6 +9,7 @@ Wiring (BCM):
 
 Run a measurement:      python bptest.py
 Verify the actuators:   python bptest.py --test
+Debug the ADC line:     python bptest.py --adc
 
 The algorithm is a prototype oscillometric estimator: the cuff is inflated to
 PUMP_OFF_PRESSURE, held briefly, then bled down while the pulsatile component of
@@ -100,6 +101,14 @@ RELAYS_ACTIVE_LOW = True
 DEBUG_TIMING = True
 DEBUG_ACTUATORS = True
 
+# Input pull for the DOUT line: "up", "down" or "off". Harmless with a
+# push-pull DOUT, and makes an open-drain or disconnected line deterministic.
+OUT_PULL = "up"
+
+# Clock pulses after the 24 data bits. HX711/TM7711 use 1 extra (25 total = channel
+# A gain 128); try 2 or 3 if your module needs a different next-conversion setup.
+TM7711_EXTRA_PULSES = 1
+
 
 def millis():
     return int(time.monotonic() * 1000)
@@ -107,6 +116,13 @@ def millis():
 
 def micros():
     return int(time.perf_counter() * 1000000)
+
+
+_PULLS = {"up": GPIO.PUD_UP, "down": GPIO.PUD_DOWN, "off": GPIO.PUD_OFF}
+
+
+def out_pull():
+    return _PULLS.get(str(OUT_PULL).lower(), GPIO.PUD_UP)
 
 
 # ======================================================
@@ -148,6 +164,8 @@ class TM7711:
         self.last_ready_time = 0
         self.last_interval_us = 0
         self.last_waited_us = 0
+        self._all_ones_streak = 0
+        self._warned_all_ones = False
 
     def read(self):
         """Clock out one sample. Returns (ok, raw_value, waited_us)."""
@@ -179,14 +197,29 @@ class TM7711:
             GPIO.output(SCK_PIN, GPIO.LOW)
             time.sleep(0.000001)
 
-        # 25th pulse selects the gain/channel for the next conversion.
-        GPIO.output(SCK_PIN, GPIO.HIGH)
-        time.sleep(0.000001)
-        GPIO.output(SCK_PIN, GPIO.LOW)
+        # Extra pulses select the gain/channel for the next conversion and pull
+        # DOUT back high.
+        for _ in range(TM7711_EXTRA_PULSES):
+            GPIO.output(SCK_PIN, GPIO.HIGH)
+            time.sleep(0.000001)
+            GPIO.output(SCK_PIN, GPIO.LOW)
+            time.sleep(0.000001)
 
         # Sign-extend the 24-bit two's-complement reading.
         if value & 0x800000:
             value -= 0x1000000
+
+        # 0xFFFFFF (-1) means every bit read high: DOUT was not driven during
+        # the transfer, so the chip is not answering correctly.
+        if value == -1:
+            self._all_ones_streak += 1
+            if self._all_ones_streak >= 5 and not self._warned_all_ones:
+                self._warned_all_ones = True
+                print("DEBUG ADC all-ones (0xFFFFFF) repeatedly: DOUT stuck HIGH "
+                      "during conversion. Check DOUT wiring / chip power, or run "
+                      "`python bptest.py --adc`.", flush=True)
+        else:
+            self._all_ones_streak = 0
 
         return True, value, waited
 
@@ -512,7 +545,7 @@ class BloodPressureTest:
     def start(self):
         GPIO.setmode(GPIO.BCM)
 
-        GPIO.setup(OUT_PIN, GPIO.IN)
+        GPIO.setup(OUT_PIN, GPIO.IN, pull_up_down=out_pull())
         GPIO.setup(SCK_PIN, GPIO.OUT)
         GPIO.setup(PUMP, GPIO.OUT)
         GPIO.setup(VALVE, GPIO.OUT)
@@ -711,9 +744,69 @@ def test_actuators():
     GPIO.cleanup()
 
 
+# ======================================================
+# ADC SELF-TEST
+# ======================================================
+
+def test_adc():
+    """Monitor the DOUT ready line and dump raw reads to debug the interface.
+
+    A healthy TM7711/HX711 sits HIGH and pulls DOUT LOW once per conversion.
+    If the monitor sees no LOW pulses, or every raw read is 0xFFFFFF (-1, all
+    ones), DOUT is not being driven - check wiring, chip power and pull-up.
+    """
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(OUT_PIN, GPIO.IN, pull_up_down=out_pull())
+    GPIO.setup(SCK_PIN, GPIO.OUT)
+    GPIO.output(SCK_PIN, GPIO.LOW)
+
+    print("================================================")
+    print(" TM7711 / ADC SELF-TEST")
+    print(f" DOUT -> GPIO{OUT_PIN}, SCK -> GPIO{SCK_PIN}, pull={OUT_PULL}")
+    print("================================================")
+    print(f"DEBUG idle DOUT level: {GPIO.input(OUT_PIN)}", flush=True)
+
+    print("Monitoring DOUT for 3 s (looking for data-ready LOW pulses)...", flush=True)
+    start = time.monotonic()
+    lows = 0
+    prev = GPIO.input(OUT_PIN)
+    while time.monotonic() - start < 3.0:
+        level = GPIO.input(OUT_PIN)
+        if level != prev:
+            if level == GPIO.LOW:
+                lows += 1
+            prev = level
+    print(f"DEBUG DOUT LOW pulses in 3 s: {lows} "
+          f"(~{lows / 3.0:.1f} Hz)", flush=True)
+
+    adc = TM7711()
+    print("Raw reads:", flush=True)
+    for i in range(8):
+        ok, raw, waited = adc.read()
+        if ok:
+            print(f"  read {i}: raw={raw} (0x{raw & 0xFFFFFF:06X}) "
+                  f"popcount={bin(raw & 0xFFFFFF).count('1')} "
+                  f"waited={waited}us", flush=True)
+        else:
+            print(f"  read {i}: TIMEOUT", flush=True)
+        time.sleep(0.2)
+
+    print("\nEvery read 0xFFFFFF / popcount 24 => DOUT stuck HIGH:", flush=True)
+    print("  - check DOUT wiring and chip VCC/GND", flush=True)
+    print("  - a 10k pull-up on DOUT can help open-drain modules", flush=True)
+    print("  - no LOW pulses above => the chip is not converting at all", flush=True)
+    GPIO.cleanup()
+
+
 def main():
-    if "--test" in sys.argv[1:]:
+    args = sys.argv[1:]
+
+    if "--test" in args:
         test_actuators()
+        return
+
+    if "--adc" in args:
+        test_adc()
         return
 
     BloodPressureTest().run()
