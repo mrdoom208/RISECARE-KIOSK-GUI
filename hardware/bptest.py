@@ -9,8 +9,8 @@ import RPi.GPIO as GPIO
 
 OUT_PIN = 17
 SCK_PIN = 27
-PUMP = 4
-VALVE = 22
+PUMP = 22
+VALVE = 4
 
 # ======================================================
 # CALIBRATION - VERIFY WITH A REFERENCE GAUGE

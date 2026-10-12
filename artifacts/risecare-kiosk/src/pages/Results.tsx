@@ -181,7 +181,6 @@ export default function Results() {
     })(),
   ].filter((r) => r.val !== undefined && r.val !== null);
 
-<<<<<<< HEAD
   // Use fixed, transparent screening rules for labels and the printed summary.
   const overallRecommendation = useMemo(() => {
     const criticalCount = resultsList.filter((r) => r.status === "critical").length;
@@ -230,14 +229,6 @@ export default function Results() {
         `${item.name}: ${item.val} ${item.unit.replace("°", "")} - ${getStatusText(item.status)}. ${item.msg}`,
     ),
     "General adult screening thresholds are shown for all ages; pediatric results need age-specific clinical interpretation. The SpO2 value is an unvalidated screening estimate. This report is not a diagnosis.",
-=======
-  const printAssessment = [
-    ...resultsList.map(
-      (item) =>
-        `${item.name}: ${item.val} ${item.unit.replace("°", "")} (${getStatusText(item.status)})`,
-    ),
-    "Screening only; not a diagnosis.",
->>>>>>> 7d70ea4b398a19ab356b86a00029aef594dde969
   ].join("\n");
 
   // Auto-reset the session after showing results (kiosk mode only)
@@ -326,7 +317,6 @@ export default function Results() {
           </p>
         </div>
 
-<<<<<<< HEAD
         <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div
             className={`p-4 border-b border-border ${
@@ -374,8 +364,6 @@ export default function Results() {
           </div>
         </div>
 
-=======
->>>>>>> 7d70ea4b398a19ab356b86a00029aef594dde969
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div className="divide-y divide-border/50">
             {resultsList.length === 0 ? (
@@ -548,11 +536,7 @@ function getBPMessage(
   diastolic?: number | null,
 ) {
   if (status === "normal") return "Below 120/80 mmHg.";
-<<<<<<< HEAD
   if (status === "critical") return "Very high reading (at least 180 systolic or 120 diastolic); repeat and seek urgent clinical advice.";
-=======
-  if (status === "critical") return "At least 180 systolic or 120 diastolic; repeat and seek urgent clinical advice.";
->>>>>>> 7d70ea4b398a19ab356b86a00029aef594dde969
   if (status === "warning" && ((systolic ?? 0) < 90 || (diastolic ?? 0) < 60)) {
     return "Below the usual adult range; repeat and discuss persistent readings with a healthcare professional.";
   }
@@ -575,7 +559,6 @@ function getSpO2Message(status: VitalStatus, spo2?: number | null) {
   if (status === "critical" && spo2 != null) return "90% or lower; recheck and seek urgent clinical advice, especially if you have symptoms.";
   return "Not assessed.";
 }
-<<<<<<< HEAD
 function getTempMessage(s: VitalStatus, temp?: number | null) {
   if (s === "normal") return "Within the selected screening range (36.0-37.9 °C).";
   if (s === "warning" && temp != null && temp < 36) return "Below the selected screening range; repeat and seek advice if it persists.";
@@ -587,19 +570,6 @@ function getTempMessage(s: VitalStatus, temp?: number | null) {
 function getBMIMessage(s: VitalStatus, age?: number | null) {
   if (s === "normal") return "Within the adult BMI screening range (18.5-24.9).";
   if (s === "warning") {
-=======
-function getTempMessage(status: VitalStatus, temp?: number | null) {
-  if (status === "normal") return "Within the selected screening range (36.0-37.9 °C).";
-  if (status === "warning" && temp != null && temp < 36) return "Below the selected screening range; repeat and seek advice if it persists.";
-  if (status === "warning") return "Fever-range reading (38.0-39.9 °C); repeat and monitor symptoms.";
-  if (status === "critical" && temp != null && temp < 35) return "Below 35 °C; repeat and seek urgent clinical advice.";
-  if (status === "critical") return "At least 40 °C; seek urgent clinical advice, especially if unwell.";
-  return "Not assessed.";
-}
-function getBMIMessage(status: VitalStatus, age?: number | null) {
-  if (status === "normal") return "Within the adult BMI screening range (18.5-24.9).";
-  if (status === "warning") {
->>>>>>> 7d70ea4b398a19ab356b86a00029aef594dde969
     const pediatricNote = age != null && age < 18
       ? " For patients under 18, use age- and sex-specific growth charts."
       : "";
