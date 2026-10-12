@@ -109,6 +109,11 @@ OUT_PULL = "up"
 # A gain 128); try 2 or 3 if your module needs a different next-conversion setup.
 TM7711_EXTRA_PULSES = 1
 
+# Half-period of the SCK clock in microseconds. 1 us is well inside the TM7711
+# window (0.2-50 us high). `--adc` retries with a much slower clock to rule out
+# a too-fast bit-bang.
+TM7711_CLOCK_DELAY_US = 1
+
 
 def millis():
     return int(time.monotonic() * 1000)
@@ -167,8 +172,10 @@ class TM7711:
         self._all_ones_streak = 0
         self._warned_all_ones = False
 
-    def read(self):
+    def read(self, clock_delay_us=None):
         """Clock out one sample. Returns (ok, raw_value, waited_us)."""
+        delay = (TM7711_CLOCK_DELAY_US if clock_delay_us is None
+                 else clock_delay_us) / 1000000.0
         start = micros()
 
         while GPIO.input(OUT_PIN) == GPIO.HIGH:
@@ -190,20 +197,20 @@ class TM7711:
         value = 0
         for _ in range(24):
             GPIO.output(SCK_PIN, GPIO.HIGH)
-            time.sleep(0.000001)
+            time.sleep(delay)
 
             value = (value << 1) | (1 if GPIO.input(OUT_PIN) else 0)
 
             GPIO.output(SCK_PIN, GPIO.LOW)
-            time.sleep(0.000001)
+            time.sleep(delay)
 
         # Extra pulses select the gain/channel for the next conversion and pull
         # DOUT back high.
         for _ in range(TM7711_EXTRA_PULSES):
             GPIO.output(SCK_PIN, GPIO.HIGH)
-            time.sleep(0.000001)
+            time.sleep(delay)
             GPIO.output(SCK_PIN, GPIO.LOW)
-            time.sleep(0.000001)
+            time.sleep(delay)
 
         # Sign-extend the 24-bit two's-complement reading.
         if value & 0x800000:
@@ -763,6 +770,7 @@ def test_adc():
     print("================================================")
     print(" TM7711 / ADC SELF-TEST")
     print(f" DOUT -> GPIO{OUT_PIN}, SCK -> GPIO{SCK_PIN}, pull={OUT_PULL}")
+    print(f" clock={TM7711_CLOCK_DELAY_US} us, extra_pulses={TM7711_EXTRA_PULSES}")
     print("================================================")
     print(f"DEBUG idle DOUT level: {GPIO.input(OUT_PIN)}", flush=True)
 
@@ -780,21 +788,29 @@ def test_adc():
           f"(~{lows / 3.0:.1f} Hz)", flush=True)
 
     adc = TM7711()
-    print("Raw reads:", flush=True)
-    for i in range(8):
-        ok, raw, waited = adc.read()
-        if ok:
-            print(f"  read {i}: raw={raw} (0x{raw & 0xFFFFFF:06X}) "
-                  f"popcount={bin(raw & 0xFFFFFF).count('1')} "
-                  f"waited={waited}us", flush=True)
-        else:
-            print(f"  read {i}: TIMEOUT", flush=True)
-        time.sleep(0.2)
 
-    print("\nEvery read 0xFFFFFF / popcount 24 => DOUT stuck HIGH:", flush=True)
-    print("  - check DOUT wiring and chip VCC/GND", flush=True)
-    print("  - a 10k pull-up on DOUT can help open-drain modules", flush=True)
-    print("  - no LOW pulses above => the chip is not converting at all", flush=True)
+    def dump(label, delay_us):
+        print(f"{label} (clock={delay_us} us):", flush=True)
+        for i in range(4):
+            ok, raw, waited = adc.read(clock_delay_us=delay_us)
+            if ok:
+                bits = raw & 0xFFFFFF
+                print(f"  read {i}: raw={raw} (24-bit 0x{bits:06X}, "
+                      f"popcount={bin(bits).count('1')}) waited={waited}us",
+                      flush=True)
+            else:
+                print(f"  read {i}: TIMEOUT", flush=True)
+            time.sleep(0.2)
+
+    dump("Raw reads", TM7711_CLOCK_DELAY_US)
+    dump("Slow-clock retry", 100)
+
+    print("\nHow to read this:", flush=True)
+    print("  popcount 24 on every read => DOUT stuck HIGH (not driven).", flush=True)
+    print("  0 LOW pulses above => the chip is not converting at all", flush=True)
+    print("    -> check VCC/GND, DOUT and SCK continuity, sensor bridge wiring.", flush=True)
+    print("  varied popcounts => the interface works; check calibration.", flush=True)
+    print("  only the slow retry works => lower TM7711_CLOCK_DELAY_US is too fast.", flush=True)
     GPIO.cleanup()
 
 
