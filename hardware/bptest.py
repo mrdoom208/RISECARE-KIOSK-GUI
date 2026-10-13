@@ -5,8 +5,9 @@ previous bptest.py. Check them against a reference gauge before use.
 
 Usage:
     python bptest.py            run one inflate/deflate cycle
-    python bptest.py --test     pulse the pump/valve relays to verify wiring
     python bptest.py --noise    capture raw ADC samples with actuators idle
+
+Pump/valve relay test: python pump_valve_test.py
 """
 
 from collections import deque
@@ -251,52 +252,8 @@ class BloodPressureTest:
             GPIO.cleanup()
 
 
-def test_actuators():
-    """Pulse the pump and valve relays so wiring and polarity can be verified."""
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-    GPIO.setup(PUMP, GPIO.OUT, initial=relay_level(False))
-    GPIO.setup(VALVE, GPIO.OUT, initial=relay_level(False))
-    pump_set(False)
-    valve_set(False)
-
-    polarity = "ACTIVE-LOW" if RELAYS_ACTIVE_LOW else "ACTIVE-HIGH"
-    print("================================================")
-    print(" ACTUATOR SELF-TEST")
-    print(f" Polarity: {polarity} (RELAYS_ACTIVE_LOW={RELAYS_ACTIVE_LOW})")
-    print(f" PUMP=GPIO{PUMP}  VALVE=GPIO{VALVE}")
-    print(" Watch/listen as each relay is toggled. If one never")
-    print(" moves, flip RELAYS_ACTIVE_LOW and run --test again.")
-    print("================================================")
-    try:
-        print(f"\n-- VALVE: CLOSED for 3 s -- (GPIO{VALVE}={relay_level(True)})",
-              flush=True)
-        valve_set(True)
-        time.sleep(3)
-        print(f"-- VALVE: OPEN for 3 s -- (GPIO{VALVE}={relay_level(False)})",
-              flush=True)
-        valve_set(False)
-        time.sleep(3)
-
-        print(f"\n-- PUMP: ON for 3 s, valve OPEN -- (GPIO{PUMP}={relay_level(True)})",
-              flush=True)
-        pump_set(True)
-        time.sleep(3)
-        print(f"-- PUMP: OFF -- (GPIO{PUMP}={relay_level(False)})", flush=True)
-        pump_set(False)
-
-        print("\nSelf-test complete.", flush=True)
-    finally:
-        pump_set(False)
-        valve_set(False)
-        GPIO.cleanup()
-
-
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    if "--test" in args:
-        test_actuators()
-    elif "--noise" in args:
+    if "--noise" in sys.argv[1:]:
         debug_noise()
     else:
         BloodPressureTest().run()

@@ -14,8 +14,9 @@ GPIO 24 (Physical 18) - Ultrasonic ECHO (height sensor echo)          [ultrasoni
 GPIO 17 (Physical 11) - TM7711 DOUT (BP pressure ADC data pin)        [bptest.py, tm7711.py]
 GPIO 27 (Physical 13) - TM7711 SCK (BP pressure ADC clock pin)         [bptest.py, tm7711.py]
 
-BP relay polarity is configurable in bptest.py (RELAYS_ACTIVE_LOW, default
-active-LOW). Verify wiring/polarity with: python bptest.py --test
+BP relay polarity is configurable in pump_valve_test.py (RELAYS_ACTIVE_LOW,
+default active-LOW). Verify wiring/polarity with: python pump_valve_test.py
+(use --active-high to invert).
 
 I2C BUS (bus 1, via GPIO 2/3)
 -----------------------------
