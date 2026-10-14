@@ -4,7 +4,7 @@ services:
     container_name: risecare-mqtt
     restart: unless-stopped
     ports:
-      - "1883:1883"
+      - "127.0.0.1:1883:1883"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     networks:
@@ -17,10 +17,11 @@ services:
     container_name: risecare-api
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     environment:
       - NODE_ENV=production
       - PORT=5000
+      - HOST=0.0.0.0
       - SERVE_STATIC=true
       - MQTT_BROKER=mosquitto
     depends_on:

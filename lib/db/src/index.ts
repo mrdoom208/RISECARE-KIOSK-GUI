@@ -201,16 +201,6 @@ function createTables() {
     db.run("UPDATE sessions SET sync_status = 'synced' WHERE sync_state = 'synced' AND sync_status = 'pending'");
     db.run("UPDATE vital_readings SET sync_status = 'synced' WHERE sync_status = 'pending' AND id IN (SELECT vr.id FROM vital_readings vr JOIN sessions s ON s.id = vr.session_id WHERE s.sync_state = 'synced')");
 
-    // Insert default settings if none exist
-    const existingMode = db.exec("SELECT value FROM settings WHERE key = 'ai_mode'");
-    if (!existingMode[0]?.values?.length) {
-      db.run("INSERT INTO settings (key, value) VALUES ('ai_mode', 'integrated')");
-    }
-    const existingRec = db.exec("SELECT value FROM settings WHERE key = 'recommendation_enabled'");
-    if (!existingRec[0]?.values?.length) {
-      db.run("INSERT INTO settings (key, value) VALUES ('recommendation_enabled', 'true')");
-    }
-
     saveDb();
   } catch (e) {
     console.error("Error creating tables:", e);

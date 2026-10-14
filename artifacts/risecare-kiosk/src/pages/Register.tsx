@@ -84,7 +84,7 @@ export default function Register() {
       <KioskHeader title="Patient Registration" showBack backTo="/" />
 
       <main
-        className={`flex-1 min-h-0 flex justify-center overflow-y-auto overscroll-contain p-4 transition-[padding] duration-200 ${
+        className={`flex-1 min-h-0 flex justify-center overflow-y-auto overscroll-contain p-4 ${
           keyboardVisible ? "items-start pt-3 pb-80" : "items-center"
         }`}
       >

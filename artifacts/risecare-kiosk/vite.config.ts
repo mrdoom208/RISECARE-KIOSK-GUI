@@ -47,8 +47,8 @@ export default defineConfig({
   },
   server: {
     port,
-    host: "0.0.0.0",
-    allowedHosts: true,
+    host: "127.0.0.1",
+    allowedHosts: ["localhost", "127.0.0.1"],
     fs: {
       strict: true,
       deny: ["**/.*"],
@@ -57,11 +57,11 @@ export default defineConfig({
     ...(process.env.REPL_ID === undefined && process.env.NODE_ENV !== "production" && {
       proxy: {
         "/api": {
-          target: `http://localhost:${apiPort}`,
+          target: `http://127.0.0.1:${apiPort}`,
           changeOrigin: true,
         },
         "/ws": {
-          target: `ws://localhost:${apiPort}`,
+          target: `ws://127.0.0.1:${apiPort}`,
           ws: true,
         },
       },
@@ -69,7 +69,7 @@ export default defineConfig({
   },
   preview: {
     port,
-    host: "0.0.0.0",
-    allowedHosts: true,
+    host: "127.0.0.1",
+    allowedHosts: ["localhost", "127.0.0.1"],
   },
 });

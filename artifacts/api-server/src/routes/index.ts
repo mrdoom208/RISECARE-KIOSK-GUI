@@ -5,7 +5,6 @@ import vitalsRouter from "./vitals";
 import sensorsRouter from "./sensors";
 import settingsRouter from "./settings";
 import printRouter from "./print";
-import aiRouter from "./ai";
 import networkRouter from "./network";
 import deviceRouter from "./device";
 
@@ -17,7 +16,6 @@ router.use(vitalsRouter);
 router.use(sensorsRouter);
 router.use("/settings", settingsRouter);
 router.use(printRouter);
-router.use(aiRouter);
 router.use(networkRouter);
 router.use(deviceRouter);
 

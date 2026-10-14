@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
-  Brain,
   CircleUserRound,
   FileText,
   Loader2,
@@ -20,7 +19,6 @@ export type SettingsSubmenu =
   | "device"
   | "logs"
   | "accounts"
-  | "ai-integration"
   | "idle-timeout"
   | "network";
 
@@ -143,15 +141,6 @@ export function SettingsMenu({
             onOpenSensors();
           }}
           ariaLabel="Open Sensors and Print Test"
-        />
-        <SettingsMenuItem
-          icon={Brain}
-          label="AI Integration"
-          onClick={() => {
-            if (isRateLimited("ai-integration-menu")) return;
-            onNavigate("ai-integration");
-          }}
-          ariaLabel="Open AI Integration settings"
         />
       </SettingsSection>
 

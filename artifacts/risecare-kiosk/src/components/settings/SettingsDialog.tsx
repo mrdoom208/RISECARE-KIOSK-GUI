@@ -7,7 +7,6 @@ import type { SettingsAccount } from "@/components/LoginDialog";
 import { SettingsMenu, type SettingsSubmenu } from "./SettingsMenu";
 import { ActivityLogsSettings } from "./ActivityLogsSettings";
 import { AccountsSettings } from "./AccountsSettings";
-import { AIIntegrationSettings } from "./AIIntegrationSettings";
 import { IdleTimeoutSettings } from "./IdleTimeoutSettings";
 import { NetworkSettings } from "./NetworkSettings";
 import { PowerSettings } from "./PowerSettings";
@@ -285,9 +284,7 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
             ? "Activity Logs"
             : activeSubmenu === "accounts"
               ? "Accounts"
-              : activeSubmenu === "ai-integration"
-                ? "AI Integration"
-                : activeSubmenu === "idle-timeout"
+              : activeSubmenu === "idle-timeout"
                   ? "Idle Timeout"
                   : activeSubmenu === "network"
                     ? "Network Settings"
@@ -499,8 +496,6 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
                 onCreateAccount={openCreateAccount}
                 onEditAccount={openEditAccount}
               />
-            ) : activeSubmenu === "ai-integration" ? (
-              <AIIntegrationSettings account={account} isRateLimited={isRateLimited} />
             ) : activeSubmenu === "idle-timeout" ? (
               <IdleTimeoutSettings account={account} isRateLimited={isRateLimited} />
             ) : activeSubmenu === "network" ? (

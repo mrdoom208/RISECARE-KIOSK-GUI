@@ -211,7 +211,7 @@ def _print_receipt(data):
             label = patient_gender.replace("_", " ").title() if isinstance(patient_gender, str) else str(patient_gender)
             p.text(f"Sex:   {label}\n")
         if session_token:
-            p.text(f"Token: {session_token}\n")
+            p.text(f"Reference: {session_token}\n")
         p.text(f"Date:  {date_str}\n")
         p.text("-" * 32 + "\n")
 

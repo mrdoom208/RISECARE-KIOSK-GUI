@@ -21,8 +21,13 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const server = app.listen(port, async () => {
-  console.log(`Server listening on port ${port}`);
+// Bind to loopback by default so dev/start is not exposed on the LAN.
+// Containers override this with HOST=0.0.0.0 and rely on their port mapping
+// (127.0.0.1:5000:5000) to keep the service off the network.
+const host = process.env["HOST"] ?? "127.0.0.1";
+
+const server = app.listen(port, host, async () => {
+  console.log(`Server listening on http://${host}:${port}`);
 
   // Attach WebSocket server
   setupWebSocket(server);

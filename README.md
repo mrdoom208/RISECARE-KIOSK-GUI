@@ -15,7 +15,6 @@ A modern, self-service health monitoring kiosk application that enables patients
 - **Health Status Evaluation** - Automated normal/warning/critical status for all vitals
 - **Session Management** - Track and review patient sessions with full history
 - **Find My Session** - Patients can look up past sessions and results by phone number or reference code, with rate limiting
-- **AI Health Recommendations** - Automated health insights based on recorded vitals (toggleable)
 - **Kiosk Mode** - Touchscreen-optimized UI with auto-reset after session completion
 - **Configurable Idle Timeout** - Returns to the home screen after a period of inactivity; duration is set by admins in Settings (30s to 10 min)
 - **Orientation-Responsive Layout** - UI adapts smoothly between wide/landscape and portrait kiosk displays, with side-aligned scrollbars
@@ -63,7 +62,7 @@ RiseCare-Health-Kiosk/
 ├── artifacts/
 │   ├── api-server/          # Express backend API
 │   │   └── src/
-│   │       ├── routes/      # API endpoints (sessions, vitals, sensors, settings, network, print, ai)
+│   │       ├── routes/      # API endpoints (sessions, vitals, sensors, settings, network, print)
 │   │       ├── mqtt.ts     # MQTT client
 │   │       └── app.ts      # Express app config
 │   └── risecare-kiosk/     # React frontend kiosk UI
@@ -118,12 +117,9 @@ PORT=5000
 BASE_PATH=/
 MQTT_BROKER=mqtt://localhost:1883
 MQTT_TOPIC=risecare/sensors/#
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:0.5b
 SESSION_SECRET=change-me-to-a-long-random-string
 ```
 
-- `OLLAMA_HOST` / `OLLAMA_MODEL` - configure the local Ollama server used for AI health recommendations
 - `SESSION_SECRET` - secret used to sign admin session tokens
 - `RISECARE_PORTAL_URL` - optional base URL of the RiseCare Admin Portal used for kiosk activation and sync. Defaults to `http://localhost:3001` in dev and `https://portal.example.com` in production; the `server_link` setting overrides the default when both are set, and this env var takes precedence over the setting.
 
@@ -186,7 +182,6 @@ pnpm run start
 | `/api/settings/accounts` | GET    | List accounts (superadmin only, optional `?role=` filter) |
 | `/api/settings/accounts/:id` | PUT/DELETE | Edit / remove an account (superadmin only) |
 | `/api/settings/logs`     | GET    | Get activity logs (superadmin only)       |
-| `/api/settings/recommendation` | GET/POST | Get / toggle AI recommendations |
 | `/api/settings/idle-timeout` | GET/POST | Get / set idle timeout (seconds) |
 | `/api/settings/export`   | POST   | Export database            |
 | `/api/settings/import`   | POST   | Import database            |
@@ -194,7 +189,6 @@ pnpm run start
 | `/api/settings/power`    | POST   | Send MQTT power command (shutdown / restart / lock) |
 | `/api/print/receipt`     | POST   | Send report to thermal printer |
 | `/api/print/test`        | POST   | Send a test page to the printer |
-| `/api/ai/recommendation` | POST   | AI health assessment       |
 | `/api/network/status`    | GET    | Get network connection status |
 | `/api/network/wifi/scan` | GET    | Scan for available WiFi networks |
 | `/api/network/wifi/connect` | POST | Connect to a WiFi network |
@@ -269,7 +263,7 @@ To enable real-time IoT sensor data:
 ## Admin & Security
 
 - **Username & password login**: Session history and admin actions are locked behind an admin login (username + password)
-- **Account roles**: Accounts are either **Super Admin** (full access) or **Admin**. Only super admins see the Activity Log and Accounts categories (which list all accounts with role badges, edit accounts, remove accounts, and can create both super admins and admins); admins get the remaining settings (Sensors, Database, Print Test, AI Integration, Idle Timeout, Power) only
+- **Account roles**: Accounts are either **Super Admin** (full access) or **Admin**. Only super admins see the Activity Log and Accounts categories (which list all accounts with role badges, edit accounts, remove accounts, and can create both super admins and admins); admins get the remaining settings (Sensors, Database, Print Test, Idle Timeout, Power) only
 - **Activity logging**: Admin actions (e.g. system shutdown, database operations) are recorded in the `activity_log` table
 
 ---

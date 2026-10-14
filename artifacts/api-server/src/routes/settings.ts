@@ -413,37 +413,6 @@ router.post("/import", requireAuth, requireSuperadmin, requireReauth, async (req
   }
 });
 
-// Get AI mode setting (public read used by the kiosk)
-router.get("/ai-mode", async (_req, res) => {
-  try {
-    const rows = await query("SELECT value FROM settings WHERE key = 'ai_mode'");
-    const mode = (rows && rows.length > 0) ? rows[0].value : "integrated";
-    res.json({ mode });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to get AI mode" });
-  }
-});
-
-// Set AI mode setting (authenticated)
-router.post("/ai-mode", requireAuth, async (req, res) => {
-  try {
-    const { mode } = req.body ?? {};
-    if (mode !== "integrated" && mode !== "rule-based") {
-      res.status(400).json({ error: "Mode must be 'integrated' or 'rule-based'" });
-      return;
-    }
-    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_mode', ?)", [mode]);
-    await logActivity(
-      req.user?.id ?? null,
-      "AI Mode Changed",
-      `AI mode set to "${mode}" by ${req.user?.username ?? "Unknown"}`,
-    );
-    res.json({ success: true, mode });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to set AI mode" });
-  }
-});
-
 // Delete all data (superadmin, requires recent re-auth)
 router.post("/delete", requireAuth, requireSuperadmin, requireReauth, async (req, res) => {
   try {
@@ -459,34 +428,6 @@ router.post("/delete", requireAuth, requireSuperadmin, requireReauth, async (req
     res.json({ status: "deleted" });
   } catch (e) {
     res.status(500).json({ error: "Failed to delete data" });
-  }
-});
-
-// Get recommendation enabled setting (public read used by the kiosk)
-router.get("/recommendation", async (_req, res) => {
-  try {
-    const rows = await query("SELECT value FROM settings WHERE key = 'recommendation_enabled'");
-    const enabled = (rows && rows.length > 0) ? rows[0].value === "true" : true;
-    res.json({ enabled });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to get recommendation setting" });
-  }
-});
-
-// Set recommendation enabled setting (authenticated)
-router.post("/recommendation", requireAuth, async (req, res) => {
-  try {
-    const { enabled } = req.body ?? {};
-    const val = enabled ? "true" : "false";
-    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('recommendation_enabled', ?)", [val]);
-    await logActivity(
-      req.user?.id ?? null,
-      "Recommendation Toggled",
-      `Recommendations ${enabled ? 'enabled' : 'disabled'} by ${req.user?.username ?? "Unknown"}`,
-    );
-    res.json({ success: true, enabled: !!enabled });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to set recommendation setting" });
   }
 });
 
