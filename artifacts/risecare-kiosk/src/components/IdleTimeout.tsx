@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { useAdminAuth } from "@/hooks/use-admin-auth";
 
 const DEFAULT_IDLE_TIMEOUT_MS = 120_000;
 
@@ -12,13 +13,24 @@ const ACTIVITY_EVENTS = [
 
 export default function IdleTimeout() {
   const [, setLocation] = useLocation();
+  const { hasAccess, logout } = useAdminAuth();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timeoutMsRef = useRef(DEFAULT_IDLE_TIMEOUT_MS);
+  // Keep the latest auth state reachable from the timer without re-arming it.
+  const hasAccessRef = useRef(hasAccess);
+  const logoutRef = useRef(logout);
   const [loaded, setLoaded] = useState(false);
+
+  hasAccessRef.current = hasAccess;
+  logoutRef.current = logout;
 
   const resetTimer = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
+      // End any admin session, then return to the home screen.
+      if (hasAccessRef.current) {
+        void logoutRef.current();
+      }
       setLocation("/");
     }, timeoutMsRef.current);
   };

@@ -10,7 +10,7 @@ export const sensorGuides: SensorGuide[] = [
     avoid: `❌ Do not press too hard on the sensor, as this can affect the accuracy of the reading.<br/>
     ❌ Avoid moving your finger during the measurement, as this can cause fluctuations in the reading.<br/>
     ❌ Ensure your finger is clean and dry before placing it on the sensor for accurate results.`,
-    image: "/instructions/Max30102.png",
+    image: "/instructions/OximeterInstruction.jpg",
   },
   {
     name: "Blood Pressure Cuff",
@@ -28,7 +28,7 @@ export const sensorGuides: SensorGuide[] = [
 ❌ Avoid having hair, hats, or headbands covering your forehead.<br/>
 ❌ Do not measure immediately after physical activity, eating, or drinking.<br/>
 ❌ Remove glasses or face shields if they cover the forehead area.`,
-    image: "/instructions/mlx90614.png",
+    image: "/instructions/TemperatureInstruction.jpg",
   },
   {
     name: "Body Weight Scale",
@@ -43,7 +43,7 @@ export const sensorGuides: SensorGuide[] = [
     ❌ Do not jump, move, or shift your weight while on the platform.<br/>
     ❌ Avoid leaning on the kiosk, walls, or nearby objects.<br/>
     ❌ Do not place wet or dirty items on the platform.`,
-    image: "/instructions/weight-scale.png",
+    image: "/instructions/WeightInstruction.jpg",
   },
   {
     name: "Height Measurement Sensor",
@@ -54,7 +54,7 @@ export const sensorGuides: SensorGuide[] = [
     avoid: `❌ Do not lean forward or backward while measuring height.<br/>
     ❌ Avoid wearing shoes with thick soles or high heels for accurate readings.<br/>
     ❌ Do not move your body during the measurement.`,
-    image: "/instructions/height-scale.png",
+    image: "/instructions/HeightInstruction.jpg",
   },
   // Add more sensors here
 ];

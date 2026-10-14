@@ -46,6 +46,9 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const calTimestamps = useRef<Record<string, number>>({});
   const feedbackTimers = useRef<Record<string, NodeJS.Timeout>>({});
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Snapshot timestamp already handled, so the auto-disable effect (and its
+  // toast) fires once per availability update instead of twice.
+  const lastHandledAvailabilityRef = useRef<number | null>(null);
   const lastAction = useRef<Record<string, number>>({});
   const isRateLimited = (sensorId: string) => {
     const last = lastAction.current[sensorId];
@@ -91,6 +94,12 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   // Auto-disable any sensor the device reports as missing, so the kiosk never
   // waits on absent hardware. Only acts on a fresh, connected snapshot.
   useEffect(() => {
+    const updatedAt = sensorStatus?.sensorsUpdatedAt ?? null;
+    if (updatedAt === null || updatedAt === lastHandledAvailabilityRef.current) {
+      return;
+    }
+    lastHandledAvailabilityRef.current = updatedAt;
+
     const { next, disabled } = disableMissingSensors(
       enabledSensors,
       sensorStatus?.sensors,

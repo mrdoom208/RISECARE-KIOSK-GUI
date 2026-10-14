@@ -55,7 +55,7 @@ export default function InstructionModal({
                 <img
                   src={sensorGuide.image}
                   alt={sensorGuide.name}
-                  className="w-full lg:w-1/2 lg:h-120 max-h-[45vh] lg:max-h-none object-cover rounded-md border"
+                  className="w-full lg:w-1/2 lg:flex-1 lg:h-120 max-h-[45vh] lg:max-h-none object-contain bg-white rounded-md border"
                 />
               )}
             </div>

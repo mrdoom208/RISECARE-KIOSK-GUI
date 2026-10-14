@@ -74,7 +74,7 @@ export function IdleTimeoutSettings({ account, isRateLimited }: IdleTimeoutSetti
               </span>
             ) : (
               <span className="text-sm text-muted-foreground">
-                Returns to home after {idleTimeoutSeconds} seconds of inactivity
+                Signs out and returns to home after {idleTimeoutSeconds} seconds of inactivity
               </span>
             )}
           </div>
@@ -82,7 +82,7 @@ export function IdleTimeoutSettings({ account, isRateLimited }: IdleTimeoutSetti
       </div>
 
       <p className="text-sm text-muted-foreground mb-1">
-        Select how long to wait with no interaction before returning to the home screen:
+        Select how long to wait with no interaction before signing out and returning to the home screen:
       </p>
 
       {[30, 60, 120, 300, 600].map((opt) => (

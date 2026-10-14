@@ -77,6 +77,9 @@ export default function Dashboard() {
   const [stableCount, setStableCount] = useState(0);
   const prevValueRef = useRef<any>(null);
   const readingVitalRef = useRef<VitalType | null>(null);
+  // Snapshot timestamp already handled, so the auto-disable effect runs once per
+  // availability update instead of again on every poll / state change.
+  const lastHandledAvailabilityRef = useRef<number | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
   const [liveReadings, setLiveReadings] = useState<Record<string, any>>({});
@@ -150,6 +153,12 @@ export default function Dashboard() {
   // Auto-disable sensors the device reports as missing so the kiosk never
   // offers a vital whose hardware is absent. Persist + notify other views.
   useEffect(() => {
+    const updatedAt = sensorStatus?.sensorsUpdatedAt ?? null;
+    if (updatedAt === null || updatedAt === lastHandledAvailabilityRef.current) {
+      return;
+    }
+    lastHandledAvailabilityRef.current = updatedAt;
+
     const { next, disabled } = disableMissingSensors(
       enabledSensors,
       sensorStatus?.sensors,

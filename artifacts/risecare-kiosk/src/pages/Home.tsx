@@ -49,7 +49,7 @@ export default function Home() {
         >
           <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-white rounded-3xl shadow-xl p-3 sm:p-4 mx-auto mb-5 flex items-center justify-center border border-border/50">
             <img
-              src={`${import.meta.env.BASE_URL}images/risecare-logo.png`}
+              src={`${import.meta.env.BASE_URL}images/RISECARE__logo.svg`}
               alt="RISECARE Logo"
               className="w-full h-full object-contain"
             />
