@@ -477,6 +477,17 @@ class OscillometricAnalyzer:
             self.print_envelope()
             return
 
+        # A pulse's pressure coordinate can jitter slightly with cuff motion
+        # and the pulse itself. Crossing search expects a monotonic deflation
+        # envelope, so order records by pressure before examining neighbors.
+        ordered_points = sorted(
+            zip(self.peak_pressures, self.peak_amplitudes),
+            key=lambda point: point[0],
+            reverse=True,
+        )
+        self.peak_pressures = [pressure for pressure, _ in ordered_points]
+        self.peak_amplitudes = [amplitude for _, amplitude in ordered_points]
+
         self.MAP = self.map_pressure
         print(f"MAP PRESSURE: {self.MAP:.1f}")
 
