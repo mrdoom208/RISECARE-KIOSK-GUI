@@ -566,9 +566,8 @@ class BloodPressureTest:
                         and self.settle_started is not None
                         and time.monotonic() - self.settle_started >= SETTLE_SECONDS):
                     self.measuring = True
-                    valve_set(False)  # controlled deflation
                     self.analyzer.start_measurement(pressure)
-                    print("Measuring during deflation")
+                    print("Measuring during natural deflation; exhaust valve remains closed")
 
                 if not self.pump_running and self.measuring:
                     self.analyzer.process_pressure(pressure, now_ms())
@@ -576,6 +575,8 @@ class BloodPressureTest:
                     if pressure <= MEASURE_END_PRESSURE:
                         self.measuring = False
                         self.analyzer.calculate_bp()
+                        valve_set(False)  # open only after SYS/DIA/HR calculation
+                        print("Exhaust valve opened; cuff venting")
                         print("Measurement complete")
                         break
 
