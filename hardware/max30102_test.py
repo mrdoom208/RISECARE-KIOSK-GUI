@@ -48,11 +48,11 @@ def main():
             time.sleep(0.2)
             continue
 
-        hr = reading["heart_rate"] if reading["heart_rate_valid"] else "--"
+        hr = reading["pulse_rate"] if reading["pulse_rate_valid"] else "--"
         spo2 = reading["spo2"] if reading["spo2_valid"] else "--"
 
         print(
-            f"HR={hr:>3} BPM  SpO2={spo2:>3}%  "
+            f"PR={hr:>3} BPM  SpO2={spo2:>3}%  "
             f"quality={reading['quality']:.2f}  "
             f"samples={reading['samples']:>3}  "
             f"new={reading.get('new_samples', 0):>2}  "
@@ -62,7 +62,6 @@ def main():
 
     sensor.close()
     print("\nDone.")
-
 
 if __name__ == "__main__":
     main()

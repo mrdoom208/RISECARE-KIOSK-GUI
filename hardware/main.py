@@ -151,8 +151,8 @@ def read_hr_sensor(timeout=8.0, require_spo2=False):
     while time.monotonic() < deadline:
         result = hr_sensor.get_reading()
         reading = (
-            result["heart_rate"],
-            result["heart_rate_valid"],
+            result["pulse_rate"],
+            result["pulse_rate_valid"],
             result["spo2"],
             result["spo2_valid"],
         )
@@ -507,8 +507,8 @@ def main():
                     try:
                         result = hr_sensor.get_reading()
                         sample = (
-                            result["heart_rate"],
-                            result["heart_rate_valid"],
+                            result["pulse_rate"],
+                            result["pulse_rate_valid"],
                             result["spo2"],
                             result["spo2_valid"],
                         )

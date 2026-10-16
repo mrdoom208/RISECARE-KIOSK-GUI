@@ -20,7 +20,7 @@ except ImportError:
 
 class MAX30102:
     """
-    MAX30102 driver + basic HR/SpO2 estimator.
+    MAX30102 driver + basic pulse-rate/SpO2 estimator.
 
     IMPORTANT:
     - This is suitable for hobby/engineering use.
@@ -62,6 +62,11 @@ class MAX30102:
     # 4-8 seconds gives enough cardiac cycles for stable estimation.
     WINDOW_SIZE = 400
 
+    # Minimum IR DC level (ADC counts) that counts as "finger present".
+    # With no finger the photodiode only sees ambient light and the IR
+    # level sits well below this, so those samples are discarded.
+    FINGER_MIN_IR = 1000
+
     def __init__(
         self,
         bus=1,
@@ -84,8 +89,9 @@ class MAX30102:
         self.red_buffer = deque(maxlen=self.WINDOW_SIZE)
         self.ir_buffer = deque(maxlen=self.WINDOW_SIZE)
 
-        self._smoothed_hr = None
+        self._smoothed_pr = None
         self._smoothed_spo2 = None
+        self._finger_present = False
 
         try:
             self._check_device()
@@ -180,8 +186,9 @@ class MAX30102:
     def clear_buffer(self):
         self.red_buffer.clear()
         self.ir_buffer.clear()
-        self._smoothed_hr = None
+        self._smoothed_pr = None
         self._smoothed_spo2 = None
+        self._finger_present = False
         self.clear_fifo()
 
     def setup(self, led_current=0x1F):
@@ -319,9 +326,32 @@ class MAX30102:
         """
         Pull all currently available samples from hardware
         into the rolling software buffer.
+
+        Samples captured with no finger on the sensor are discarded and
+        the buffer is reset, so readings taken before the finger is
+        placed cannot skew the result. When the finger is (re)placed the
+        window restarts clean instead of mixing stale/no-finger samples
+        with the live signal.
         """
 
         samples = self.read_fifo()
+
+        if not samples:
+            return 0
+
+        ir_dc = sum(ir for _, ir in samples) / len(samples)
+        finger_present = ir_dc >= self.FINGER_MIN_IR
+
+        if not finger_present:
+            # No finger: drop the batch and any stale window/smoothing.
+            if self._finger_present or self.ir_buffer:
+                self.clear_buffer()
+            return 0
+
+        if not self._finger_present:
+            # Finger just placed: start from a clean window.
+            self.clear_buffer()
+            self._finger_present = True
 
         for red, ir in samples:
             self.red_buffer.append(red)
@@ -452,10 +482,10 @@ class MAX30102:
         return quality, quality >= 0.15
 
     # ------------------------------------------------------------
-    # HEART RATE
+    # PULSE RATE
     # ------------------------------------------------------------
 
-    def _calculate_hr(self, ir):
+    def _calculate_pulse_rate(self, ir):
         ir = np.asarray(ir, dtype=float)
 
         filtered = self._bandpass(
@@ -523,18 +553,18 @@ class MAX30102:
 
         median_period = np.median(valid)
 
-        hr = 60.0 / median_period
+        pulse_rate = 60.0 / median_period
 
-        if not 30 <= hr <= 200:
+        if not 30 <= pulse_rate <= 200:
             return 0, False
 
         # Beat-to-beat consistency.
         cv = np.std(valid) / np.mean(valid)
 
         if cv > 0.20:
-            return int(round(hr)), False
+            return int(round(pulse_rate)), False
 
-        return int(round(hr)), True
+        return int(round(pulse_rate)), True
 
     # ------------------------------------------------------------
     # SPO2
@@ -617,12 +647,12 @@ class MAX30102:
 
     def calculate(self):
         """
-        Calculate HR + SpO2 from current rolling buffer.
+        Calculate pulse rate + SpO2 from current rolling buffer.
 
         Returns:
             {
-                "heart_rate": int,
-                "heart_rate_valid": bool,
+                "pulse_rate": int,
+                "pulse_rate_valid": bool,
                 "spo2": int,
                 "spo2_valid": bool,
                 "quality": float,
@@ -630,10 +660,10 @@ class MAX30102:
             }
         """
 
-        if len(self.ir_buffer) < 150:
+        if len(self.ir_buffer) < 150 or not self._finger_present:
             return {
-                "heart_rate": 0,
-                "heart_rate_valid": False,
+                "pulse_rate": 0,
+                "pulse_rate_valid": False,
                 "spo2": 0,
                 "spo2_valid": False,
                 "quality": 0.0,
@@ -650,15 +680,15 @@ class MAX30102:
 
         if not signal_ok:
             return {
-                "heart_rate": 0,
-                "heart_rate_valid": False,
+                "pulse_rate": 0,
+                "pulse_rate_valid": False,
                 "spo2": 0,
                 "spo2_valid": False,
                 "quality": quality,
                 "samples": len(ir),
             }
 
-        hr, hr_valid = self._calculate_hr(ir)
+        pulse_rate, pulse_rate_valid = self._calculate_pulse_rate(ir)
 
         spo2, spo2_valid = self._calculate_spo2(
             red,
@@ -666,17 +696,17 @@ class MAX30102:
         )
 
         # Temporal smoothing.
-        if hr_valid:
+        if pulse_rate_valid:
 
-            if self._smoothed_hr is None:
-                self._smoothed_hr = float(hr)
+            if self._smoothed_pr is None:
+                self._smoothed_pr = float(pulse_rate)
             else:
-                self._smoothed_hr = (
-                    0.75 * self._smoothed_hr
-                    + 0.25 * hr
+                self._smoothed_pr = (
+                    0.75 * self._smoothed_pr
+                    + 0.25 * pulse_rate
                 )
 
-            hr = int(round(self._smoothed_hr))
+            pulse_rate = int(round(self._smoothed_pr))
 
         if spo2_valid:
 
@@ -691,8 +721,8 @@ class MAX30102:
             spo2 = int(round(self._smoothed_spo2))
 
         return {
-            "heart_rate": hr,
-            "heart_rate_valid": hr_valid,
+            "pulse_rate": pulse_rate,
+            "pulse_rate_valid": pulse_rate_valid,
             "spo2": spo2,
             "spo2_valid": spo2_valid,
             "quality": round(quality, 3),
@@ -721,8 +751,8 @@ class MAX30102:
 
         except OSError as e:
             return {
-                "heart_rate": 0,
-                "heart_rate_valid": False,
+                "pulse_rate": 0,
+                "pulse_rate_valid": False,
                 "spo2": 0,
                 "spo2_valid": False,
                 "quality": 0.0,
@@ -794,8 +824,8 @@ if __name__ == "__main__":
                 time.sleep(0.1)
                 continue
 
-            hr = reading["heart_rate"]
-            hr_valid = reading["heart_rate_valid"]
+            hr = reading["pulse_rate"]
+            hr_valid = reading["pulse_rate_valid"]
 
             spo2 = reading["spo2"]
             spo2_valid = reading["spo2_valid"]
@@ -813,7 +843,7 @@ if __name__ == "__main__":
                 spo2_text = "--"
 
             print(
-                f"HR: {hr_text:>8} | "
+                f"PR: {hr_text:>8} | "
                 f"SpO2: {spo2_text:>4} | "
                 f"quality={quality:.2f} | "
                 f"new={reading.get('new_samples', 0):2d} | "
