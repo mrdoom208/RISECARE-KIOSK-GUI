@@ -46,7 +46,9 @@ DIA_RATIO = 0.75
 
 MIN_PULSE_AMPLITUDE = 0.03
 MAX_AMP_CHANGE_RATIO = 10.0
-MIN_PRESSURE_CHANGE = 0.2
+# Retain more adjacent beats during slow natural deflation, especially near MAP.
+MIN_PRESSURE_CHANGE = 0.05
+PRESSURE_SPIKE_LIMIT = 3.0  # mmHg; a single-sample jump this large is implausible
 
 # Beat detection timing.
 MIN_BEAT_INTERVAL = 300
@@ -127,6 +129,29 @@ class TM7711:
         if value & 0x800000:
             value -= 0x1000000
         return value
+
+
+class PressureSpikeFilter:
+    """Reject isolated pressure jumps without smoothing away pulse shape."""
+
+    def __init__(self):
+        self.recent = deque(maxlen=5)
+
+    def reset(self, pressure):
+        self.recent.clear()
+        self.recent.append(pressure)
+
+    def apply(self, pressure):
+        if len(self.recent) >= 3:
+            reference = statistics.median(self.recent)
+            if abs(pressure - reference) > PRESSURE_SPIKE_LIMIT:
+                # Let a sustained level change enter the reference gradually;
+                # an isolated spike will roll out without moving the median.
+                self.recent.append(pressure)
+                return reference, True
+
+        self.recent.append(pressure)
+        return pressure, False
 
 
 def debug_noise():
@@ -417,7 +442,9 @@ class OscillometricAnalyzer:
         print(f"POINTS ABOVE MAP: {above_map}")
         print(f"POINTS BELOW MAP: {below_map}")
 
-        return above_map >= 4 and below_map >= 4
+        # Three distinct beats on either side provide a usable crossing span
+        # while allowing for slower natural-leak pressure changes.
+        return above_map >= 3 and below_map >= 3
 
     def print_envelope(self):
         print()
@@ -517,6 +544,7 @@ class BloodPressureTest:
     def __init__(self):
         self.adc = TM7711()
         self.analyzer = OscillometricAnalyzer()
+        self.pressure_filter = PressureSpikeFilter()
         self.pump_running = False
         self.measuring = False
         self.settle_started = None
@@ -556,6 +584,10 @@ class BloodPressureTest:
                     print(f"ERROR: invalid pressure {pressure:.1f} mmHg")
                     break
 
+                pressure, was_spike = self.pressure_filter.apply(pressure)
+                if was_spike:
+                    print(f"Ignored isolated pressure jump; using {pressure:.1f} mmHg")
+
                 if self.pump_running and pressure >= PUMP_OFF_PRESSURE:
                     pump_set(False)
                     self.pump_running = False
@@ -565,6 +597,7 @@ class BloodPressureTest:
                 if (not self.pump_running and not self.measuring
                         and self.settle_started is not None
                         and time.monotonic() - self.settle_started >= SETTLE_SECONDS):
+                    self.pressure_filter.reset(pressure)
                     self.measuring = True
                     self.analyzer.start_measurement(pressure)
                     print("Measuring during natural deflation; exhaust valve remains closed")
