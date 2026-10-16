@@ -491,7 +491,17 @@ class OscillometricAnalyzer:
             reverse=True,
         )
         self.peak_pressures = [pressure for pressure, _ in ordered_points]
-        self.peak_amplitudes = [amplitude for _, amplitude in ordered_points]
+        raw_amplitudes = [amplitude for _, amplitude in ordered_points]
+        # A single oversized beat should not define MAP or shift both crossings.
+        self.peak_amplitudes = [
+            statistics.median(raw_amplitudes[max(0, i - 2):i + 3])
+            for i in range(len(raw_amplitudes))
+        ]
+        map_index = max(range(len(self.peak_amplitudes)),
+                        key=self.peak_amplitudes.__getitem__)
+        self.max_amplitude = self.peak_amplitudes[map_index]
+        self.map_pressure = self.peak_pressures[map_index]
+        self.map_amplitude = self.max_amplitude
 
         self.MAP = self.map_pressure
         print(f"MAP PRESSURE: {self.MAP:.1f}")
@@ -607,9 +617,11 @@ class BloodPressureTest:
                     print("Pump off; allowing pressure to settle")
 
                 if self.measuring:
+                    measured_pressure = pressure
                     pressure, was_spike = self.pressure_filter.apply(pressure)
                     if was_spike:
-                        print(f"Ignored isolated pressure jump; using {pressure:.1f} mmHg")
+                        print(f"Ignored pressure outlier: raw={measured_pressure:.1f} mmHg, "
+                              f"filtered={pressure:.1f} mmHg")
 
                 if (not self.pump_running and not self.measuring
                         and self.settle_started is not None
