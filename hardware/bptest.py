@@ -372,24 +372,29 @@ class OscillometricAnalyzer:
         if amplitude < MIN_PULSE_AMPLITUDE:
             return
 
-        # Record the oscillation independently of HR validation.
-        self.save_oscillation(amplitude, cuff_pressure)
-
         # First peak establishes the timing reference.
         if self.last_confirmed_peak_time == 0:
             self.last_confirmed_peak_time = peak_time
+            self.save_oscillation(amplitude, cuff_pressure)
             self.detected_beat_count += 1
             return
 
         interval = peak_time - self.last_confirmed_peak_time
 
-        # Re-anchor even if this interval is rejected.
-        self.last_confirmed_peak_time = peak_time
-
-        if interval < MIN_BEAT_INTERVAL or interval > MAX_BEAT_INTERVAL:
+        if interval < MIN_BEAT_INTERVAL:
+            # Ignore extra peaks/noise without shifting the last real beat.
             self.rejected_beat_intervals += 1
             return
 
+        if interval > MAX_BEAT_INTERVAL:
+            # Re-anchor after a long gap so later beats can recover.
+            self.last_confirmed_peak_time = peak_time
+            self.rejected_beat_intervals += 1
+            return
+
+        self.last_confirmed_peak_time = peak_time
+        # Only timing-validated beats belong in the oscillometric envelope.
+        self.save_oscillation(amplitude, cuff_pressure)
         self.last_beat_interval = interval
         self.heart_rate_bpm = 60000.0 / interval
         self.detected_beat_count += 1
