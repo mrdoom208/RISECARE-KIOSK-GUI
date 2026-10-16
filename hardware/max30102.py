@@ -62,6 +62,12 @@ class MAX30102:
     # 4-8 seconds gives enough cardiac cycles for stable estimation.
     WINDOW_SIZE = 400
 
+    # Samples discarded right after a finger is detected while the
+    # contact settles. Starting the window only once the signal is
+    # steady is what keeps readings independent of when the finger
+    # is placed.
+    SETTLE_SAMPLES = 100
+
     # Minimum IR DC level (ADC counts) that counts as "finger present".
     # With no finger the photodiode only sees ambient light and the IR
     # level sits well below this, so those samples are discarded.
@@ -92,6 +98,7 @@ class MAX30102:
         self._smoothed_pr = None
         self._smoothed_spo2 = None
         self._finger_present = False
+        self._settle_remaining = 0
 
         try:
             self._check_device()
@@ -189,6 +196,7 @@ class MAX30102:
         self._smoothed_pr = None
         self._smoothed_spo2 = None
         self._finger_present = False
+        self._settle_remaining = 0
         self.clear_fifo()
 
     def setup(self, led_current=0x1F):
@@ -196,11 +204,11 @@ class MAX30102:
         Configure:
 
         SpO2 mode
-        100 samples/sec
+        100 samples/sec (effective FIFO rate)
         411 us pulse width
         18-bit ADC
         FIFO rollover enabled
-        sample averaging = 4
+        no on-chip sample averaging
         """
 
         # Disable interrupts while configuring.
@@ -211,13 +219,16 @@ class MAX30102:
 
         # FIFO:
         #
-        # SMP_AVE = 4
+        # SMP_AVE = 1 (no averaging)
         # FIFO_ROLLOVER_EN = 1
         #
-        # 0x50 = 0101 0000
+        # 0x10 = 0001 0000
         #
-        # 4-sample averaging + rollover.
-        self.write_reg(self.REG_FIFO_CONFIG, 0x50)
+        # On-chip averaging *decimates* the FIFO: SMP_AVE=4 would drop the
+        # effective rate to 25 SPS even though SPO2_SR says 100, which
+        # breaks every SAMPLE_RATE-based calculation below. Keep no
+        # averaging so the FIFO really delivers SAMPLE_RATE samples/sec.
+        self.write_reg(self.REG_FIFO_CONFIG, 0x10)
 
         # SPO2 CONFIG:
         #
@@ -329,9 +340,10 @@ class MAX30102:
 
         Samples captured with no finger on the sensor are discarded and
         the buffer is reset, so readings taken before the finger is
-        placed cannot skew the result. When the finger is (re)placed the
-        window restarts clean instead of mixing stale/no-finger samples
-        with the live signal.
+        placed cannot skew the result. After a finger is detected the
+        first SETTLE_SAMPLES are dropped so the window only ever holds
+        settled signal -- this keeps SpO2/pulse-rate independent of when
+        the finger was placed.
         """
 
         samples = self.read_fifo()
@@ -349,15 +361,23 @@ class MAX30102:
             return 0
 
         if not self._finger_present:
-            # Finger just placed: start from a clean window.
+            # Finger just placed: start from a clean, settled window.
             self.clear_buffer()
             self._finger_present = True
+            self._settle_remaining = self.SETTLE_SAMPLES
+
+        appended = 0
 
         for red, ir in samples:
+            if self._settle_remaining > 0:
+                self._settle_remaining -= 1
+                continue
+
             self.red_buffer.append(red)
             self.ir_buffer.append(ir)
+            appended += 1
 
-        return len(samples)
+        return appended
 
     # ------------------------------------------------------------
     # TEMPERATURE
@@ -415,7 +435,14 @@ class MAX30102:
             btype="band"
         )
 
-        return filtfilt(b, a, signal)
+        # filtfilt's default padding is far too short for this narrow
+        # band and leaves large transients at the window edges. Pad more
+        # aggressively so edge artifacts cannot inflate the AC amplitude
+        # (which biases the ratio-of-ratios and drags SpO2 down).
+        padlen = int(0.5 * fs)
+        padlen = max(0, min(padlen, len(signal) - 1))
+
+        return filtfilt(b, a, signal, padlen=padlen)
 
     @staticmethod
     def _lowpass(signal, fs, cutoff=0.5):
@@ -439,6 +466,29 @@ class MAX30102:
 
         return filtfilt(b, a, signal)
 
+    def _ac_dc(self, signal):
+        """
+        Edge-safe AC (RMS) and DC level for one channel.
+
+        The band-passed signal is measured away from the window edges so
+        filter transients from a freshly filled window cannot inflate
+        the AC amplitude used by the ratio-of-ratios.
+        """
+        signal = np.asarray(signal, dtype=float)
+
+        trim = int(len(signal) * 0.10)
+        core = signal[trim:len(signal) - trim] if trim else signal
+
+        dc = float(np.mean(core))
+
+        ac = self._bandpass(signal, self.SAMPLE_RATE)
+        if trim:
+            ac = ac[trim:len(ac) - trim]
+
+        rms = float(np.sqrt(np.mean(ac ** 2)))
+
+        return rms, dc
+
     def _signal_quality(self, ir, red):
         """
         Basic quality checks.
@@ -446,7 +496,6 @@ class MAX30102:
         Returns:
             quality_score, valid
         """
-
         if len(ir) < 150:
             return 0.0, False
 
@@ -574,39 +623,25 @@ class MAX30102:
         """
         Ratio-of-ratios SpO2 estimation.
 
+        A value is only produced once a full, settled window is
+        available, and the AC/DC levels are taken from the centre of the
+        window. This makes the result independent of when the finger was
+        placed on the sensor.
+
         This is NOT medically calibrated.
         """
 
         red = np.asarray(red, dtype=float)
         ir = np.asarray(ir, dtype=float)
 
-        if len(red) < 150:
+        if len(red) < self.WINDOW_SIZE or len(ir) < self.WINDOW_SIZE:
             return 0, False
 
-        red_dc = np.mean(red)
-        ir_dc = np.mean(ir)
+        red_rms, red_dc = self._ac_dc(red)
+        ir_rms, ir_dc = self._ac_dc(ir)
 
         if red_dc <= 0 or ir_dc <= 0:
             return 0, False
-
-        # Remove slow baseline.
-        red_ac = self._bandpass(
-            red,
-            self.SAMPLE_RATE
-        )
-
-        ir_ac = self._bandpass(
-            ir,
-            self.SAMPLE_RATE
-        )
-
-        red_rms = np.sqrt(
-            np.mean(red_ac ** 2)
-        )
-
-        ir_rms = np.sqrt(
-            np.mean(ir_ac ** 2)
-        )
 
         if red_rms <= 0 or ir_rms <= 0:
             return 0, False
@@ -647,7 +682,12 @@ class MAX30102:
 
     def calculate(self):
         """
-        Calculate pulse rate + SpO2 from current rolling buffer.
+        Calculate pulse rate + SpO2 from the current rolling buffer.
+
+        A reading is only produced once the buffer holds a full, settled
+        window (see ``update_buffer``); before that the result is empty.
+        This makes the output independent of how long the finger had
+        been placed when reading started.
 
         Returns:
             {
@@ -660,7 +700,7 @@ class MAX30102:
             }
         """
 
-        if len(self.ir_buffer) < 150 or not self._finger_present:
+        if len(self.ir_buffer) < self.WINDOW_SIZE or not self._finger_present:
             return {
                 "pulse_rate": 0,
                 "pulse_rate_valid": False,
