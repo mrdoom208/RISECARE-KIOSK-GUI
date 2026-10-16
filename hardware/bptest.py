@@ -38,7 +38,7 @@ RAW_OFFSET = 51409.0
 # Pressure cycle
 PUMP_OFF_PRESSURE = 170.0
 MEASURE_END_PRESSURE = 60.0
-SETTLE_SECONDS = 2.0
+SETTLE_SECONDS = 0.3
 
 # Experimental oscillometric ratios (from the Arduino prototype).
 SYS_RATIO = 0.50
@@ -629,7 +629,8 @@ class BloodPressureTest:
                     self.pressure_filter.reset(pressure)
                     self.measuring = True
                     self.analyzer.start_measurement(pressure)
-                    print("Measuring during natural deflation; exhaust valve remains closed")
+                    print(f"Measuring from {pressure:.1f} mmHg during natural deflation; "
+                          "exhaust valve remains closed")
 
                 if not self.pump_running and self.measuring:
                     self.analyzer.process_pressure(pressure, now_ms())
