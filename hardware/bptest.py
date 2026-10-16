@@ -48,7 +48,7 @@ MIN_PULSE_AMPLITUDE = 0.03
 MAX_AMP_CHANGE_RATIO = 10.0
 # Retain more adjacent beats during slow natural deflation, especially near MAP.
 MIN_PRESSURE_CHANGE = 0.05
-PRESSURE_SPIKE_LIMIT = 3.0  # mmHg; a single-sample jump this large is implausible
+PRESSURE_SPIKE_LIMIT = 4.0  # mmHg; a single-sample jump this large is implausible
 
 # Beat detection timing.
 MIN_BEAT_INTERVAL = 300
@@ -584,15 +584,16 @@ class BloodPressureTest:
                     print(f"ERROR: invalid pressure {pressure:.1f} mmHg")
                     break
 
-                pressure, was_spike = self.pressure_filter.apply(pressure)
-                if was_spike:
-                    print(f"Ignored isolated pressure jump; using {pressure:.1f} mmHg")
-
                 if self.pump_running and pressure >= PUMP_OFF_PRESSURE:
                     pump_set(False)
                     self.pump_running = False
                     self.settle_started = time.monotonic()
                     print("Pump off; allowing pressure to settle")
+
+                if self.measuring:
+                    pressure, was_spike = self.pressure_filter.apply(pressure)
+                    if was_spike:
+                        print(f"Ignored isolated pressure jump; using {pressure:.1f} mmHg")
 
                 if (not self.pump_running and not self.measuring
                         and self.settle_started is not None
