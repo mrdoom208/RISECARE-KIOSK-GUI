@@ -215,7 +215,9 @@ def get_height():
     return round(height, 2)
 
 
-CALIBRATION_FILE = "calibration.json"
+CALIBRATION_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "calibration.json"
+)
 
 
 def reset_calibration():

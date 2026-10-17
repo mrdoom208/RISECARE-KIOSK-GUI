@@ -2,6 +2,7 @@ import time
 import json
 import os
 import threading
+import statistics
 
 DT = 5
 SCK = 6
@@ -34,7 +35,9 @@ else:
 # Thread from a reset that outlived its timeout, if any.
 _hung_reset = None
 
-CALIBRATION_FILE = "calibration.json"
+CALIBRATION_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "calibration.json"
+)
 calibration_factor = None
 empty_offset = None
 
@@ -147,9 +150,24 @@ def _stable_raw(samples=10):
     if len(readings) < samples:
         print(f"LoadCell read aborted: only {len(readings)}/{samples} clean samples")
         return None
-    readings.sort()
-    trimmed = readings[2:-2]
-    return sum(trimmed) / len(trimmed)
+
+    # Reject isolated HX711 spikes using the median absolute deviation.
+    # Unlike trimming a fixed number of high/low values, this keeps valid
+    # samples when readings are stable and drops only values far from the pack.
+    center = statistics.median(readings)
+    deviations = [abs(value - center) for value in readings]
+    mad = statistics.median(deviations)
+    threshold = max(3.5 * 1.4826 * mad, 1.0)
+    clean = [value for value in readings if abs(value - center) <= threshold]
+    rejected = len(readings) - len(clean)
+
+    if rejected:
+        print(f"Discarded {rejected} noisy load cell reading(s)")
+    if len(clean) < max(6, samples - 4):
+        print(f"LoadCell read aborted: only {len(clean)}/{samples} stable samples")
+        return None
+
+    return sum(clean) / len(clean)
 
 
 def calibrate_finalize(known_weight_grams=1000):
@@ -166,7 +184,7 @@ def calibrate_finalize(known_weight_grams=1000):
     if stable is None:
         print("Calibration failed: could not get stable readings")
         return None
-    print(f"Stable value (avg of middle 6): {stable:.0f}")
+    print(f"Stable value (noise-filtered average): {stable:.0f}")
 
     difference = stable - empty_offset
     if difference <= 0:
