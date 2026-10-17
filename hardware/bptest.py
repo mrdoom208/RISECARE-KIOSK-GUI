@@ -37,7 +37,9 @@ RAW_OFFSET = 51409.0
 
 # Pressure cycle
 PUMP_OFF_PRESSURE = 170.0
-MEASURE_END_PRESSURE = 60.0
+# Extend deflation modestly below the previous 60 mmHg cutoff so the analyzer
+# can capture readings below a low-pressure envelope peak.
+MEASURE_END_PRESSURE = 50.0
 SETTLE_SECONDS = 0.3
 
 # Experimental oscillometric ratios (from the Arduino prototype).

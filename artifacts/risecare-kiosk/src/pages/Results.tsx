@@ -317,53 +317,6 @@ export default function Results() {
           </p>
         </div>
 
-        <div className="mb-6 bg-card rounded-xl shadow-xl border border-border overflow-hidden">
-          <div
-            className={`p-4 border-b border-border ${
-              overallRecommendation.status === "critical"
-                ? "bg-destructive/10"
-                : overallRecommendation.status === "warning"
-                  ? "bg-yellow-500/10"
-                  : "bg-primary/5"
-            }`}
-          >
-            <h3 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" />
-              Screening Summary
-            </h3>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              General adult screening ranges are shown for all ages. Pediatric interpretation requires age-specific clinical references. SpO2 is an unvalidated screening estimate.
-            </p>
-          </div>
-          <div className="p-6">
-            <p className="text-lg font-bold text-foreground mb-2">
-              {overallRecommendation.title}
-            </p>
-            <p className="text-lg text-foreground mb-4">
-              {overallRecommendation.message}
-            </p>
-            <div
-              className={`p-4 rounded-xl ${
-                overallRecommendation.status === "critical"
-                  ? "bg-destructive/5 border border-destructive/20"
-                  : overallRecommendation.status === "warning"
-                    ? "bg-yellow-500/5 border border-yellow-500/20"
-                    : "bg-primary/5 border border-primary/20"
-              }`}
-            >
-              <p className="text-base font-semibold text-foreground mb-1">
-                Recommended Action:
-              </p>
-              <p className="text-base text-muted-foreground">
-                {overallRecommendation.action}
-              </p>
-            </div>
-            <p className="mt-4 text-base text-muted-foreground italic">
-              These readings are for screening only and cannot diagnose a condition. Confirm concerns with a healthcare professional.
-            </p>
-          </div>
-        </div>
-
         <div className="bg-card rounded-xl shadow-xl border border-border overflow-hidden">
           <div className="divide-y divide-border/50">
             {resultsList.length === 0 ? (
