@@ -1,6 +1,6 @@
 import subprocess
 import threading
-import ultrasonic
+import vl53l1x
 from max30102 import MAX30102
 from mlx90614 import MLX90614
 import i2c_bus
@@ -94,18 +94,18 @@ def _probe_i2c():
 
 
 def _probe_slow():
-    """Printer USB scan plus the blocking GPIO probes (ultrasonic, HX711)."""
+    """Printer USB scan plus the blocking I2C probes (VL53L1X, HX711)."""
     global _last_printer_status
     _last_printer_status = printer.printer_status()
     if not measure_busy:
-        ultrasonic.sensor_available = ultrasonic.probe()
+        vl53l1x.sensor_available = vl53l1x.probe()
         loadcell.sensor_available = loadcell.probe()
 
 
 def _availability_snapshot():
     return {
         "max30102": hr_sensor is not None and hr_sensor.handle is not None,
-        "height": ultrasonic.sensor_available,
+        "height": vl53l1x.sensor_available,
         "weight": loadcell.sensor_available,
         "temperature": temp_sensor is not None and temp_sensor.handle is not None,
         "printer": _last_printer_status
@@ -242,7 +242,7 @@ def handle_command(sensor, session_id, value, payload):
         measure_busy = True
         try:
             if sensor == "height":
-                total_height = ultrasonic.calibrate_height(
+                total_height = vl53l1x.calibrate_height(
                     progress_callback=lambda message: publish_calibration_progress("height", message)
                 )
                 mqtt_client.publish("risecare/calibration/height", {
@@ -294,9 +294,9 @@ def handle_command(sensor, session_id, value, payload):
             success = False
             result = {}
             if sensor == "height":
-                dist = ultrasonic.measure_distance()
-                print(f"Ultrasonic distance: {dist} cm")
-                height = ultrasonic.get_height()
+                dist = vl53l1x.measure_distance()
+                print(f"VL53L1X distance: {dist} cm")
+                height = vl53l1x.get_height()
                 if height:
                     print(f"Height: {height} cm")
                     result = {"cm": height}
@@ -374,7 +374,7 @@ def handle_command(sensor, session_id, value, payload):
         if sensor == "calibration":
             print("Resetting all calibration...")
             loadcell.reset_calibration()
-            ultrasonic.reset_calibration()
+            vl53l1x.reset_calibration()
             mqtt_client.publish("risecare/calibration/reset", {
                 "status": "ok",
                 "sessionId": current_session_id,
@@ -414,9 +414,9 @@ def main():
 
     print("\nLoading calibration data...")
     try:
-        ultrasonic.load_calibration()
+        vl53l1x.load_calibration()
     except Exception as e:
-        print(f"⚠️ Ultrasonic calibration load failed: {e}")
+        print(f"⚠️ VL53L1X calibration load failed: {e}")
     try:
         loadcell.load_calibration()
     except Exception as e:
@@ -450,11 +450,11 @@ def main():
         print("⚠️ Temperature sensor not available — will keep re-probing")
 
     try:
-        if ultrasonic.setup():
-            print("✅ Ultrasonic sensor ready")
+        if vl53l1x.setup():
+            print("✅ VL53L1X sensor ready")
     except Exception as e:
-        ultrasonic.sensor_available = False
-        print(f"⚠️ Ultrasonic sensor not available: {e}")
+        vl53l1x.sensor_available = False
+        print(f"⚠️ VL53L1X sensor not available: {e}")
 
     try:
         if loadcell.setup():
@@ -529,7 +529,7 @@ def main():
                 height = None
                 if height_enabled and now - height_last_read >= READ_INTERVAL:
                     try:
-                        height = ultrasonic.get_height()
+                        height = vl53l1x.get_height()
                         height_last_read = time.time()
                     except Exception:
                         pass
@@ -598,11 +598,7 @@ def main():
         print("\nShutting down...")
         mqtt_client.disconnect()
         i2c_bus.close_bus()
-        try:
-            if ultrasonic.gpio_available:
-                ultrasonic.GPIO.cleanup()
-        except Exception:
-            pass
+        vl53l1x.close()
 
 
 if __name__ == "__main__":
