@@ -139,16 +139,32 @@ def _init_sensor():
         return False
 
     model_id = _read_byte(VL53L1X_IDENTIFICATION__MODEL_ID)
+    print(f"Debug: Read model_id from 0x{VL53L1X_IDENTIFICATION__MODEL_ID:04X} = 0x{model_id:02X if model_id is not None else 'None'}")
+    
+    module_type = _read_byte(VL53L1X_IDENTIFICATION__MODULE_TYPE)
+    print(f"Debug: Read module_type from 0x{VL53L1X_IDENTIFICATION__MODULE_TYPE:04X} = 0x{module_type:02X if module_type is not None else 'None'}")
+    
+    revision_id = _read_byte(VL53L1X_IDENTIFICATION__REVISION_ID)
+    print(f"Debug: Read revision_id from 0x{VL53L1X_IDENTIFICATION__REVISION_ID:04X} = 0x{revision_id:02X if revision_id is not None else 'None'}")
+
     if model_id != 0xEA:
-        print(f"⚠️ VL53L1X not detected (model_id=0x{model_id:02X})")
+        print(f"⚠️ VL53L1X not detected (model_id=0x{model_id:02X}, expected 0xEA)")
         return False
 
-    print("✅ VL53L1X detected")
+    print(f"✅ VL53L1X detected (model_id=0xEA, revision=0x{revision_id:02X})")
 
     _write_byte(VL53L1X_SOFT_RESET, 0x00)
     time.sleep(0.01)
     _write_byte(VL53L1X_SOFT_RESET, 0x01)
-    time.sleep(0.01)
+    time.sleep(0.1)
+
+    for _ in range(100):
+        if _read_byte(0x0000) == 0x01:
+            break
+        time.sleep(0.01)
+    else:
+        print("⚠️ Boot timeout")
+        return False
 
     _write_byte(0x002D, 0x01)
     _write_byte(0x002E, 0x01)
@@ -162,21 +178,30 @@ def _init_sensor():
     _write_byte(0x0036, 0x01)
     _write_byte(0x0037, 0x01)
 
-    _write_byte(VL53L1X_VHV_CONFIG__TIMEOUT_MACROP_LOOP_BOUND, 0x08)
     _write_byte(0x004A, 0x08)
     _write_byte(0x004B, 0x06)
     _write_byte(0x004C, 0x06)
+    _write_byte(0x004D, 0x0A)
+    _write_byte(0x004E, 0x0A)
+
     _write_byte(VL53L1X_RANGE_CONFIG__VCSEL_PERIOD_A, 0x07)
     _write_byte(VL53L1X_RANGE_CONFIG__VCSEL_PERIOD_B, 0x05)
     _write_byte(VL53L1X_RANGE_CONFIG__VALID_PHASE_HIGH, 0x38)
+
     _write_word(VL53L1X_SD_CONFIG__WOI_SD0, 0x0705)
     _write_word(VL53L1X_SD_CONFIG__WOI_SD1, 0x0705)
     _write_word(VL53L1X_SD_CONFIG__INITIAL_PHASE_SD0, 0x0606)
     _write_word(VL53L1X_SD_CONFIG__INITIAL_PHASE_SD1, 0x0606)
+
     _write_byte(VL53L1X_SYSTEM__SEQUENCE_CONFIG, 0x01)
     _write_byte(VL53L1X_SYSTEM__GROUPED_PARAMETER_HOLD, 0x01)
     _write_byte(VL53L1X_ROI_CONFIG__USER_ROI_CENTRE_SPAD, 0x7F)
     _write_byte(VL53L1X_ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, 0x0F)
+
+    _write_byte(0x0080, 0x01)
+    _write_byte(0x0081, 0x00)
+    _write_byte(0x0082, 0x00)
+    _write_byte(0x0083, 0x00)
 
     _write_byte(VL53L1X_SYSTEM__MODE_START, 0x40)
     time.sleep(0.1)
