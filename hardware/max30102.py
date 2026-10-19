@@ -60,7 +60,7 @@ class MAX30102:
     SAMPLE_RATE = 100.0
 
     # 4-8 seconds gives enough cardiac cycles for stable estimation.
-    WINDOW_SIZE = 400
+    WINDOW_SIZE = 800
 
     # Samples discarded right after a finger is detected while the
     # contact settles. Starting the window only once the signal is
