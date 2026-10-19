@@ -51,6 +51,7 @@ TOTAL_HEIGHT = None
 i2c_available = False
 sensor_available = False
 bus = None
+_bus_number = 1
 
 hw_lock = threading.Lock()
 
@@ -65,16 +66,27 @@ CALIBRATION_FILE = os.path.join(
 )
 
 
+def set_bus_number(bus_num):
+    global _bus_number, bus
+    _bus_number = bus_num
+    if bus is not None:
+        try:
+            bus.close()
+        except Exception:
+            pass
+        bus = None
+
+
 def _ensure_bus():
     global bus
     if not i2c_available:
         return False
     if bus is None:
         try:
-            bus = SMBus(0)
-            print("✅ I2C bus 0 initialized (VL53L1X)")
+            bus = SMBus(_bus_number)
+            print(f"✅ I2C bus {_bus_number} initialized (VL53L1X)")
         except Exception as e:
-            print(f"❌ I2C bus 0 init failed: {e}")
+            print(f"❌ I2C bus {_bus_number} init failed: {e}")
             bus = None
             return False
     return True
