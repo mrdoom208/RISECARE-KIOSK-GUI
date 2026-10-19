@@ -678,6 +678,14 @@ class MAX30102:
         if not 70 <= spo2 <= 100:
             return int(round(np.clip(spo2, 0, 100))), False
 
+        print(
+            f"Red AC={red_rms:.2f}, "
+            f"Red DC={red_dc:.2f}, "
+            f"IR AC={ir_rms:.2f}, "
+            f"IR DC={ir_dc:.2f}, "
+            f"R={r:.4f}"
+        )
+
         return int(round(spo2)), True
 
     # ------------------------------------------------------------

@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from max30102 import MAX30102
 
 BUS = 1
-DURATION = 10  # seconds
+DURATION = 30  # seconds
 
 
 def main():
