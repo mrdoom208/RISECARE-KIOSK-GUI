@@ -68,10 +68,9 @@ class MAX30102:
     # is placed.
     SETTLE_SAMPLES = 100
 
-    # Minimum IR DC level (ADC counts) that counts as "finger present".
-    # With no finger the photodiode only sees ambient light and the IR
-    # level sits well below this, so those samples are discarded.
-    FINGER_MIN_IR = 1000
+    # Minimum LED DC levels (ADC counts) that count as a hand being present.
+    FINGER_MIN_RED = 60000
+    FINGER_MIN_IR = 90000
 
     def __init__(
         self,
@@ -351,8 +350,12 @@ class MAX30102:
         if not samples:
             return 0
 
+        red_dc = sum(red for red, _ in samples) / len(samples)
         ir_dc = sum(ir for _, ir in samples) / len(samples)
-        finger_present = ir_dc >= self.FINGER_MIN_IR
+        finger_present = (
+            red_dc >= self.FINGER_MIN_RED
+            and ir_dc >= self.FINGER_MIN_IR
+        )
 
         if not finger_present:
             # No finger: drop the batch and any stale window/smoothing.
