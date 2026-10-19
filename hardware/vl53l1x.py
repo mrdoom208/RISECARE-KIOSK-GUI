@@ -139,13 +139,13 @@ def _init_sensor():
         return False
 
     model_id = _read_byte(VL53L1X_IDENTIFICATION__MODEL_ID)
-    print(f"Debug: Read model_id from 0x{VL53L1X_IDENTIFICATION__MODEL_ID:04X} = 0x{model_id:02X if model_id is not None else 'None'}")
+    print(f"Debug: Read model_id from 0x{VL53L1X_IDENTIFICATION__MODEL_ID:04X} = {f'0x{model_id:02X}' if model_id is not None else 'None'}")
     
     module_type = _read_byte(VL53L1X_IDENTIFICATION__MODULE_TYPE)
-    print(f"Debug: Read module_type from 0x{VL53L1X_IDENTIFICATION__MODULE_TYPE:04X} = 0x{module_type:02X if module_type is not None else 'None'}")
+    print(f"Debug: Read module_type from 0x{VL53L1X_IDENTIFICATION__MODULE_TYPE:04X} = {f'0x{module_type:02X}' if module_type is not None else 'None'}")
     
     revision_id = _read_byte(VL53L1X_IDENTIFICATION__REVISION_ID)
-    print(f"Debug: Read revision_id from 0x{VL53L1X_IDENTIFICATION__REVISION_ID:04X} = 0x{revision_id:02X if revision_id is not None else 'None'}")
+    print(f"Debug: Read revision_id from 0x{VL53L1X_IDENTIFICATION__REVISION_ID:04X} = {f'0x{revision_id:02X}' if revision_id is not None else 'None'}")
 
     if model_id != 0xEA:
         print(f"⚠️ VL53L1X not detected (model_id=0x{model_id:02X}, expected 0xEA)")
