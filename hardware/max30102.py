@@ -71,6 +71,7 @@ class MAX30102:
     # Minimum LED DC levels (ADC counts) that count as a hand being present.
     FINGER_MIN_RED = 60000
     FINGER_MIN_IR = 90000
+    MIN_SIGNAL_QUALITY = 0.10
 
     def __init__(
         self,
@@ -531,7 +532,7 @@ class MAX30102:
             perfusion / 0.01
         )
 
-        return quality, quality >= 0.15
+        return quality, quality >= self.MIN_SIGNAL_QUALITY
 
     # ------------------------------------------------------------
     # PULSE RATE
