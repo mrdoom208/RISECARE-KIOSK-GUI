@@ -49,10 +49,16 @@ def main():
         while True:
             if args.height:
                 value = vl53l1x.get_height()
-                print(f"Height: {value:.2f} cm" if value is not None else "Height: unavailable", flush=True)
+                if value is not None:
+                    print(f"Height: {value:.2f} cm", flush=True)
+                else:
+                    print("Height: unavailable", flush=True)
             else:
                 value = vl53l1x.measure_distance()
-                print(f"Distance: {value:.2f} cm" if value is not None else "Distance: no reading", flush=True)
+                if value is not None:
+                    print(f"Distance: {value:.2f} cm", flush=True)
+                else:
+                    print("Distance: no reading", flush=True)
             time.sleep(0.5)
     except KeyboardInterrupt:
         print("\nTest stopped")
