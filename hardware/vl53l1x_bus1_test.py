@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Standalone VL53L1X TOF distance/height diagnostic for Raspberry Pi on GPIO 12/13 (software I2C).
+"""Standalone VL53L1X TOF distance/height diagnostic for Raspberry Pi on I2C bus 1.
 
 Usage:
-    python3 vl53l1x_gpio12_13_test.py                 stream raw distance readings
-    python3 vl53l1x_gpio12_13_test.py --height         stream calculated height
-    python3 vl53l1x_gpio12_13_test.py --calibrate      calibrate sensor-to-floor distance
+    python3 vl53l1x_bus1_test.py                 stream raw distance readings
+    python3 vl53l1x_bus1_test.py --height         stream calculated height
+    python3 vl53l1x_bus1_test.py --calibrate      calibrate sensor-to-floor distance
 """
 
 import argparse
@@ -18,15 +18,15 @@ import vl53l1x
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Test the VL53L1X TOF height sensor on GPIO 12/13")
+    parser = argparse.ArgumentParser(description="Test the VL53L1X TOF height sensor on I2C bus 1")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--distance", action="store_true", help="stream raw distance (default)")
     mode.add_argument("--height", action="store_true", help="stream calculated height")
     mode.add_argument("--calibrate", action="store_true", help="calibrate sensor-to-floor distance")
     args = parser.parse_args()
 
-    # Use actual bus number from i2cdetect -l (i2c-20 for GPIO 12/13)
-    vl53l1x.set_bus_number(20)
+    # Use I2C bus 1 (hardware I2C on GPIO 2/3)
+    vl53l1x.set_bus_number(1)
 
     try:
         if not vl53l1x.setup():
