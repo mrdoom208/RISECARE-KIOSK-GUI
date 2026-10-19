@@ -1,3 +1,2 @@
 numpy
-scipy
-smbus2
+# smbus is provided by the Raspberry Pi OS package python3-smbus

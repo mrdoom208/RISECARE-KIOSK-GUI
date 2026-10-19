@@ -1,32 +1,35 @@
-﻿# Basic MAX30102 Raspberry Pi example
+﻿# MAX30102 Raspberry Pi example
 
-This folder is a standalone copy of the project MAX30102 driver and its basic calculation helper. It does not depend on files outside this folder.
+This is a source snapshot of [doug-burrell/max30102](https://github.com/doug-burrell/max30102), cloned at commit `8b3fab09cbd157009e351a6d912a08fa0eea8f3d`.
 
 ## Files
 
-- `max30102.py` — I2C driver, FIFO reader, signal processing, and hand-presence logic.
-- `hrcalc.py` — small helper for estimating pulse rate and SpO2 from raw IR/red samples.
-- `max30102_test.py` — terminal test for the driver's pulse rate, SpO2, signal quality, and hand detection.
-- `requirements.txt` — Python packages needed to run the example.
+- `max30102.py` — sensor I2C and FIFO driver.
+- `hrcalc.py` — heart-rate and SpO2 calculation helper.
+- `heartrate_monitor.py` — threaded monitor that reads the sensor and calls `hrcalc.py`.
+- `main.py` — command-line runner.
 
-## Requirements
+## Raspberry Pi setup
 
-Use this on a Raspberry Pi with I2C enabled and the MAX30102 connected to bus 1 at address `0x57`. SDA, SCL, power, and ground must be wired correctly for your specific breakout board.
-
-Install the Python packages in an environment that can access the Raspberry Pi I2C device:
+The driver imports the system `smbus` module. Install it and NumPy with Raspberry Pi OS packages:
 
 ```sh
-python3 -m pip install -r requirements.txt
+sudo apt update
+sudo apt install python3-smbus python3-numpy
 ```
 
-Then run:
+Enable I2C, wire the sensor to the Pi I2C pins, then run from this folder:
 
 ```sh
-python3 max30102_test.py
+python3 main.py
 ```
 
-The test uses `max30102.py`. `hrcalc.py` is included as a separate simple algorithm helper and is not called by that test script.
+For raw readings instead of calculated results:
 
-## Limitations
+```sh
+python3 main.py --raw
+```
 
-The pulse-rate and SpO2 results are experimental estimates from this project code. They are not medically validated and should not be used for diagnosis or treatment.
+The driver expects I2C bus 1 and address `0x57` by default. The upstream repository does not include a LICENSE file; check its reuse terms before redistributing this source publicly.
+
+The HR and SpO2 values are estimates from the upstream hobby project and are not medically validated.
