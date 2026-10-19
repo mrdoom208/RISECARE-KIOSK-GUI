@@ -50,9 +50,10 @@ def main():
 
         hr = reading["pulse_rate"] if reading["pulse_rate_valid"] else "--"
         spo2 = reading["spo2"] if reading["spo2_valid"] else "--"
+        hand = "YES" if reading.get("hand_present", False) else "NO"
 
         print(
-            f"PR={hr:>3} BPM  SpO2={spo2:>3}%  "
+            f"hand={hand}  PR={hr:>3} BPM  SpO2={spo2:>3}%  "
             f"quality={reading['quality']:.2f}  "
             f"samples={reading['samples']:>3}  "
             f"new={reading.get('new_samples', 0):>2}  "

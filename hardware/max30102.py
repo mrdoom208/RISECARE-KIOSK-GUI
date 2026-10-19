@@ -786,6 +786,7 @@ class MAX30102:
 
             result = self.calculate()
 
+            result["hand_present"] = self._finger_present
             result["new_samples"] = new_samples
             result["fifo_available"] = self.fifo_sample_count()
             result["fifo_overflow"] = self.fifo_overflow_count()
@@ -800,6 +801,7 @@ class MAX30102:
                 "spo2_valid": False,
                 "quality": 0.0,
                 "samples": len(self.ir_buffer),
+                "hand_present": self._finger_present,
                 "error": str(e),
             }
 
