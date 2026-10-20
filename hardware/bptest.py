@@ -37,9 +37,8 @@ RAW_OFFSET = 59409.0
 
 # Pressure cycle
 PUMP_OFF_PRESSURE = 170.0
-# Extend deflation modestly below the previous 60 mmHg cutoff so the analyzer
-# can capture readings below a low-pressure envelope peak.
-MEASURE_END_PRESSURE = 60.0
+# Deflate well below MAP so the envelope has enough points on both sides.
+MEASURE_END_PRESSURE = 40.0
 SETTLE_SECONDS = 0.3
 
 # Experimental oscillometric ratios (from the Arduino prototype).
@@ -50,9 +49,9 @@ DIA_RATIO = 0.75
 
 # Thresholds: set ~3-5x measured ADC noise (run --noise first).
 # Real cuff oscillations: 0.5-4 mmHg. Typical ADC noise at 40 Hz: ~0.03-0.05 mmHg.
-MIN_PULSE_AMPLITUDE = 0.15      # was 0.005; noise floor ~0.03-0.05 mmHg
-MAX_AMP_CHANGE_RATIO = 4.0      # was 20; physiological max ~3-5x between adjacent beats
-MIN_PRESSURE_CHANGE = 0.5       # was 0.05; require meaningful pressure separation
+MIN_PULSE_AMPLITUDE = 0.15      # was 0.005; noise floor ~0.0024 mmHg
+MAX_AMP_CHANGE_RATIO = 6.0      # was 20; 6x allows normal envelope slope
+MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
 PRESSURE_SPIKE_LIMIT = 4.0      # mmHg; single-sample jump this large is implausible
 
 # Beat detection timing.
@@ -582,6 +581,7 @@ class BloodPressureTest:
         self.last_live_print = 0.0
         self._last_pressure = None
         self._last_time = None
+        self._last_rate_log = 0.0
 
     def setup(self):
         GPIO.setmode(GPIO.BCM)
@@ -636,8 +636,11 @@ class BloodPressureTest:
                     self.pressure_filter.reset(pressure)
                     self.measuring = True
                     self.analyzer.start_measurement(pressure)
-                    print(f"Measuring from {pressure:.1f} mmHg during natural deflation; "
-                          "exhaust valve remains closed")
+                    self._last_pressure = None
+                    self._last_time = None
+                    self._last_rate_log = 0.0
+                    print(f"Measuring from {pressure:.1f} mmHg; "
+                          f"valve closed, natural leakage ~6 mmHg/s")
 
                 if not self.pump_running and self.measuring:
                     self.analyzer.process_pressure(pressure, now_ms())
@@ -650,13 +653,14 @@ class BloodPressureTest:
                         print("Measurement complete")
                         break
 
-                # Log deflation rate during measurement (target: 2-3 mmHg/s)
-                if self.measuring and self._last_time is not None:
+                # Log deflation rate during measurement (target: 2-3 mmHg/s).
+                if (self.measuring and self._last_time is not None
+                        and now_ms() - self._last_rate_log > 500):
                     dt = (now_ms() - self._last_time) / 1000.0
                     if dt > 0:
                         rate = (self._last_pressure - pressure) / dt
-                        if rate > 0:
-                            print(f"DEFLATION RATE: {rate:.2f} mmHg/s", flush=True)
+                        self._last_rate_log = now_ms()
+                        print(f"DEFLATION RATE: {rate:.2f} mmHg/s", flush=True)
                 if self.measuring:
                     self._last_pressure = pressure
                     self._last_time = now_ms()
