@@ -215,6 +215,19 @@ def load_calibration():
         print("⚠️ No calibration file found. Please calibrate.")
 
 
+def probe():
+    """Return True if the VL53L1X sensor is reachable, False otherwise."""
+    global sensor_available, sensor, bus
+    try:
+        _ensure_sensor()
+        sensor_available = True
+        return True
+    except Exception:
+        close()
+        sensor_available = False
+        return False
+
+
 def close():
     global bus, sensor, sensor_available
     if sensor is not None:

@@ -33,20 +33,20 @@ VALVE = 4
 
 # Retained pressure calibration (raw ADC counts per mmHg, then zero offset).
 RAW_PER_MMHG = 14143.12
-RAW_OFFSET = 51409.0
+RAW_OFFSET = 59409.0
 
 # Pressure cycle
 PUMP_OFF_PRESSURE = 170.0
 # Extend deflation modestly below the previous 60 mmHg cutoff so the analyzer
 # can capture readings below a low-pressure envelope peak.
-MEASURE_END_PRESSURE = 50.0
+MEASURE_END_PRESSURE = 35.0
 SETTLE_SECONDS = 0.3
 
 # Experimental oscillometric ratios (from the Arduino prototype).
 SYS_RATIO = 0.50
 DIA_RATIO = 0.75
 
-MIN_PULSE_AMPLITUDE = 0.03
+MIN_PULSE_AMPLITUDE = 0.015
 MAX_AMP_CHANGE_RATIO = 10.0
 # Retain more adjacent beats during slow natural deflation, especially near MAP.
 MIN_PRESSURE_CHANGE = 0.05
@@ -56,7 +56,7 @@ PRESSURE_SPIKE_LIMIT = 4.0  # mmHg; a single-sample jump this large is implausib
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.010
+PEAK_DROP_THRESHOLD = 0.005
 
 # Filtering.
 BASELINE_ALPHA = 0.01

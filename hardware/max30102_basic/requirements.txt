@@ -1,2 +1,0 @@
-numpy
-# smbus is provided by the Raspberry Pi OS package python3-smbus
