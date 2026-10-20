@@ -43,11 +43,11 @@ MEASURE_END_PRESSURE = 35.0
 SETTLE_SECONDS = 0.3
 
 # Experimental oscillometric ratios (from the Arduino prototype).
-SYS_RATIO = 0.50
-DIA_RATIO = 0.75
+SYS_RATIO = 0.55
+DIA_RATIO = 0.50
 
-MIN_PULSE_AMPLITUDE = 0.015
-MAX_AMP_CHANGE_RATIO = 10.0
+MIN_PULSE_AMPLITUDE = 0.005
+MAX_AMP_CHANGE_RATIO = 20.0
 # Retain more adjacent beats during slow natural deflation, especially near MAP.
 MIN_PRESSURE_CHANGE = 0.05
 PRESSURE_SPIKE_LIMIT = 4.0  # mmHg; a single-sample jump this large is implausible
@@ -56,11 +56,11 @@ PRESSURE_SPIKE_LIMIT = 4.0  # mmHg; a single-sample jump this large is implausib
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.005
+PEAK_DROP_THRESHOLD = 0.002
 
 # Filtering.
 BASELINE_ALPHA = 0.01
-OSC_FILTER_ALPHA = 0.25
+OSC_FILTER_ALPHA = 0.35
 
 MAX_PEAKS = 80
 
