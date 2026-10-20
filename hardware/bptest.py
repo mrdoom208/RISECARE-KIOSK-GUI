@@ -39,24 +39,27 @@ RAW_OFFSET = 59409.0
 PUMP_OFF_PRESSURE = 170.0
 # Extend deflation modestly below the previous 60 mmHg cutoff so the analyzer
 # can capture readings below a low-pressure envelope peak.
-MEASURE_END_PRESSURE = 35.0
+MEASURE_END_PRESSURE = 60.0
 SETTLE_SECONDS = 0.3
 
 # Experimental oscillometric ratios (from the Arduino prototype).
+# NOTE: Fixed ratios are approximations; calibrate against reference measurements.
+# Commercial devices fit ratios per-cuff/arm; fixed ratios can err by 5-10+ mmHg.
 SYS_RATIO = 0.55
-DIA_RATIO = 0.50
+DIA_RATIO = 0.75
 
-MIN_PULSE_AMPLITUDE = 0.005
-MAX_AMP_CHANGE_RATIO = 20.0
-# Retain more adjacent beats during slow natural deflation, especially near MAP.
-MIN_PRESSURE_CHANGE = 0.05
-PRESSURE_SPIKE_LIMIT = 4.0  # mmHg; a single-sample jump this large is implausible
+# Thresholds: set ~3-5x measured ADC noise (run --noise first).
+# Real cuff oscillations: 0.5-4 mmHg. Typical ADC noise at 40 Hz: ~0.03-0.05 mmHg.
+MIN_PULSE_AMPLITUDE = 0.15      # was 0.005; noise floor ~0.03-0.05 mmHg
+MAX_AMP_CHANGE_RATIO = 4.0      # was 20; physiological max ~3-5x between adjacent beats
+MIN_PRESSURE_CHANGE = 0.5       # was 0.05; require meaningful pressure separation
+PRESSURE_SPIKE_LIMIT = 4.0      # mmHg; single-sample jump this large is implausible
 
 # Beat detection timing.
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.002
+PEAK_DROP_THRESHOLD = 0.10      # was 0.002; must exceed noise to confirm peak
 
 # Filtering.
 BASELINE_ALPHA = 0.01
@@ -67,7 +70,7 @@ MAX_PEAKS = 80
 # TM7711 timing copied from hardware/tm7711.py.
 READY_TIMEOUT = 2.0
 CLOCK_HALF_PERIOD = 0.000002
-EXTRA_CLOCK_PULSES = 1
+EXTRA_CLOCK_PULSES = 3
 
 # Relay modules commonly energize on LOW. Change only if your board is active-high.
 RELAYS_ACTIVE_LOW = True
@@ -577,6 +580,8 @@ class BloodPressureTest:
         self.measuring = False
         self.settle_started = None
         self.last_live_print = 0.0
+        self._last_pressure = None
+        self._last_time = None
 
     def setup(self):
         GPIO.setmode(GPIO.BCM)
@@ -644,6 +649,17 @@ class BloodPressureTest:
                         print("Exhaust valve opened; cuff venting")
                         print("Measurement complete")
                         break
+
+                # Log deflation rate during measurement (target: 2-3 mmHg/s)
+                if self.measuring and hasattr(self, '_last_pressure'):
+                    dt = (now_ms() - self._last_time) / 1000.0
+                    if dt > 0:
+                        rate = (self._last_pressure - pressure) / dt
+                        if rate > 0:
+                            print(f"DEFLATION RATE: {rate:.2f} mmHg/s", flush=True)
+                if self.measuring:
+                    self._last_pressure = pressure
+                    self._last_time = now_ms()
 
                 current = time.monotonic()
                 if current - self.last_live_print >= 0.1:

@@ -44,11 +44,17 @@ def read_raw():
         GPIO.output(SCK_PIN, GPIO.LOW)
         time.sleep(0.000002)
 
-    # One additional clock pulse for the next conversion.
-    GPIO.output(SCK_PIN, GPIO.HIGH)
-    time.sleep(0.000002)
-    GPIO.output(SCK_PIN, GPIO.LOW)
-    time.sleep(0.000002)
+    # Extra clock pulses set output data rate:
+    # 1 pulse = 25 total = 10 Hz
+    # 2 pulses = 26 total = 20 Hz
+    # 3 pulses = 27 total = 40 Hz (recommended for BP)
+    # 4 pulses = 28 total = 80 Hz
+    EXTRA_PULSES = 3
+    for _ in range(EXTRA_PULSES):
+        GPIO.output(SCK_PIN, GPIO.HIGH)
+        time.sleep(0.000002)
+        GPIO.output(SCK_PIN, GPIO.LOW)
+        time.sleep(0.000002)
 
     # Convert 24-bit two's complement to signed integer.
     if value & 0x800000:
