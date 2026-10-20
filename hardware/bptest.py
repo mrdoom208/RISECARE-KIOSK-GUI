@@ -651,7 +651,7 @@ class BloodPressureTest:
                         break
 
                 # Log deflation rate during measurement (target: 2-3 mmHg/s)
-                if self.measuring and hasattr(self, '_last_pressure'):
+                if self.measuring and self._last_time is not None:
                     dt = (now_ms() - self._last_time) / 1000.0
                     if dt > 0:
                         rate = (self._last_pressure - pressure) / dt
