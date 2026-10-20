@@ -606,6 +606,7 @@ class BloodPressureTest:
             valve_set(True)
             pump_set(True)
             self.pump_running = True
+            consecutive_invalid = 0
             while True:
                 raw = self.adc.read_raw()
                 if raw is None:
@@ -614,8 +615,14 @@ class BloodPressureTest:
 
                 pressure = raw_to_mmhg(raw)
                 if not math.isfinite(pressure) or pressure < -5 or pressure > 250:
-                    print(f"ERROR: invalid pressure {pressure:.1f} mmHg")
-                    break
+                    consecutive_invalid += 1
+                    print(f"Invalid pressure {pressure:.1f} mmHg "
+                          f"({consecutive_invalid}/3 consecutive)")
+                    if consecutive_invalid >= 3:
+                        print("ERROR: 3 consecutive invalid readings; aborting")
+                        break
+                    continue
+                consecutive_invalid = 0
 
                 if self.pump_running and pressure >= PUMP_OFF_PRESSURE:
                     pump_set(False)
@@ -629,6 +636,12 @@ class BloodPressureTest:
                     if was_spike:
                         print(f"Ignored pressure outlier: raw={measured_pressure:.1f} mmHg, "
                               f"filtered={pressure:.1f} mmHg")
+                    # During deflation pressure only goes down; reject readings
+                    # above pump-off pressure as invalid sensor spikes.
+                    if pressure > PUMP_OFF_PRESSURE:
+                        print(f"Rejected deflation sample above pump-off: "
+                              f"{pressure:.1f} mmHg")
+                        continue
 
                 if (not self.pump_running and not self.measuring
                         and self.settle_started is not None
