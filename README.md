@@ -258,6 +258,44 @@ To enable real-time IoT sensor data:
 
 **Command topics**: the API server publishes to `risecare/command/shutdown`, `risecare/command/restart`, and `risecare/command/lock` to remotely control the Raspberry Pi (see `hardware/shutdown.py`).
 
+### MAX30102 (Pulse Oximeter) Payload
+
+The device publishes on `risecare/sensors/vitals` once per second while a heart rate / SpO₂ measurement is running. The payload always carries the sensor state, so the kiosk can tell "no finger yet" apart from "reading not settled":
+
+| Field            | Type    | Description                                                          |
+| ---------------- | ------- | -------------------------------------------------------------------- |
+| `sessionId`      | number  | Session the measurement belongs to                                    |
+| `fingerDetected` | boolean | `false` while no finger is on the sensor                              |
+| `hrValid`        | boolean | `true` when `bpm` is a measurement the driver accepted                |
+| `spo2Valid`      | boolean | `true` when `spo2` is a measurement the driver accepted               |
+| `bpm`            | number  | Pulse rate — only present when `hrValid` is `true`                    |
+| `spo2`           | number  | SpO₂ in percent — only present when `spo2Valid` is `true`             |
+| `quality`        | number  | Signal quality score (0–1)                                           |
+
+The kiosk shows **“Please insert your finger”** while `fingerDetected` is `false`, and only accepts a reading once it is flagged valid and has settled (5 consecutive stable measurements). Invalid readings are never stored in the database.
+
+### VL53L1X (Height) Payload
+
+The device publishes on `risecare/sensors/height` once per second while a height measurement is running. The payload only contains a measurement the sensor could take:
+
+| Field       | Type   | Description                                    |
+| ----------- | ------ | ---------------------------------------------- |
+| `sessionId` | number | Session the measurement belongs to              |
+| `cm`        | number | Height in centimetres — the patient's height    |
+
+The height is `sensor-to-floor distance − measured distance`, so the sensor has to be **calibrated** first (nothing under the sensor while it measures). A reading is only published when somebody is standing under the sensor: with an empty space below the sensor the beam reaches the floor and no height is published at all, so the database never receives a `0 cm` measurement. The published value is the median of the recent measurements, which keeps it stable enough for the kiosk to accept it (4 consecutive stable measurements).
+
+**Calibration**: the kiosk sends the `height` command with value `2`; the device reports its progress on `risecare/calibration/progress/height` and the result on `risecare/calibration/height` (`totalHeight` in centimetres). The last progress message is `Height measured: <x> cm`, which is the message the kiosk uses to offer its **“Done — height measured”** button (value `12`).
+
+**Standalone diagnostic** (on the Raspberry Pi, no kiosk needed):
+
+```bash
+cd hardware
+python3 vl53l1x_test.py             # stream raw distance readings
+python3 vl53l1x_test.py --height     # stream the calculated height
+python3 vl53l1x_test.py --calibrate  # calibrate the sensor-to-floor distance
+```
+
 ---
 
 ## Admin & Security

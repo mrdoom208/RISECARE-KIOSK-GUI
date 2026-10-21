@@ -72,11 +72,17 @@ subscribe("risecare/sensors/vitals", async (data) => {
   latestReadings["heartrate"] = { ...data, _receivedAt: Date.now() };
   latestReadings["spo2"] = { ...data, _receivedAt: Date.now() };
   if (data.sessionId) {
-    if (data.bpm != null) {
+    // The MAX30102 publishes on every tick, with or without a measurement, so
+    // the kiosk can tell "no finger yet" apart from "reading not settled".
+    // Only a reading the driver marked as valid may be stored.
+    const hrValid = data.hrValid ?? data.bpm != null;
+    const spo2Valid = data.spo2Valid ?? data.spo2 != null;
+
+    if (hrValid && data.bpm != null) {
       await saveSensorValue(data.sessionId, "heart_rate", data.bpm);
       console.log("💾 Heart rate saved from combined:", data);
     }
-    if (data.spo2 != null) {
+    if (spo2Valid && data.spo2 != null) {
       await saveSensorValue(data.sessionId, "oxygen_saturation", data.spo2);
       console.log("💾 SpO2 saved from combined:", data);
     }

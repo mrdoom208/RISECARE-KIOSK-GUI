@@ -71,6 +71,14 @@ class MAX30102:
     # Minimum LED DC levels (ADC counts) that count as a hand being present.
     FINGER_MIN_RED = 60000
     FINGER_MIN_IR = 90000
+
+    # Hysteresis: once a finger has been detected the chip is only allowed to
+    # report "no finger" again once the signal drops clearly below the
+    # detection thresholds. Without this the UI flickers between "insert your
+    # finger" and "measuring" whenever the DC level wobbles around the limit.
+    FINGER_RELEASE_RED = 40000
+    FINGER_RELEASE_IR = 60000
+
     MIN_SIGNAL_QUALITY = 0.10
 
     def __init__(
@@ -79,6 +87,8 @@ class MAX30102:
         address=ADDRESS,
         i2c_bus=None,
         led_current=0x1F,
+        finger_min_red=None,
+        finger_min_ir=None,
     ):
         if SMBus is None:
             raise RuntimeError(
@@ -88,6 +98,14 @@ class MAX30102:
 
         self.address = address
         self._owns_bus = i2c_bus is None
+
+        # Thresholds can be tuned per board without touching the source.
+        if finger_min_red is not None:
+            self.FINGER_MIN_RED = finger_min_red
+            self.FINGER_RELEASE_RED = int(finger_min_red * 0.66)
+        if finger_min_ir is not None:
+            self.FINGER_MIN_IR = finger_min_ir
+            self.FINGER_RELEASE_IR = int(finger_min_ir * 0.66)
 
         self.bus = i2c_bus if i2c_bus is not None else SMBus(bus)
         self.handle = self.bus
@@ -353,10 +371,19 @@ class MAX30102:
 
         red_dc = sum(red for red, _ in samples) / len(samples)
         ir_dc = sum(ir for _, ir in samples) / len(samples)
-        finger_present = (
-            red_dc >= self.FINGER_MIN_RED
-            and ir_dc >= self.FINGER_MIN_IR
-        )
+
+        if self._finger_present:
+            # Hysteresis: stay in the "finger present" state until the
+            # signal clearly drops again.
+            finger_present = (
+                red_dc >= self.FINGER_RELEASE_RED
+                and ir_dc >= self.FINGER_RELEASE_IR
+            )
+        else:
+            finger_present = (
+                red_dc >= self.FINGER_MIN_RED
+                and ir_dc >= self.FINGER_MIN_IR
+            )
 
         if not finger_present:
             # No finger: drop the batch and any stale window/smoothing.
@@ -796,6 +823,7 @@ class MAX30102:
             result = self.calculate()
 
             result["hand_present"] = self._finger_present
+            result["finger_present"] = self._finger_present
             result["new_samples"] = new_samples
             result["fifo_available"] = self.fifo_sample_count()
             result["fifo_overflow"] = self.fifo_overflow_count()
@@ -811,6 +839,7 @@ class MAX30102:
                 "quality": 0.0,
                 "samples": len(self.ir_buffer),
                 "hand_present": self._finger_present,
+                "finger_present": self._finger_present,
                 "error": str(e),
             }
 

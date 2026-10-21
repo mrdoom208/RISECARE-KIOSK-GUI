@@ -44,8 +44,8 @@ SETTLE_SECONDS = 0.3
 # Experimental oscillometric ratios (from the Arduino prototype).
 # NOTE: Fixed ratios are approximations; calibrate against reference measurements.
 # Commercial devices fit ratios per-cuff/arm; fixed ratios can err by 5-10+ mmHg.
-SYS_RATIO = 0.55
-DIA_RATIO = 0.75
+SYS_RATIO = 0.45
+DIA_RATIO = 0.85
 
 # Thresholds: set ~3-5x measured ADC noise (run --noise first).
 # Real cuff oscillations: 0.5-4 mmHg. Typical ADC noise at 40 Hz: ~0.03-0.05 mmHg.

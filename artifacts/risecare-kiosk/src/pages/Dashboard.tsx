@@ -19,8 +19,17 @@ import {
   CheckCircle2,
   Lock,
   Thermometer,
+  Fingerprint,
 } from "lucide-react";
 import { getStatusColor, getStatusText, getBPStatus, getHRStatus, getSpO2Status, getTempStatus, getBMIStatus, calculateBMI } from "@/lib/vitals-utils";
+import {
+  MAX30102_SENSOR_ID,
+  getFingerState,
+  readValidPulseRate,
+  readValidSpo2,
+  max30102StabilitySample,
+  isSameStableMeasurement,
+} from "@/lib/max30102";
 import { KioskHeader } from "@/components/KioskHeader";
 import { VitalCard } from "@/components/VitalCard";
 import InstructionModal from "@/components/InstructionModal";
@@ -76,6 +85,19 @@ export default function Dashboard() {
   const [readingVital, setReadingVital] = useState<VitalType | null>(null);
   const [stableCount, setStableCount] = useState(0);
   const prevValueRef = useRef<any>(null);
+  // Id of the last payload that was counted towards the stability run, so a
+  // measurement is only counted once no matter how often the effect re-runs.
+  const countedReadingRef = useRef<string | number | null>(null);
+  // Monotonic counter for received payloads. It identifies a payload
+  // uniquely, unlike a timestamp, which can repeat within a millisecond.
+  const payloadSeqRef = useRef(0);
+  // The values that were on screen when the reading was confirmed. Latching
+  // them means lifting the finger (or a drifting measurement afterwards)
+  // cannot take a finished reading away.
+  const [confirmedReading, setConfirmedReading] = useState<{
+    heartRate: number | null;
+    oxygenSaturation: number | null;
+  } | null>(null);
   const readingVitalRef = useRef<VitalType | null>(null);
   // Snapshot timestamp already handled, so the auto-disable effect runs once per
   // availability update instead of again on every poll / state change.
@@ -98,8 +120,30 @@ export default function Dashboard() {
       if (sensor !== expectedSensor) return;
 
       setLiveReadings((prev) => {
-        const next = { ...prev, [sensor]: { ...data, _receivedAt: Date.now() } };
-        return next;
+        const previous = prev[sensor] ?? {};
+        // The MAX30102 publishes every second, with or without a measurement.
+        // Merging keeps the last value visible while a status-only payload
+        // arrives, so a stable reading is not wiped between ticks.
+        const next = {
+          ...previous,
+          ...data,
+          _receivedAt: Date.now(),
+          _seq: ++payloadSeqRef.current,
+        };
+
+        // The finger left the sensor, or the driver rejected the reading:
+        // drop the measurement so the kiosk asks for a finger again instead
+        // of showing a stale number.
+        if (data.fingerDetected === false || data.hrValid === false) {
+          delete next.bpm;
+          next.hrValid = false;
+        }
+        if (data.fingerDetected === false || data.spo2Valid === false) {
+          delete next.spo2;
+          next.spo2Valid = false;
+        }
+
+        return { ...prev, [sensor]: next };
       });
     }, []),
   });
@@ -119,8 +163,6 @@ export default function Dashboard() {
     window.addEventListener("sensorStateChange", loadEnabledSensors);
     return () => window.removeEventListener("sensorStateChange", loadEnabledSensors);
   }, []);
-
-  const isStable = readingVital ? stableCount >= (sensorStabilityConfig[vitalToSensorId[readingVital]]?.stableCount ?? 5) : false;
 
   // Check if a vital's sensor is enabled
   const isVitalEnabled = (vital: VitalType) => {
@@ -211,9 +253,9 @@ export default function Dashboard() {
           ? { sys: reading.systolic, dia: reading.diastolic }
           : null;
       case "hr":
-        return reading.bpm && reading.bpm > 0 ? reading.bpm : null;
+        return readValidPulseRate(reading);
       case "spo2":
-        return reading.spo2 && reading.spo2 > 0 ? reading.spo2 : null;
+        return readValidSpo2(reading);
       case "weight":
         return reading.kg && reading.kg > 0 ? reading.kg : null;
       case "height":
@@ -223,16 +265,64 @@ export default function Dashboard() {
     }
   };
 
+  // MAX30102 state for the finger-on-sensor prompt. A reading only counts
+  // when it belongs to the session that is currently being recorded.
+  const max30102Reading = useMemo(() => {
+    const reading = liveReadings[MAX30102_SENSOR_ID];
+    if (!reading || String(reading.sessionId) !== String(session?.id)) return null;
+    return reading;
+  }, [liveReadings, session?.id]);
+
+  const fingerState = getFingerState(max30102Reading);
+  const fingerPresent = fingerState === "present";
+  const livePulseRate = readValidPulseRate(max30102Reading);
+  const liveOxygenSaturation = readValidSpo2(max30102Reading);
+
+  // How many consecutive settled measurements the sensor needs before the
+  // reading is accepted.
+  const requiredStableCount =
+    (readingVital ? sensorStabilityConfig[vitalToSensorId[readingVital]]?.stableCount : undefined) ?? 5;
+
+  // A reading is confirmed once enough settled measurements have been
+  // counted. It stays confirmed even if the finger is lifted afterwards, so
+  // the patient can still finish the measurement.
+  const readingConfirmed = readingVital != null && confirmedReading != null;
+  const isStable = readingConfirmed;
+
+  // Values shown in the reading modal: the live measurement while the finger
+  // is on the sensor, the stored one once the reading has been confirmed.
+  const hrValue = fingerPresent
+    ? livePulseRate
+    : readingConfirmed
+      ? (confirmedReading?.heartRate ?? currentVitals.heartRate ?? null)
+      : null;
+  const spo2Value = fingerPresent
+    ? liveOxygenSaturation
+    : readingConfirmed
+      ? (confirmedReading?.oxygenSaturation ?? currentVitals.oxygenSaturation ?? null)
+      : null;
+
   useEffect(() => {
     if (!readingVital || !session) {
       setStableCount(0);
+      setConfirmedReading(null);
       prevValueRef.current = null;
+      countedReadingRef.current = null;
       return;
     }
 
     const sensorId = vitalToSensorId[readingVital];
     const config = sensorStabilityConfig[sensorId];
     if (!config) return;
+
+    // Only count a payload once, even when the session poll re-runs this
+    // effect between two sensor readings.
+    const reading = liveReadings[sensorId];
+    const readingKey = reading?.readingId ?? reading?._seq ?? null;
+    if (readingKey !== null) {
+      if (readingKey === countedReadingRef.current) return;
+      countedReadingRef.current = readingKey;
+    }
 
     let currentValue: any;
     let prevValue: any = prevValueRef.current;
@@ -245,7 +335,9 @@ export default function Dashboard() {
             : null);
         break;
       case "hr":
-        currentValue = getLiveReadingValue("hr");
+        // The MAX30102 reports the pulse rate and the SpO2 from the same
+        // capture, so the run follows whichever one the driver accepted.
+        currentValue = max30102StabilitySample(max30102Reading);
         break;
       case "spo2":
         currentValue = getLiveReadingValue("spo2");
@@ -261,10 +353,18 @@ export default function Dashboard() {
         break;
     }
 
-    if (currentValue == null) return;
+    if (currentValue == null) {
+      // No measurement right now: the finger is off the sensor or the driver
+      // rejected the reading. The run is frozen instead of reset, so a
+      // reading that was already confirmed stays confirmable.
+      return;
+    }
 
     if (prevValue !== null) {
-      const isNear = config.compare(prevValue, currentValue);
+      const isNear =
+        readingVital === "hr"
+          ? isSameStableMeasurement(prevValue, currentValue)
+          : config.compare(prevValue, currentValue);
 
       if (isNear) {
         setStableCount((prev) => Math.min(prev + 1, config.stableCount));
@@ -279,6 +379,18 @@ export default function Dashboard() {
 
     prevValueRef.current = currentValue;
   }, [liveReadings, readingVital, session]);
+
+  // Once the run has settled, remember the values that were measured so the
+  // kiosk can keep showing them after the finger leaves the sensor.
+  useEffect(() => {
+    if (!readingVital) return;
+    if (stableCount < requiredStableCount) return;
+    if (confirmedReading) return;
+    setConfirmedReading({
+      heartRate: livePulseRate ?? currentVitals.heartRate ?? null,
+      oxygenSaturation: liveOxygenSaturation ?? currentVitals.oxygenSaturation ?? null,
+    });
+  }, [readingVital, stableCount, requiredStableCount, confirmedReading, livePulseRate, liveOxygenSaturation, currentVitals]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
 
@@ -335,6 +447,10 @@ const handleStartReading = async () => {
   setLiveReadings({});
   setReadingVital(activeKeypad);
   setActiveSensor(null);
+  setStableCount(0);
+  setConfirmedReading(null);
+  prevValueRef.current = null;
+  countedReadingRef.current = null;
 };
 
 const stopSensor = async () => {
@@ -356,7 +472,10 @@ const stopSensor = async () => {
   }
   setReadingVital(null);
   setStableCount(0);
+  setConfirmedReading(null);
   setLiveReadings({});
+  prevValueRef.current = null;
+  countedReadingRef.current = null;
 };
 
 const handleDoneReading = async () => {
@@ -739,44 +858,66 @@ const handleCancelReading = async () => {
               {(() => {
                 const display = getReadingDisplay(readingVital);
                 const isHrSpo2 = readingVital === "hr";
-                const hrDisplay = isHrSpo2 ? getReadingDisplay("hr") : null;
-                const spo2Display = isHrSpo2 ? (() => {
-                  const spo2Value = getLiveReadingValue("spo2");
-                  return {
-                    title: "SpO2",
-                    value: spo2Value != null ? Number(spo2Value).toFixed(0) : "Reading...",
-                    unit: "%",
-                    hasValue: spo2Value != null,
-                  };
-                })() : null;
+                const hrDisplay = isHrSpo2 ? {
+                  title: "Heart Rate",
+                  value: hrValue != null ? Number(hrValue).toFixed(0) : "Reading...",
+                  unit: "bpm",
+                  hasValue: hrValue != null,
+                } : null;
+                const spo2Display = isHrSpo2 ? {
+                  title: "SpO2",
+                  value: spo2Value != null ? Number(spo2Value).toFixed(0) : "Reading...",
+                  unit: "%",
+                  hasValue: spo2Value != null,
+                } : null;
 
                 return (
                   <>
               {isHrSpo2 ? (
                 <>
                   <h2 className="text-2xl font-bold mb-6 text-center">Heart Rate & SpO2</h2>
-                  <div className="flex items-center justify-center gap-6 mb-6">
-                    <div className="text-center">
-                      <div className={`font-bold font-display text-primary mb-1 ${hrDisplay?.hasValue ? "text-5xl" : "text-3xl"}`}>
-                        {hrDisplay?.value}
+                  {fingerPresent || readingConfirmed ? (
+                    <>
+                      <div className="flex items-center justify-center gap-6 mb-6">
+                        <div className="text-center">
+                          <div className={`font-bold font-display text-primary mb-1 ${hrDisplay?.hasValue ? "text-5xl" : "text-3xl"}`}>
+                            {hrDisplay?.value}
+                          </div>
+                          <div className="text-base text-muted-foreground">{hrDisplay?.unit}</div>
+                          <div className="text-sm text-muted-foreground/70 mt-1">Heart Rate</div>
+                        </div>
+                        <div className="text-4xl text-muted-foreground/30 font-light">|</div>
+                        <div className="text-center">
+                          <div className={`font-bold font-display text-primary mb-1 ${spo2Display?.hasValue ? "text-5xl" : "text-3xl"}`}>
+                            {spo2Display?.value}
+                          </div>
+                          <div className="text-base text-muted-foreground">{spo2Display?.unit}</div>
+                          <div className="text-sm text-muted-foreground/70 mt-1">SpO2</div>
+                        </div>
                       </div>
-                      <div className="text-base text-muted-foreground">{hrDisplay?.unit}</div>
-                      <div className="text-sm text-muted-foreground/70 mt-1">Heart Rate</div>
-                    </div>
-                    <div className="text-4xl text-muted-foreground/30 font-light">|</div>
-                    <div className="text-center">
-                      <div className={`font-bold font-display text-primary mb-1 ${spo2Display?.hasValue ? "text-5xl" : "text-3xl"}`}>
-                        {spo2Display?.value}
+                      <p className="text-center text-muted-foreground mb-6">
+                        {readingConfirmed
+                          ? "Your reading has been recorded. Press Done to continue."
+                          : hrDisplay?.hasValue && spo2Display?.hasValue
+                            ? "Keep your finger still and lightly covering the sensor while the reading stabilizes."
+                            : "Keep your finger still on the sensor while the reading is being measured..."}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center py-6 mb-2">
+                      <div className="w-24 h-24 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-5">
+                        <Fingerprint className="w-12 h-12 text-primary" />
                       </div>
-                      <div className="text-base text-muted-foreground">{spo2Display?.unit}</div>
-                      <div className="text-sm text-muted-foreground/70 mt-1">SpO2</div>
+                      <p className="text-3xl font-display font-bold text-foreground mb-2">
+                        Please insert your finger
+                      </p>
+                      <p className="text-lg text-muted-foreground max-w-xs">
+                        {fingerState === "absent"
+                          ? "Place your finger on the pulse oximeter sensor to start measuring."
+                          : "Waiting for the pulse oximeter sensor to report..."}
+                      </p>
                     </div>
-                  </div>
-                  <p className="text-center text-muted-foreground mb-6">
-                    {hrDisplay?.hasValue && spo2Display?.hasValue
-                      ? "Keep your finger still and lightly covering the sensor while the reading stabilizes."
-                      : "Place your finger gently over the sensor and keep still. Collecting a stable reading..."}
-                  </p>
+                  )}
                 </>
               ) : (
                 <>
@@ -820,9 +961,17 @@ const handleCancelReading = async () => {
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Done {!isStable && `(${stableCount}/${sensorStabilityConfig[vitalToSensorId[readingVital]]?.stableCount ?? 5})`}
+                  Done {!isStable && `(${stableCount}/${requiredStableCount})`}
                 </button>
               </div>
+
+              {readingVital === "hr" && !isStable && (
+                <p className="text-center text-sm text-muted-foreground mt-3">
+                  {!fingerPresent
+                    ? "Waiting for a finger on the sensor."
+                    : "Waiting for a stable reading."}
+                </p>
+              )}
             </>
           )}
       </ModalShell>

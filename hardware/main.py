@@ -14,6 +14,12 @@ HR_POLL_INTERVAL = 0.1
 HR_PUBLISH_INTERVAL = 1.0
 TEMP_READ_INTERVAL = 1.0
 AVAIL_INTERVAL = 10.0
+# The VL53L1X is sampled in the background: the ranging transaction blocks
+# for a few hundred milliseconds and must not stall the main loop.
+HEIGHT_POLL_INTERVAL = 0.5
+# A height that is older than this is dropped, so a sensor that stopped
+# answering cannot keep publishing a stale measurement.
+HEIGHT_STALE_AFTER = 3.0
 
 hr_sensor = None
 temp_sensor = None
@@ -38,6 +44,11 @@ measure_busy = False
 _last_printer_status = {"connected": False, "paper": False, "paperStatus": "unknown"}
 _probe_thread = None
 _probe_busy = False
+_height_thread = None
+_height_stop = threading.Event()
+_height_lock = threading.Lock()
+_height_value = None
+_height_at = 0.0
 
 
 def publish_calibration_progress(sensor, message):
@@ -47,6 +58,66 @@ def publish_calibration_progress(sensor, message):
         "sessionId": current_session_id,
         "timestamp": time.time()
     })
+
+
+def _start_height_worker():
+    """Sample the VL53L1X in the background.
+
+    The ToF ranging blocks while it waits for the measurement, so it runs on
+    its own thread: the main loop keeps publishing the other sensors on time.
+    """
+    global _height_thread
+    if _height_thread is not None and _height_thread.is_alive():
+        return
+    _height_stop.clear()
+
+    def _run():
+        global _height_value, _height_at
+        last_error = None
+        while not _height_stop.is_set():
+            if measure_busy:
+                # A calibration or test command owns the sensor right now.
+                _height_stop.wait(0.1)
+                continue
+            try:
+                value = vl53l1x.get_height()
+                last_error = None
+            except Exception as e:
+                error_message = f"{type(e).__name__}: {e}"
+                if error_message != last_error:
+                    print(f"⚠️ VL53L1X read failed: {error_message}")
+                    last_error = error_message
+                value = None
+            with _height_lock:
+                _height_value = value
+                _height_at = time.time()
+            _height_stop.wait(HEIGHT_POLL_INTERVAL)
+
+    _height_thread = threading.Thread(target=_run, name="height-sampler", daemon=True)
+    _height_thread.start()
+
+
+def _stop_height_worker():
+    """Stop the background sampler and forget the last height."""
+    global _height_thread, _height_value, _height_at
+    _height_stop.set()
+    thread = _height_thread
+    _height_thread = None
+    if thread is not None and thread.is_alive():
+        thread.join(timeout=2.0)
+    with _height_lock:
+        _height_value = None
+        _height_at = 0.0
+
+
+def _latest_height():
+    """Return the newest height of the sampler, or None when it is stale."""
+    with _height_lock:
+        if _height_value is None:
+            return None
+        if time.time() - _height_at > HEIGHT_STALE_AFTER:
+            return None
+        return _height_value
 
 
 def _probe_i2c():
@@ -230,6 +301,7 @@ def handle_command(sensor, session_id, value, payload):
                 print("⚠️ SpO2 sensor not available")
         elif sensor == "height":
             height_enabled = True
+            _start_height_worker()
         elif sensor == "weight":
             weight_enabled = True
         elif sensor == "temperature":
@@ -242,9 +314,19 @@ def handle_command(sensor, session_id, value, payload):
         measure_busy = True
         try:
             if sensor == "height":
-                total_height = vl53l1x.calibrate_height(
-                    progress_callback=lambda message: publish_calibration_progress("height", message)
-                )
+                # The calibration owns the sensor: the background sampler
+                # would steal the ranging transactions.
+                _stop_height_worker()
+                try:
+                    total_height = vl53l1x.calibrate_height(
+                        progress_callback=lambda message: publish_calibration_progress("height", message)
+                    )
+                except Exception as e:
+                    print(f"⚠️ Height calibration failed: {e}")
+                    total_height = None
+                finally:
+                    if height_enabled:
+                        _start_height_worker()
                 mqtt_client.publish("risecare/calibration/height", {
                     "status": "ok" if total_height is not None else "failed",
                     "totalHeight": total_height,
@@ -286,6 +368,17 @@ def handle_command(sensor, session_id, value, payload):
                 })
             finally:
                 measure_busy = False
+        elif sensor == "height":
+            # The kiosk confirms the height calibration with its "Done" button:
+            # the calibration itself already ran, so the stored value is sent
+            # back to close the flow.
+            total_height = vl53l1x.TOTAL_HEIGHT
+            mqtt_client.publish("risecare/calibration/height", {
+                "status": "ok" if total_height is not None else "failed",
+                "totalHeight": total_height,
+                "sessionId": current_session_id,
+                "timestamp": time.time()
+            })
 
     elif value == 3:
         print(f"🧪 Testing {sensor}...")
@@ -294,13 +387,32 @@ def handle_command(sensor, session_id, value, payload):
             success = False
             result = {}
             if sensor == "height":
-                dist = vl53l1x.measure_distance()
-                print(f"VL53L1X distance: {dist} cm")
-                height = vl53l1x.get_height()
-                if height:
+                # The test owns the sensor: pause the background sampler so
+                # the ranging transactions are not shared.
+                _stop_height_worker()
+                try:
+                    dist = vl53l1x.measure_distance()
+                    print(f"VL53L1X distance: {dist} cm")
+                    height = vl53l1x.get_height()
+                except Exception as e:
+                    print(f"⚠️ VL53L1X test failed: {e}")
+                    dist = None
+                    height = None
+                finally:
+                    if height_enabled:
+                        _start_height_worker()
+                if height is not None:
                     print(f"Height: {height} cm")
-                    result = {"cm": height}
+                    result = {"cm": height, "distanceCm": dist}
                     success = True
+                elif dist is not None:
+                    # The sensor answers, but nobody is standing under it, so
+                    # there is no height to report.
+                    print("Height: unavailable (no one under the sensor)")
+                    result = {"distanceCm": dist}
+                    success = True
+                else:
+                    print("Height: no reading")
             elif sensor == "weight":
                 weight = loadcell.get_stable_weight()
                 if weight:
@@ -395,6 +507,7 @@ def handle_command(sensor, session_id, value, payload):
                 hr_sensor.clear_buffer()
         elif sensor == "height":
             height_enabled = False
+            _stop_height_worker()
         elif sensor == "weight":
             weight_enabled = False
         elif sensor == "temperature":
@@ -488,6 +601,10 @@ def main():
     latest_hr_reading = None
     latest_hr_reading_at = 0.0
     last_hr_error = None
+    # Finger state of the MAX30102, published so the kiosk can ask the
+    # patient to insert a finger instead of waiting on a silent sensor.
+    finger_detected = False
+    hr_quality = 0.0
 
     try:
         while True:
@@ -502,10 +619,17 @@ def main():
                 tick += 1
                 now = time.time()
 
-                hr = hr_valid = spo2 = spo2_valid = None
+                hr = None
+                hr_valid = False
+                spo2 = None
+                spo2_valid = False
                 if (hr_enabled or spo2_enabled) and hr_sensor is not None and now - hr_last_read >= HR_POLL_INTERVAL:
                     try:
                         result = hr_sensor.get_reading()
+                        finger_detected = bool(
+                            result.get("finger_present", result.get("hand_present", False))
+                        )
+                        hr_quality = float(result.get("quality", 0.0))
                         sample = (
                             result["pulse_rate"],
                             result["pulse_rate_valid"],
@@ -515,6 +639,12 @@ def main():
                         if sample[1] or sample[3]:
                             latest_hr_reading = sample
                             latest_hr_reading_at = time.time()
+                        elif not finger_detected:
+                            # The finger left the sensor: drop the last
+                            # measurement so the kiosk stops showing a number
+                            # the chip can no longer confirm.
+                            latest_hr_reading = None
+                            latest_hr_reading_at = 0.0
                         hr_last_read = time.time()
                         last_hr_error = None
                     except Exception as e:
@@ -526,13 +656,14 @@ def main():
                 if latest_hr_reading is not None and time.time() - latest_hr_reading_at <= 2.0:
                     hr, hr_valid, spo2, spo2_valid = latest_hr_reading
 
+                # The height comes from the background sampler, so the ToF
+                # ranging never blocks the loop. Only a fresh, valid height
+                # is published: a stale or missing one would be stored as a
+                # measurement by the API server.
                 height = None
                 if height_enabled and now - height_last_read >= READ_INTERVAL:
-                    try:
-                        height = vl53l1x.get_height()
-                        height_last_read = time.time()
-                    except Exception:
-                        pass
+                    height_last_read = now
+                    height = _latest_height()
 
                 weight = None
                 if weight_enabled and now - weight_last_read >= READ_INTERVAL:
@@ -554,14 +685,20 @@ def main():
 
                 payload = {"sessionId": current_session_id, "timestamp": now}
                 if (hr_enabled or spo2_enabled) and now - hr_last_publish >= HR_PUBLISH_INTERVAL:
-                    if hr_valid:
+                    if hr_valid and hr is not None:
                         payload["bpm"] = hr
-                    if spo2_valid:
+                    if spo2_valid and spo2 is not None:
                         payload["spo2"] = spo2
-                    if hr_valid or spo2_valid:
-                        mqtt_client.publish("risecare/sensors/vitals", payload)
-                        published = True
-                        hr_last_publish = now
+                    # The validity flags and the finger state are published on
+                    # every tick, even without a measurement, so the kiosk can
+                    # distinguish "no finger yet" from "reading not settled".
+                    payload["hrValid"] = bool(hr_valid and hr is not None)
+                    payload["spo2Valid"] = bool(spo2_valid and spo2 is not None)
+                    payload["fingerDetected"] = bool(finger_detected)
+                    payload["quality"] = round(hr_quality, 3)
+                    mqtt_client.publish("risecare/sensors/vitals", payload)
+                    published = True
+                    hr_last_publish = now
 
                 if height_enabled and height is not None:
                     mqtt_client.publish("risecare/sensors/height",
@@ -596,6 +733,7 @@ def main():
 
     except KeyboardInterrupt:
         print("\nShutting down...")
+        _stop_height_worker()
         mqtt_client.disconnect()
         i2c_bus.close_bus()
         vl53l1x.close()
