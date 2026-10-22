@@ -32,11 +32,11 @@ PUMP = 22
 VALVE = 4
 
 # Retained pressure calibration (raw ADC counts per mmHg, then zero offset).
-RAW_PER_MMHG = 28543.0
+RAW_PER_MMHG = 28943.0
 RAW_OFFSET = 472820.0
 
 # Pressure cycle
-PUMP_OFF_PRESSURE = 170.0
+PUMP_OFF_PRESSURE = 160.0
 # Deflate well below MAP so the envelope has enough points on both sides.
 MEASURE_END_PRESSURE = 40.0
 SETTLE_SECONDS = 0.3
@@ -58,7 +58,7 @@ PRESSURE_SPIKE_LIMIT = 4.0      # mmHg; single-sample jump this large is implaus
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.05   # was 0.002; must exceed noise to confirm peak
+PEAK_DROP_THRESHOLD = 0.04   # was 0.002; must exceed noise to confirm peak
 
 # Filtering.
 BASELINE_ALPHA = 0.01
