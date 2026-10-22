@@ -4,7 +4,9 @@ The signal-processing pipeline mirrors the Arduino blood-pressure prototype:
 cuff pressure is split into a slow baseline and a pulsatile oscillation, a
 trough/peak detector builds an oscillometric envelope, heart rate comes from
 confirmed peak intervals, and SYS/DIA are found where the envelope falls to
-fixed ratios of its maximum amplitude.
+fixed ratios of its maximum amplitude. Inflation stops on the live envelope
+peak instead of a fixed pressure, and deflation ends on the fading envelope
+tail with a hard pressure floor.
 
 The pressure conversion values below are the calibration retained from the
 previous bptest.py. Check them against a reference gauge before use.
@@ -36,15 +38,28 @@ RAW_PER_MMHG = 28943.0
 RAW_OFFSET = 472820.0
 
 # Pressure cycle
-PUMP_OFF_PRESSURE = 160.0
-# Deflate well below MAP so the envelope has enough points on both sides.
-MEASURE_END_PRESSURE = 40.0
+# Inflation stops dynamically once the live oscillation envelope has clearly
+# passed its peak. MAX_INFLATE_PRESSURE is only a hard safety ceiling.
+MAX_INFLATE_PRESSURE = 200.0
+INFLATION_STOP_RATIO = 0.50
+# Keep inflating this far above the peak-amplitude pressure even after the
+# ratio test fires, so the systolic side of the envelope stays populated.
+INFLATION_PEAK_MARGIN = 50.0
+INFLATION_MIN_STOP_PRESSURE = 100.0
+INFLATION_TRACK_MIN_PRESSURE = 50.0
+INFLATION_MIN_BEATS = 3
+
+# Deflation ends dynamically once the envelope has faded below the diastolic
+# crossing. MIN_MEASURE_PRESSURE is only a hard safety floor.
+MIN_MEASURE_PRESSURE = 25.0
+DEFLATION_END_RATIO = 0.50
+DEFLATION_END_BEATS = 2
 SETTLE_SECONDS = 0.3
 
 # Experimental oscillometric ratios (from the Arduino prototype).
 # NOTE: Fixed ratios are approximations; calibrate against reference measurements.
 # Commercial devices fit ratios per-cuff/arm; fixed ratios can err by 5-10+ mmHg.
-SYS_RATIO = 0.45
+SYS_RATIO = 0.35
 DIA_RATIO = 0.85
 
 # Thresholds: set ~3-5x measured ADC noise (run --noise first).
@@ -62,6 +77,9 @@ PEAK_DROP_THRESHOLD = 0.04   # was 0.002; must exceed noise to confirm peak
 
 # Filtering.
 BASELINE_ALPHA = 0.01
+# Inflation pressure ramps much faster than natural deflation, so use a faster
+# baseline there to keep the pulsatile component from being swamped by the ramp.
+INFLATION_BASELINE_ALPHA = 0.05
 OSC_FILTER_ALPHA = 0.45
 
 MAX_PEAKS = 80
@@ -219,6 +237,94 @@ def debug_noise():
         print("Invalid readings occurred; those are ADC/interface errors, not noise.")
 
 
+class InflationTracker:
+    """Track pulses during inflation so pump-off pressure can be dynamic."""
+
+    def __init__(self, pressure):
+        self.last_beat_time = 0
+        self.reset(pressure)
+
+    def reset(self, pressure):
+        self.baseline = pressure
+        self.oscillation = 0.0
+        self.filtered_oscillation = 0.0
+        self.previous_oscillation = 0.0
+
+        self.cycle_trough = 0.0
+        self.cycle_peak = 0.0
+        self.cycle_peak_pressure = pressure
+        self.cycle_peak_time = 0
+
+        self.tracking_peak = False
+        self.have_trough = False
+        self.last_beat_time = 0
+
+    def update(self, pressure, now):
+        self.baseline = (self.baseline * (1.0 - INFLATION_BASELINE_ALPHA)
+                         + pressure * INFLATION_BASELINE_ALPHA)
+
+        self.oscillation = pressure - self.baseline
+
+        self.filtered_oscillation = (self.filtered_oscillation
+                                     * (1.0 - OSC_FILTER_ALPHA)
+                                     + self.oscillation * OSC_FILTER_ALPHA)
+
+        current = self.filtered_oscillation
+
+        if not self.have_trough:
+            self.cycle_trough = current
+            self.cycle_peak = current
+            self.cycle_peak_pressure = pressure
+            self.cycle_peak_time = now
+
+            self.have_trough = True
+            self.previous_oscillation = current
+            return None
+
+        beat = None
+
+        if not self.tracking_peak:
+            if current < self.cycle_trough:
+                self.cycle_trough = current
+
+            if current > self.previous_oscillation:
+                self.cycle_peak = current
+                self.cycle_peak_pressure = pressure
+                self.cycle_peak_time = now
+                self.tracking_peak = True
+        else:
+            if current > self.cycle_peak:
+                self.cycle_peak = current
+                self.cycle_peak_pressure = pressure
+                self.cycle_peak_time = now
+
+            if current < self.cycle_peak - PEAK_DROP_THRESHOLD:
+                amplitude = self.cycle_peak - self.cycle_trough
+                beat_pressure = self.cycle_peak_pressure
+                beat_time = self.cycle_peak_time
+
+                self.cycle_trough = current
+                self.cycle_peak = current
+                self.cycle_peak_pressure = pressure
+                self.cycle_peak_time = now
+                self.tracking_peak = False
+
+                if amplitude >= MIN_PULSE_AMPLITUDE:
+                    if self.last_beat_time == 0:
+                        self.last_beat_time = beat_time
+                        beat = (amplitude, beat_pressure)
+                    else:
+                        interval = beat_time - self.last_beat_time
+                        if MIN_BEAT_INTERVAL <= interval <= MAX_BEAT_INTERVAL:
+                            self.last_beat_time = beat_time
+                            beat = (amplitude, beat_pressure)
+                        elif interval > MAX_BEAT_INTERVAL:
+                            self.last_beat_time = beat_time
+
+        self.previous_oscillation = current
+        return beat
+
+
 class OscillometricAnalyzer:
     """Port of the Arduino oscillometric envelope and BP estimation code."""
 
@@ -249,6 +355,9 @@ class OscillometricAnalyzer:
         self.detected_beat_count = 0
         self.rejected_beat_intervals = 0
 
+        self.low_amplitude_streak = 0
+        self.measurement_start_pressure = None
+
         self.peak_pressures = []
         self.peak_amplitudes = []
 
@@ -267,6 +376,7 @@ class OscillometricAnalyzer:
     def start_measurement(self, pressure):
         self.reset()
         self.baseline = pressure
+        self.measurement_start_pressure = pressure
 
     def process_pressure(self, p, now):
         # Estimate the changing cuff-pressure trend.
@@ -314,11 +424,13 @@ class OscillometricAnalyzer:
             # Confirm after the signal drops below the peak.
             if current < self.cycle_peak - PEAK_DROP_THRESHOLD:
                 amplitude = self.cycle_peak - self.cycle_trough
+                beat_pressure = self.cycle_peak_pressure
+                beat_time = self.cycle_peak_time
 
                 self.pulse_amplitude = amplitude
 
-                self.confirm_beat(amplitude, self.cycle_peak_pressure,
-                                  self.cycle_peak_time)
+                self.update_deflation_tail(amplitude, beat_pressure)
+                self.confirm_beat(amplitude, beat_pressure, beat_time)
 
                 # Start searching for the next cycle.
                 self.cycle_trough = current
@@ -330,12 +442,23 @@ class OscillometricAnalyzer:
 
         self.previous_oscillation = current
 
+    def update_deflation_tail(self, amplitude, cuff_pressure):
+        if (self.max_amplitude <= 0.0
+                or cuff_pressure >= self.map_pressure
+                or amplitude > self.max_amplitude * DEFLATION_END_RATIO):
+            self.low_amplitude_streak = 0
+            return
+
+        self.low_amplitude_streak += 1
+
     def pulse_is_valid(self, amplitude, cuff_pressure):
         if amplitude < MIN_PULSE_AMPLITUDE:
             return False
 
-        if (cuff_pressure <= MEASURE_END_PRESSURE
-                or cuff_pressure >= PUMP_OFF_PRESSURE + 10.0):
+        if (cuff_pressure <= MIN_MEASURE_PRESSURE
+                or (self.measurement_start_pressure is not None
+                    and cuff_pressure
+                    >= self.measurement_start_pressure + 10.0)):
             return False
 
         # Reject extreme amplitude changes.
@@ -444,9 +567,13 @@ class OscillometricAnalyzer:
 
         return 0.0
 
-    def envelope_has_enough_points(self):
+    def envelope_point_counts(self):
         above_map = sum(1 for p in self.peak_pressures if p > self.map_pressure)
         below_map = sum(1 for p in self.peak_pressures if p < self.map_pressure)
+        return above_map, below_map
+
+    def envelope_has_enough_points(self):
+        above_map, below_map = self.envelope_point_counts()
 
         print(f"POINTS ABOVE MAP: {above_map}")
         print(f"POINTS BELOW MAP: {below_map}")
@@ -454,6 +581,17 @@ class OscillometricAnalyzer:
         # Three distinct beats on either side provide a usable crossing span
         # while allowing for slower natural-leak pressure changes.
         return above_map >= 3 and below_map >= 3
+
+    def deflation_complete(self):
+        if self.peak_count < 5 or self.max_amplitude <= 0.0:
+            return False
+
+        above_map, below_map = self.envelope_point_counts()
+
+        if above_map < 3 or below_map < 3:
+            return False
+
+        return self.low_amplitude_streak >= DEFLATION_END_BEATS
 
     def print_envelope(self):
         print()
@@ -583,6 +721,13 @@ class BloodPressureTest:
         self._last_time = None
         self._last_rate_log = 0.0
 
+        self.inflation_tracker = None
+        self.pump_off_pressure = None
+        self.measurement_start_pressure = None
+        self.inflation_peak_amplitude = 0.0
+        self.inflation_peak_pressure = 0.0
+        self.inflation_beat_count = 0
+
     def setup(self):
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
@@ -597,11 +742,62 @@ class BloodPressureTest:
         valve_set(False)  # open the cuff to release pressure
         self.pump_running = False
 
+    def update_inflation(self, pressure, now, raw_pressure=None):
+        """Return (stop, reason) using live oscillation tracking."""
+        # Enforce the ceiling on the raw reading so filter lag cannot overshoot.
+        safety_pressure = pressure if raw_pressure is None else raw_pressure
+        if safety_pressure >= MAX_INFLATE_PRESSURE:
+            return True, "safety ceiling"
+
+        if self.inflation_tracker is None:
+            self.inflation_tracker = InflationTracker(pressure)
+            return False, ""
+
+        beat = self.inflation_tracker.update(pressure, now)
+
+        if beat is None:
+            return False, ""
+
+        amplitude, beat_pressure = beat
+
+        if beat_pressure < INFLATION_TRACK_MIN_PRESSURE:
+            return False, ""
+
+        self.inflation_beat_count += 1
+
+        if amplitude > self.inflation_peak_amplitude:
+            self.inflation_peak_amplitude = amplitude
+            self.inflation_peak_pressure = beat_pressure
+            return False, ""
+
+        if (self.inflation_beat_count >= INFLATION_MIN_BEATS
+                and pressure >= INFLATION_MIN_STOP_PRESSURE
+                and beat_pressure
+                >= self.inflation_peak_pressure + INFLATION_PEAK_MARGIN
+                and self.inflation_peak_amplitude > 0.0
+                and amplitude
+                <= self.inflation_peak_amplitude * INFLATION_STOP_RATIO):
+            return True, (f"amplitude {amplitude:.3f} <= "
+                          f"{INFLATION_STOP_RATIO:.0%} of peak "
+                          f"{self.inflation_peak_amplitude:.3f}, "
+                          f"{beat_pressure - self.inflation_peak_pressure:.1f} "
+                          f"mmHg above peak")
+
+        return False, ""
+
     def run(self):
         self.setup()
         print("RiseCare pressure test (experimental; not for diagnosis)")
         print(f"Calibration: {RAW_PER_MMHG} raw/mmHg, offset {RAW_OFFSET}")
         try:
+            self.inflation_tracker = None
+            self.pump_off_pressure = None
+            self.measurement_start_pressure = None
+            self.inflation_peak_amplitude = 0.0
+            self.inflation_peak_pressure = 0.0
+            self.inflation_beat_count = 0
+            self.pressure_filter = PressureSpikeFilter()
+
             # Close the exhaust valve, then inflate.
             valve_set(True)
             pump_set(True)
@@ -624,22 +820,29 @@ class BloodPressureTest:
                     continue
                 consecutive_invalid = 0
 
-                if self.pump_running and pressure >= PUMP_OFF_PRESSURE:
-                    pump_set(False)
-                    self.pump_running = False
-                    self.settle_started = time.monotonic()
-                    print("Pump off; allowing pressure to settle")
+                measured_pressure = pressure
+                pressure, was_spike = self.pressure_filter.apply(pressure)
+                if was_spike:
+                    print(f"Ignored pressure outlier: raw={measured_pressure:.1f} mmHg, "
+                          f"filtered={pressure:.1f} mmHg")
 
-                if self.measuring:
-                    measured_pressure = pressure
-                    pressure, was_spike = self.pressure_filter.apply(pressure)
-                    if was_spike:
-                        print(f"Ignored pressure outlier: raw={measured_pressure:.1f} mmHg, "
-                              f"filtered={pressure:.1f} mmHg")
+                if self.pump_running:
+                    stop, reason = self.update_inflation(
+                        pressure, now_ms(), raw_pressure=measured_pressure)
+                    if stop:
+                        pump_set(False)
+                        self.pump_running = False
+                        self.pump_off_pressure = pressure
+                        self.settle_started = time.monotonic()
+                        print(f"Pump off at {pressure:.1f} mmHg ({reason}); "
+                              f"allowing pressure to settle")
+
+                if self.measuring and self.measurement_start_pressure is not None:
                     # During deflation pressure only goes down; reject readings
-                    # above pump-off pressure as invalid sensor spikes.
-                    if pressure > PUMP_OFF_PRESSURE:
-                        print(f"Rejected deflation sample above pump-off: "
+                    # above the measurement start as invalid sensor spikes.
+                    if (pressure > self.measurement_start_pressure
+                            + PRESSURE_SPIKE_LIMIT):
+                        print(f"Rejected deflation sample above measurement start: "
                               f"{pressure:.1f} mmHg")
                         continue
 
@@ -648,20 +851,31 @@ class BloodPressureTest:
                         and time.monotonic() - self.settle_started >= SETTLE_SECONDS):
                     self.pressure_filter.reset(pressure)
                     self.measuring = True
+                    self.measurement_start_pressure = pressure
                     self.analyzer.start_measurement(pressure)
                     self._last_pressure = None
                     self._last_time = None
                     self._last_rate_log = 0.0
-                    print(f"Measuring from {pressure:.1f} mmHg; "
+                    print(f"Measuring from {pressure:.1f} mmHg "
+                          f"(inflation peak {self.inflation_peak_amplitude:.3f} "
+                          f"at {self.inflation_peak_pressure:.1f} mmHg); "
                           f"valve closed, natural leakage ~6 mmHg/s")
 
                 if not self.pump_running and self.measuring:
                     self.analyzer.process_pressure(pressure, now_ms())
 
-                    if pressure <= MEASURE_END_PRESSURE:
+                    end_reason = ""
+                    if self.analyzer.deflation_complete():
+                        end_reason = "oscillation tail"
+                    elif pressure <= MIN_MEASURE_PRESSURE:
+                        end_reason = "safety floor"
+
+                    if end_reason:
                         self.measuring = False
                         self.analyzer.calculate_bp()
                         valve_set(False)  # open only after SYS/DIA/HR calculation
+                        print(f"Deflation ended at {pressure:.1f} mmHg "
+                              f"({end_reason})")
                         print("Exhaust valve opened; cuff venting")
                         print("Measurement complete")
                         break
