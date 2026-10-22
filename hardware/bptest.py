@@ -32,8 +32,8 @@ PUMP = 22
 VALVE = 4
 
 # Retained pressure calibration (raw ADC counts per mmHg, then zero offset).
-RAW_PER_MMHG = 29343.0
-RAW_OFFSET = 472420.0
+RAW_PER_MMHG = 28543.0
+RAW_OFFSET = 472820.0
 
 # Pressure cycle
 PUMP_OFF_PRESSURE = 170.0
