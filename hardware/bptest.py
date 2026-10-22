@@ -154,24 +154,46 @@ class TM7711:
 
 
 class PressureSpikeFilter:
-    """Reject isolated pressure jumps without smoothing away pulse shape."""
+    """Reject isolated jumps without fighting steady inflation/deflation."""
 
     def __init__(self):
         self.recent = deque(maxlen=5)
+        self.rejected_streak = 0
 
     def reset(self, pressure):
         self.recent.clear()
         self.recent.append(pressure)
+        self.rejected_streak = 0
+
+    def expected_next(self):
+        values = list(self.recent)
+
+        if len(values) < 2:
+            return values[-1]
+
+        deltas = [b - a for a, b in zip(values, values[1:])]
+        # Predict from the last reading plus the median slope so a steady
+        # inflation/deflation ramp is not mistaken for a sensor spike.
+        return values[-1] + statistics.median(deltas)
 
     def apply(self, pressure):
         if len(self.recent) >= 3:
-            reference = statistics.median(self.recent)
+            reference = self.expected_next()
             if abs(pressure - reference) > PRESSURE_SPIKE_LIMIT:
-                # Let a sustained level change enter the reference gradually;
-                # an isolated spike will roll out without moving the median.
-                self.recent.append(pressure)
+                self.rejected_streak += 1
+
+                # A sustained level change is real; accept it after two
+                # consecutive outliers and restart the trend from that level.
+                if self.rejected_streak >= 2:
+                    self.recent.clear()
+                    self.recent.append(pressure)
+                    self.rejected_streak = 0
+                    return pressure, False
+
+                # Do not let an isolated spike poison the trend estimate.
                 return reference, True
 
+        self.rejected_streak = 0
         self.recent.append(pressure)
         return pressure, False
 
