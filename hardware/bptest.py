@@ -32,8 +32,8 @@ PUMP = 22
 VALVE = 4
 
 # Retained pressure calibration (raw ADC counts per mmHg, then zero offset).
-RAW_PER_MMHG = 14143.12
-RAW_OFFSET = 59409.0
+RAW_PER_MMHG = 29343.0
+RAW_OFFSET = 472420.0
 
 # Pressure cycle
 PUMP_OFF_PRESSURE = 170.0
@@ -58,18 +58,18 @@ PRESSURE_SPIKE_LIMIT = 4.0      # mmHg; single-sample jump this large is implaus
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.10      # was 0.002; must exceed noise to confirm peak
+PEAK_DROP_THRESHOLD = 0.05   # was 0.002; must exceed noise to confirm peak
 
 # Filtering.
 BASELINE_ALPHA = 0.01
-OSC_FILTER_ALPHA = 0.35
+OSC_FILTER_ALPHA = 0.45
 
 MAX_PEAKS = 80
 
 # TM7711 timing copied from hardware/tm7711.py.
 READY_TIMEOUT = 2.0
-CLOCK_HALF_PERIOD = 0.000002
-EXTRA_CLOCK_PULSES = 3
+CLOCK_HALF_PERIOD = 0.00002
+EXTRA_CLOCK_PULSES = 1
 
 # Relay modules commonly energize on LOW. Change only if your board is active-high.
 RELAYS_ACTIVE_LOW = True
