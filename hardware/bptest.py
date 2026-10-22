@@ -49,10 +49,10 @@ DIA_RATIO = 0.85
 
 # Thresholds: set ~3-5x measured ADC noise (run --noise first).
 # Real cuff oscillations: 0.5-4 mmHg. Typical ADC noise at 40 Hz: ~0.03-0.05 mmHg.
-MIN_PULSE_AMPLITUDE = 0.15      # was 0.005; noise floor ~0.0024 mmHg
+MIN_PULSE_AMPLITUDE = 0.05      # was 0.005; noise floor ~0.0024 mmHg
 MAX_AMP_CHANGE_RATIO = 6.0      # was 20; 6x allows normal envelope slope
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
-PRESSURE_SPIKE_LIMIT = 4.0      # mmHg; single-sample jump this large is implausible
+PRESSURE_SPIKE_LIMIT = 4.0      
 
 # Beat detection timing.
 MIN_BEAT_INTERVAL = 300
