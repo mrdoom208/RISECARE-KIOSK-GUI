@@ -42,19 +42,27 @@ RAW_OFFSET = 472820.0
 # passed its peak. MAX_INFLATE_PRESSURE is only a hard safety ceiling.
 MAX_INFLATE_PRESSURE = 200.0
 INFLATION_STOP_RATIO = 0.50
-# Keep inflating this far above the peak-amplitude pressure even after the
-# ratio test fires, so the systolic side of the envelope stays populated.
+# Stop this far above the live peak-amplitude pressure. The ratio is used as
+# a diagnostic; the pulse tail can be too small to detect, so the margin is
+# the primary dynamic stop.
 INFLATION_PEAK_MARGIN = 50.0
 INFLATION_MIN_STOP_PRESSURE = 100.0
 INFLATION_TRACK_MIN_PRESSURE = 50.0
-INFLATION_MIN_BEATS = 3
-INFLATION_STOP_BEATS = 2
+INFLATION_MIN_BEATS = 2
+# The baseline EMA needs a moment to settle after the pump starts. Beats during
+# this window are dominated by the ramp transient, not the pulse.
+INFLATION_WARMUP_SECONDS = 1.2
 
 # Deflation ends dynamically once the envelope has faded below the diastolic
-# crossing. MIN_MEASURE_PRESSURE is only a hard safety floor.
+# crossing. MIN_MEASURE_PRESSURE is only a hard safety floor. If the pulse tail
+# becomes too small to detect, fall back to this distance below MAP.
 MIN_MEASURE_PRESSURE = 25.0
 DEFLATION_END_RATIO = 0.50
 DEFLATION_END_BEATS = 2
+# Do not start the tail streak until the cuff is clearly below the MAP
+# candidate; this avoids stopping on a noisy early "peak".
+DEFLATION_TAIL_MIN_DROP = 20.0
+DEFLATION_FALLBACK_MARGIN = 40.0
 SETTLE_SECONDS = 0.3
 
 # Experimental oscillometric ratios (from the Arduino prototype).
@@ -65,7 +73,7 @@ DIA_RATIO = 0.85
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
-MIN_PULSE_AMPLITUDE = 0.03      # low floor keeps weak SYS/DIA tail beats
+MIN_PULSE_AMPLITUDE = 0.5       # Minimum accepted pulse amplitude in mmHg; tune within 0.5-1.0
 AMP_FILTER_WINDOW = 3
 AMP_OUTLIER_HIGH = 2.5          # reject isolated beats above 2.5x recent median
 AMP_OUTLIER_LOW = 0.4           # reject isolated beats below 0.4x recent median
@@ -332,9 +340,14 @@ class InflationTracker:
         self.tracking_peak = False
         self.have_trough = False
         self.last_beat_time = 0
+        self.start_time = None
+        self.warmup_complete = False
         self.amplitude_gate.reset()
 
     def update(self, pressure, now):
+        if self.start_time is None:
+            self.start_time = now
+
         self.baseline = (self.baseline * (1.0 - INFLATION_BASELINE_ALPHA)
                          + pressure * INFLATION_BASELINE_ALPHA)
 
@@ -345,6 +358,18 @@ class InflationTracker:
                                      + self.oscillation * OSC_FILTER_ALPHA)
 
         current = self.filtered_oscillation
+
+        if not self.warmup_complete:
+            if now - self.start_time < INFLATION_WARMUP_SECONDS * 1000.0:
+                self.previous_oscillation = current
+                return None
+
+            # Discard the ramp transient and start the detector cleanly.
+            self.warmup_complete = True
+            self.have_trough = False
+            self.tracking_peak = False
+            self.last_beat_time = 0
+            self.amplitude_gate.reset()
 
         if not self.have_trough:
             self.cycle_trough = current
@@ -388,14 +413,15 @@ class InflationTracker:
                     if self.last_beat_time == 0:
                         self.last_beat_time = beat_time
                         if self.amplitude_gate.accept(amplitude):
-                            beat = (self.amplitude_gate.stable(), beat_pressure)
+                            # Return the current beat, not the lagging median,
+                            # so the live envelope/stop decision is current.
+                            beat = (amplitude, beat_pressure)
                     else:
                         interval = beat_time - self.last_beat_time
                         if MIN_BEAT_INTERVAL <= interval <= MAX_BEAT_INTERVAL:
                             self.last_beat_time = beat_time
                             if self.amplitude_gate.accept(amplitude):
-                                beat = (self.amplitude_gate.stable(),
-                                        beat_pressure)
+                                beat = (amplitude, beat_pressure)
                         elif interval > MAX_BEAT_INTERVAL:
                             self.last_beat_time = beat_time
                             self.amplitude_gate.reset()
@@ -451,6 +477,9 @@ class OscillometricAnalyzer:
         self.DIA = 0.0
         self.MAP = 0.0
 
+        self.current_pressure = 0.0
+        self.deflation_end_reason = ""
+
     @property
     def peak_count(self):
         return len(self.peak_pressures)
@@ -459,8 +488,11 @@ class OscillometricAnalyzer:
         self.reset()
         self.baseline = pressure
         self.measurement_start_pressure = pressure
+        self.current_pressure = pressure
 
     def process_pressure(self, p, now):
+        self.current_pressure = p
+
         # Estimate the changing cuff-pressure trend.
         self.baseline = (self.baseline * (1.0 - BASELINE_ALPHA)
                          + p * BASELINE_ALPHA)
@@ -528,7 +560,8 @@ class OscillometricAnalyzer:
             return
 
         if (self.max_amplitude <= 0.0
-                or cuff_pressure >= self.map_pressure
+                or cuff_pressure
+                >= self.map_pressure - DEFLATION_TAIL_MIN_DROP
                 or amplitude > self.max_amplitude * DEFLATION_END_RATIO):
             self.low_amplitude_streak = 0
             return
@@ -675,12 +708,24 @@ class OscillometricAnalyzer:
         if self.peak_count < 5 or self.max_amplitude <= 0.0:
             return False
 
+        # Fallback: once we are well below MAP, the diastolic side has been
+        # sampled even if the pulse tail is too small/noisy to detect.
+        if (self.map_pressure > 0.0 and self.current_pressure > 0.0
+                and self.current_pressure
+                <= self.map_pressure - DEFLATION_FALLBACK_MARGIN):
+            self.deflation_end_reason = "MAP margin"
+            return True
+
         above_map, below_map = self.envelope_point_counts()
 
         if above_map < 3 or below_map < 3:
             return False
 
-        return self.low_amplitude_streak >= DEFLATION_END_BEATS
+        if self.low_amplitude_streak >= DEFLATION_END_BEATS:
+            self.deflation_end_reason = "oscillation tail"
+            return True
+
+        return False
 
     def print_envelope(self):
         print()
@@ -835,7 +880,7 @@ class BloodPressureTest:
         self.inflation_peak_amplitude = 0.0
         self.inflation_peak_pressure = 0.0
         self.inflation_beat_count = 0
-        self.inflation_low_streak = 0
+        self.inflation_low_amplitude_seen = False
 
     def setup(self):
         GPIO.setmode(GPIO.BCM)
@@ -864,44 +909,42 @@ class BloodPressureTest:
 
         beat = self.inflation_tracker.update(pressure, now)
 
-        if beat is None:
-            return False, ""
+        if beat is not None:
+            amplitude, beat_pressure = beat
 
-        amplitude, beat_pressure = beat
+            if beat_pressure >= INFLATION_TRACK_MIN_PRESSURE:
+                self.inflation_beat_count += 1
 
-        if beat_pressure < INFLATION_TRACK_MIN_PRESSURE:
-            return False, ""
+                if amplitude > self.inflation_peak_amplitude:
+                    self.inflation_peak_amplitude = amplitude
+                    self.inflation_peak_pressure = beat_pressure
+                    self.inflation_low_amplitude_seen = False
+                elif (self.inflation_peak_amplitude > 0.0
+                      and beat_pressure >= self.inflation_peak_pressure
+                      and amplitude
+                      <= self.inflation_peak_amplitude * INFLATION_STOP_RATIO):
+                    self.inflation_low_amplitude_seen = True
 
-        self.inflation_beat_count += 1
-
-        if amplitude > self.inflation_peak_amplitude:
-            self.inflation_peak_amplitude = amplitude
-            self.inflation_peak_pressure = beat_pressure
-            self.inflation_low_streak = 0
-            return False, ""
-
-        low_amplitude = (
-            self.inflation_peak_amplitude > 0.0
-            and amplitude
-            <= self.inflation_peak_amplitude * INFLATION_STOP_RATIO
-        )
-
-        if (low_amplitude
-                and beat_pressure
-                >= self.inflation_peak_pressure + INFLATION_PEAK_MARGIN):
-            self.inflation_low_streak += 1
-        else:
-            self.inflation_low_streak = 0
-
-        if (self.inflation_beat_count >= INFLATION_MIN_BEATS
+        # The pulse tail can fall below the detector while the cuff is still
+        # climbing. Once the peak margin is reached, stop even if that last
+        # low-amplitude beat was not detectable; the live peak is the anchor.
+        # This check runs every sample, not only on detected beats.
+        if (self.inflation_peak_amplitude > 0.0
+                and self.inflation_beat_count >= INFLATION_MIN_BEATS
                 and pressure >= INFLATION_MIN_STOP_PRESSURE
-                and self.inflation_low_streak >= INFLATION_STOP_BEATS):
-            return True, (f"amplitude {amplitude:.3f} <= "
+                and pressure
+                >= self.inflation_peak_pressure + INFLATION_PEAK_MARGIN):
+            if self.inflation_low_amplitude_seen:
+                detail = (f"amplitude fell to "
                           f"{INFLATION_STOP_RATIO:.0%} of peak "
-                          f"{self.inflation_peak_amplitude:.3f} for "
-                          f"{self.inflation_low_streak} beats, "
-                          f"{beat_pressure - self.inflation_peak_pressure:.1f} "
-                          f"mmHg above peak")
+                          f"{self.inflation_peak_amplitude:.3f}")
+            else:
+                detail = "no accepted low tail beat"
+
+            return True, (f"peak margin at {pressure:.1f} mmHg, "
+                          f"{pressure - self.inflation_peak_pressure:.1f} "
+                          f"mmHg above peak {self.inflation_peak_pressure:.1f} "
+                          f"({detail})")
 
         return False, ""
 
@@ -916,7 +959,7 @@ class BloodPressureTest:
             self.inflation_peak_amplitude = 0.0
             self.inflation_peak_pressure = 0.0
             self.inflation_beat_count = 0
-            self.inflation_low_streak = 0
+            self.inflation_low_amplitude_seen = False
             self.pressure_filter = PressureSpikeFilter()
 
             # Close the exhaust valve, then inflate.
@@ -987,7 +1030,8 @@ class BloodPressureTest:
 
                     end_reason = ""
                     if self.analyzer.deflation_complete():
-                        end_reason = "oscillation tail"
+                        end_reason = (self.analyzer.deflation_end_reason
+                                      or "oscillation tail")
                     elif pressure <= MIN_MEASURE_PRESSURE:
                         end_reason = "safety floor"
 
