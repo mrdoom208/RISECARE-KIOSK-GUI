@@ -48,6 +48,7 @@ INFLATION_PEAK_MARGIN = 50.0
 INFLATION_MIN_STOP_PRESSURE = 100.0
 INFLATION_TRACK_MIN_PRESSURE = 50.0
 INFLATION_MIN_BEATS = 3
+INFLATION_STOP_BEATS = 2
 
 # Deflation ends dynamically once the envelope has faded below the diastolic
 # crossing. MIN_MEASURE_PRESSURE is only a hard safety floor.
@@ -62,10 +63,13 @@ SETTLE_SECONDS = 0.3
 SYS_RATIO = 0.35
 DIA_RATIO = 0.85
 
-# Thresholds: set ~3-5x measured ADC noise (run --noise first).
-# Real cuff oscillations: 0.5-4 mmHg. Typical ADC noise at 40 Hz: ~0.03-0.05 mmHg.
-MIN_PULSE_AMPLITUDE = 0.05      # was 0.005; noise floor ~0.0024 mmHg
-MAX_AMP_CHANGE_RATIO = 6.0      # was 20; 6x allows normal envelope slope
+# Run --noise first. Keep the pulse floor below real cuff oscillations
+# (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
+MIN_PULSE_AMPLITUDE = 0.03      # low floor keeps weak SYS/DIA tail beats
+AMP_FILTER_WINDOW = 3
+AMP_OUTLIER_HIGH = 2.5          # reject isolated beats above 2.5x recent median
+AMP_OUTLIER_LOW = 0.4           # reject isolated beats below 0.4x recent median
+AMP_OUTLIER_CONFIRM_BEATS = 2   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
 PRESSURE_SPIKE_LIMIT = 4.0      
 
@@ -198,6 +202,53 @@ class PressureSpikeFilter:
         return pressure, False
 
 
+class AmplitudeGate:
+    """Reject isolated amplitude jumps without blocking real level changes."""
+
+    def __init__(self, window=AMP_FILTER_WINDOW):
+        self.recent = deque(maxlen=window)
+        self.rejected_streak = 0
+
+    def reset(self):
+        self.recent.clear()
+        self.rejected_streak = 0
+
+    def stable(self):
+        if not self.recent:
+            return 0.0
+        return statistics.median(self.recent)
+
+    def accept(self, amplitude):
+        if amplitude <= 0.0:
+            self.rejected_streak = 0
+            return False
+
+        if len(self.recent) < 2:
+            self.recent.append(amplitude)
+            self.rejected_streak = 0
+            return True
+
+        reference = statistics.median(self.recent)
+        ratio = amplitude / reference if reference > 0.0 else 1.0
+
+        if ratio > AMP_OUTLIER_HIGH or ratio < AMP_OUTLIER_LOW:
+            self.rejected_streak += 1
+
+            # A sustained level change is real; accept it after two
+            # consecutive outliers and restart the history from that level.
+            if self.rejected_streak >= AMP_OUTLIER_CONFIRM_BEATS:
+                self.recent.clear()
+                self.recent.append(amplitude)
+                self.rejected_streak = 0
+                return True
+
+            return False
+
+        self.rejected_streak = 0
+        self.recent.append(amplitude)
+        return True
+
+
 def debug_noise():
     """Capture raw ADC samples with the actuators safely idle."""
     GPIO.setmode(GPIO.BCM)
@@ -263,6 +314,7 @@ class InflationTracker:
     """Track pulses during inflation so pump-off pressure can be dynamic."""
 
     def __init__(self, pressure):
+        self.amplitude_gate = AmplitudeGate()
         self.last_beat_time = 0
         self.reset(pressure)
 
@@ -280,6 +332,7 @@ class InflationTracker:
         self.tracking_peak = False
         self.have_trough = False
         self.last_beat_time = 0
+        self.amplitude_gate.reset()
 
     def update(self, pressure, now):
         self.baseline = (self.baseline * (1.0 - INFLATION_BASELINE_ALPHA)
@@ -334,14 +387,18 @@ class InflationTracker:
                 if amplitude >= MIN_PULSE_AMPLITUDE:
                     if self.last_beat_time == 0:
                         self.last_beat_time = beat_time
-                        beat = (amplitude, beat_pressure)
+                        if self.amplitude_gate.accept(amplitude):
+                            beat = (self.amplitude_gate.stable(), beat_pressure)
                     else:
                         interval = beat_time - self.last_beat_time
                         if MIN_BEAT_INTERVAL <= interval <= MAX_BEAT_INTERVAL:
                             self.last_beat_time = beat_time
-                            beat = (amplitude, beat_pressure)
+                            if self.amplitude_gate.accept(amplitude):
+                                beat = (self.amplitude_gate.stable(),
+                                        beat_pressure)
                         elif interval > MAX_BEAT_INTERVAL:
                             self.last_beat_time = beat_time
+                            self.amplitude_gate.reset()
 
         self.previous_oscillation = current
         return beat
@@ -361,6 +418,7 @@ class OscillometricAnalyzer:
         self.filtered_oscillation = 0.0
         self.previous_oscillation = 0.0
         self.pulse_amplitude = 0.0
+        self.amplitude_gate = AmplitudeGate()
 
         self.cycle_trough = 0.0
         self.cycle_peak = 0.0
@@ -376,6 +434,8 @@ class OscillometricAnalyzer:
 
         self.detected_beat_count = 0
         self.rejected_beat_intervals = 0
+        self.rejected_low_amplitude = 0
+        self.rejected_amplitude_outliers = 0
 
         self.low_amplitude_streak = 0
         self.measurement_start_pressure = None
@@ -449,10 +509,9 @@ class OscillometricAnalyzer:
                 beat_pressure = self.cycle_peak_pressure
                 beat_time = self.cycle_peak_time
 
-                self.pulse_amplitude = amplitude
-
-                self.update_deflation_tail(amplitude, beat_pressure)
-                self.confirm_beat(amplitude, beat_pressure, beat_time)
+                if self.confirm_beat(amplitude, beat_pressure, beat_time):
+                    self.update_deflation_tail(
+                        self.pulse_amplitude, beat_pressure)
 
                 # Start searching for the next cycle.
                 self.cycle_trough = current
@@ -465,6 +524,9 @@ class OscillometricAnalyzer:
         self.previous_oscillation = current
 
     def update_deflation_tail(self, amplitude, cuff_pressure):
+        if amplitude < MIN_PULSE_AMPLITUDE:
+            return
+
         if (self.max_amplitude <= 0.0
                 or cuff_pressure >= self.map_pressure
                 or amplitude > self.max_amplitude * DEFLATION_END_RATIO):
@@ -483,20 +545,9 @@ class OscillometricAnalyzer:
                     >= self.measurement_start_pressure + 10.0)):
             return False
 
-        # Reject extreme amplitude changes.
-        if self.peak_count > 0:
-            previous_amp = self.peak_amplitudes[-1]
-
-            if previous_amp > 0.0:
-                ratio = amplitude / previous_amp
-
-                if (ratio > MAX_AMP_CHANGE_RATIO
-                        or ratio < 1.0 / MAX_AMP_CHANGE_RATIO):
-                    return False
-
         return True
 
-    def save_oscillation(self, amplitude, cuff_pressure):
+    def save_oscillation(self, amplitude, stable_amplitude, cuff_pressure):
         if self.peak_count >= MAX_PEAKS:
             return
 
@@ -512,41 +563,57 @@ class OscillometricAnalyzer:
         self.peak_pressures.append(cuff_pressure)
         self.peak_amplitudes.append(amplitude)
 
-        if amplitude > self.max_amplitude:
-            self.max_amplitude = amplitude
+        if stable_amplitude > self.max_amplitude:
+            self.max_amplitude = stable_amplitude
             self.map_pressure = cuff_pressure
-            self.map_amplitude = amplitude
+            self.map_amplitude = stable_amplitude
 
     def confirm_beat(self, amplitude, cuff_pressure, peak_time):
         if amplitude < MIN_PULSE_AMPLITUDE:
-            return
+            self.rejected_low_amplitude += 1
+            return False
 
         # First peak establishes the timing reference.
         if self.last_confirmed_peak_time == 0:
             self.last_confirmed_peak_time = peak_time
-            self.save_oscillation(amplitude, cuff_pressure)
+
+            if not self.amplitude_gate.accept(amplitude):
+                self.rejected_amplitude_outliers += 1
+                return False
+
+            self.pulse_amplitude = self.amplitude_gate.stable()
+            self.save_oscillation(
+                amplitude, self.pulse_amplitude, cuff_pressure)
             self.detected_beat_count += 1
-            return
+            return True
 
         interval = peak_time - self.last_confirmed_peak_time
 
         if interval < MIN_BEAT_INTERVAL:
             # Ignore extra peaks/noise without shifting the last real beat.
             self.rejected_beat_intervals += 1
-            return
+            return False
 
         if interval > MAX_BEAT_INTERVAL:
             # Re-anchor after a long gap so later beats can recover.
             self.last_confirmed_peak_time = peak_time
             self.rejected_beat_intervals += 1
-            return
+            self.amplitude_gate.reset()
+            return False
 
         self.last_confirmed_peak_time = peak_time
-        # Only timing-validated beats belong in the oscillometric envelope.
-        self.save_oscillation(amplitude, cuff_pressure)
+
+        if not self.amplitude_gate.accept(amplitude):
+            self.rejected_amplitude_outliers += 1
+            return False
+
+        self.pulse_amplitude = self.amplitude_gate.stable()
+        # Only timing-validated, amplitude-stable beats enter the envelope.
+        self.save_oscillation(amplitude, self.pulse_amplitude, cuff_pressure)
         self.last_beat_interval = interval
         self.heart_rate_bpm = 60000.0 / interval
         self.detected_beat_count += 1
+        return True
 
     @staticmethod
     def interpolate_pressure(p1, a1, p2, a2, target):
@@ -632,6 +699,10 @@ class OscillometricAnalyzer:
         print(f"ENVELOPE RECORDS: {self.peak_count}")
         print(f"DETECTED BEATS: {self.detected_beat_count}")
         print(f"REJECTED BEAT INTERVALS: {self.rejected_beat_intervals}")
+        print(f"REJECTED LOW AMPLITUDE: {self.rejected_low_amplitude}")
+        print(f"REJECTED AMPLITUDE OUTLIERS: "
+              f"{self.rejected_amplitude_outliers}")
+        print(f"MIN PULSE AMPLITUDE: {MIN_PULSE_AMPLITUDE:.3f}")
 
         if self.heart_rate_bpm > 0.0:
             print(f"ESTIMATED HR: {self.heart_rate_bpm:.1f} BPM")
@@ -656,10 +727,25 @@ class OscillometricAnalyzer:
         )
         self.peak_pressures = [pressure for pressure, _ in ordered_points]
         raw_amplitudes = [amplitude for _, amplitude in ordered_points]
+        filtered_amplitudes = []
+
+        for i, amplitude in enumerate(raw_amplitudes):
+            neighbors = (raw_amplitudes[max(0, i - 2):i]
+                         + raw_amplitudes[i + 1:i + 3])
+
+            if neighbors:
+                reference = statistics.median(neighbors)
+
+                if (reference > 0.0
+                        and amplitude > reference * AMP_OUTLIER_HIGH):
+                    amplitude = reference
+
+            filtered_amplitudes.append(amplitude)
+
         # A single oversized beat should not define MAP or shift both crossings.
         self.peak_amplitudes = [
-            statistics.median(raw_amplitudes[max(0, i - 2):i + 3])
-            for i in range(len(raw_amplitudes))
+            statistics.median(filtered_amplitudes[max(0, i - 2):i + 3])
+            for i in range(len(filtered_amplitudes))
         ]
         map_index = max(range(len(self.peak_amplitudes)),
                         key=self.peak_amplitudes.__getitem__)
@@ -749,6 +835,7 @@ class BloodPressureTest:
         self.inflation_peak_amplitude = 0.0
         self.inflation_peak_pressure = 0.0
         self.inflation_beat_count = 0
+        self.inflation_low_streak = 0
 
     def setup(self):
         GPIO.setmode(GPIO.BCM)
@@ -790,18 +877,29 @@ class BloodPressureTest:
         if amplitude > self.inflation_peak_amplitude:
             self.inflation_peak_amplitude = amplitude
             self.inflation_peak_pressure = beat_pressure
+            self.inflation_low_streak = 0
             return False, ""
+
+        low_amplitude = (
+            self.inflation_peak_amplitude > 0.0
+            and amplitude
+            <= self.inflation_peak_amplitude * INFLATION_STOP_RATIO
+        )
+
+        if (low_amplitude
+                and beat_pressure
+                >= self.inflation_peak_pressure + INFLATION_PEAK_MARGIN):
+            self.inflation_low_streak += 1
+        else:
+            self.inflation_low_streak = 0
 
         if (self.inflation_beat_count >= INFLATION_MIN_BEATS
                 and pressure >= INFLATION_MIN_STOP_PRESSURE
-                and beat_pressure
-                >= self.inflation_peak_pressure + INFLATION_PEAK_MARGIN
-                and self.inflation_peak_amplitude > 0.0
-                and amplitude
-                <= self.inflation_peak_amplitude * INFLATION_STOP_RATIO):
+                and self.inflation_low_streak >= INFLATION_STOP_BEATS):
             return True, (f"amplitude {amplitude:.3f} <= "
                           f"{INFLATION_STOP_RATIO:.0%} of peak "
-                          f"{self.inflation_peak_amplitude:.3f}, "
+                          f"{self.inflation_peak_amplitude:.3f} for "
+                          f"{self.inflation_low_streak} beats, "
                           f"{beat_pressure - self.inflation_peak_pressure:.1f} "
                           f"mmHg above peak")
 
@@ -818,6 +916,7 @@ class BloodPressureTest:
             self.inflation_peak_amplitude = 0.0
             self.inflation_peak_pressure = 0.0
             self.inflation_beat_count = 0
+            self.inflation_low_streak = 0
             self.pressure_filter = PressureSpikeFilter()
 
             # Close the exhaust valve, then inflate.
