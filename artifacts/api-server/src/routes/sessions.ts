@@ -28,7 +28,7 @@ function normalizeGender(value: string | null | undefined): string | null {
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
 }
 
-const VITALS_SELECT = `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi, notes, recorded_at AS recordedAt FROM vital_readings`;
+const VITALS_SELECT = `SELECT id, session_id AS sessionId, blood_pressure_systolic AS bloodPressureSystolic, blood_pressure_diastolic AS bloodPressureDiastolic, blood_pressure_pulse AS bloodPressurePulse, heart_rate AS heartRate, oxygen_saturation AS oxygenSaturation, temperature, weight, height, bmi, notes, recorded_at AS recordedAt FROM vital_readings`;
 const SESSION_SELECT = `SELECT id, token, patient_first_name AS patientFirstName, patient_last_name AS patientLastName, TRIM(patient_first_name || ' ' || patient_last_name) AS patientName, patient_phone AS patientPhone, patient_age AS patientAge, patient_gender AS patientGender, started_at AS startedAt, completed_at AS completedAt FROM sessions`;
 
 const findSessionLimiter = rateLimit({
@@ -257,6 +257,7 @@ router.post("/sessions/:id/vitals", async (req, res) => {
       `UPDATE vital_readings SET 
         blood_pressure_systolic = ?, 
         blood_pressure_diastolic = ?, 
+        blood_pressure_pulse = ?,
         heart_rate = ?, 
         oxygen_saturation = ?, 
         temperature = ?, 
@@ -272,6 +273,9 @@ router.post("/sessions/:id/vitals", async (req, res) => {
       [
         body.bloodPressureSystolic ?? existing.blood_pressure_systolic,
         body.bloodPressureDiastolic ?? existing.blood_pressure_diastolic,
+        Object.prototype.hasOwnProperty.call(body, "bloodPressurePulse")
+          ? body.bloodPressurePulse
+          : existing.blood_pressure_pulse,
         body.heartRate ?? existing.heart_rate,
         body.oxygenSaturation ?? existing.oxygen_saturation,
         body.temperature ?? existing.temperature,
@@ -289,14 +293,15 @@ router.post("/sessions/:id/vitals", async (req, res) => {
   } else {
     const result = await run(
       `INSERT INTO vital_readings (
-        session_id, blood_pressure_systolic, blood_pressure_diastolic, heart_rate, 
+        session_id, blood_pressure_systolic, blood_pressure_diastolic, blood_pressure_pulse, heart_rate,
         oxygen_saturation, temperature, weight, height, bmi, notes,
         source_vital_id, device_uid, kiosk_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         body.bloodPressureSystolic ?? null,
         body.bloodPressureDiastolic ?? null,
+        body.bloodPressurePulse ?? null,
         body.heartRate ?? null,
         body.oxygenSaturation ?? null,
         body.temperature ?? null,
@@ -333,6 +338,7 @@ router.post("/sessions/:id/vitals/clear", async (req, res) => {
   const allowedColumns: Record<string, string> = {
     bloodPressureSystolic: "blood_pressure_systolic",
     bloodPressureDiastolic: "blood_pressure_diastolic",
+    bloodPressurePulse: "blood_pressure_pulse",
     heartRate: "heart_rate",
     oxygenSaturation: "oxygen_saturation",
     temperature: "temperature",

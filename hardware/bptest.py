@@ -57,7 +57,7 @@ INFLATION_WARMUP_SECONDS = 1.2
 # crossing. MIN_MEASURE_PRESSURE is only a hard safety floor. If the pulse tail
 # becomes too small to detect, fall back to this distance below MAP.
 MIN_MEASURE_PRESSURE = 25.0
-DEFLATION_END_RATIO = 0.65
+DEFLATION_END_RATIO = 0.75
 DEFLATION_END_BEATS = 2
 # Do not start the tail streak until the cuff is clearly below the MAP
 # candidate; this avoids stopping on a noisy early "peak".
@@ -68,24 +68,24 @@ SETTLE_SECONDS = 0.3
 # Experimental oscillometric ratios (from the Arduino prototype).
 # NOTE: Fixed ratios are approximations; calibrate against reference measurements.
 # Commercial devices fit ratios per-cuff/arm; fixed ratios can err by 5-10+ mmHg.
-SYS_RATIO = 0.25
-DIA_RATIO = 0.85
+SYS_RATIO = 0.23
+DIA_RATIO = 0.90
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
 MIN_PULSE_AMPLITUDE = 0.04     # Minimum accepted pulse amplitude in mmHg; tune within 0.5-1.0
 AMP_FILTER_WINDOW = 3
-AMP_OUTLIER_HIGH = 2.5          # reject isolated beats above 2.5x recent median
-AMP_OUTLIER_LOW = 0.4           # reject isolated beats below 0.4x recent median
+AMP_OUTLIER_HIGH = 4          # reject isolated beats above 4x recent median
+AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
 AMP_OUTLIER_CONFIRM_BEATS = 2   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
-PRESSURE_SPIKE_LIMIT = 6.0      
+PRESSURE_SPIKE_LIMIT = 4.0
 
 # Beat detection timing.
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.04   # was 0.002; must exceed noise to confirm peak
+PEAK_DROP_THRESHOLD = 0.02   # was 0.002; must exceed noise to confirm peak
 
 # Filtering.
 BASELINE_ALPHA = 0.01
@@ -642,8 +642,16 @@ class OscillometricAnalyzer:
 
         self.last_confirmed_peak_time = peak_time
 
+        amplitude_reference = self.amplitude_gate.stable()
         if not self.amplitude_gate.accept(amplitude):
             self.rejected_amplitude_outliers += 1
+            ratio = amplitude / amplitude_reference if amplitude_reference > 0.0 else 0.0
+            print(
+                f"REJECTED AMPLITUDE OUTLIER: P={cuff_pressure:.1f} mmHg, "
+                f"amp={amplitude:.6f} mmHg, recent={amplitude_reference:.6f} mmHg, "
+                f"ratio={ratio:.3f}",
+                flush=True,
+            )
             return False
 
         self.pulse_amplitude = self.amplitude_gate.stable()
@@ -756,9 +764,9 @@ class OscillometricAnalyzer:
         print(f"MIN PULSE AMPLITUDE: {MIN_PULSE_AMPLITUDE:.3f}")
 
         if self.heart_rate_bpm > 0.0:
-            print(f"ESTIMATED HR: {self.heart_rate_bpm:.1f} BPM")
+            print(f"CUFF PULSE: {self.heart_rate_bpm:.1f} BPM")
         else:
-            print("ESTIMATED HR: UNAVAILABLE")
+            print("CUFF PULSE: UNAVAILABLE")
 
         print(f"MAX AMP: {self.max_amplitude:.3f}")
 
@@ -861,6 +869,8 @@ class OscillometricAnalyzer:
             print(f"SYS: {self.SYS:.1f} mmHg")
             print(f"DIA: {self.DIA:.1f} mmHg")
             print(f"MAP: {self.MAP:.1f} mmHg")
+            if self.heart_rate_bpm > 0.0:
+                print(f"PULSE: {self.heart_rate_bpm:.1f} BPM")
             print("WARNING: EXPERIMENTAL ESTIMATES ONLY")
 
         print("============================")
@@ -954,10 +964,20 @@ class BloodPressureTest:
 
         return False, ""
 
-    def run(self):
+    def run(self, progress_callback=None):
         self.setup()
         print("RiseCare pressure test (experimental; not for diagnosis)")
         print(f"Calibration: {RAW_PER_MMHG} raw/mmHg, offset {RAW_OFFSET}")
+        result = None
+        last_progress_at = 0.0
+
+        def report_progress(stage, percent, pressure):
+            nonlocal last_progress_at
+            now = time.monotonic()
+            if progress_callback and now - last_progress_at >= 0.25:
+                progress_callback(stage, max(0, min(99, round(percent))), pressure)
+                last_progress_at = now
+
         try:
             self.inflation_tracker = None
             self.pump_off_pressure = None
@@ -997,6 +1017,11 @@ class BloodPressureTest:
                           f"filtered={pressure:.1f} mmHg")
 
                 if self.pump_running:
+                    report_progress(
+                        "inflating",
+                        5 + 40 * min(max(pressure, 0.0) / MAX_INFLATE_PRESSURE, 1.0),
+                        pressure,
+                    )
                     stop, reason = self.update_inflation(
                         pressure, now_ms(), raw_pressure=measured_pressure)
                     if stop:
@@ -1033,6 +1058,13 @@ class BloodPressureTest:
 
                 if not self.pump_running and self.measuring:
                     self.analyzer.process_pressure(pressure, now_ms())
+                    deflation_span = max(
+                        self.measurement_start_pressure - MIN_MEASURE_PRESSURE, 1.0
+                    )
+                    deflation_progress = 45 + 50 * (
+                        self.measurement_start_pressure - pressure
+                    ) / deflation_span
+                    report_progress("deflating", deflation_progress, pressure)
 
                     end_reason = ""
                     if self.analyzer.deflation_complete():
@@ -1044,6 +1076,14 @@ class BloodPressureTest:
                     if end_reason:
                         self.measuring = False
                         self.analyzer.calculate_bp()
+                        if (self.analyzer.SYS > 0.0 and self.analyzer.DIA > 0.0
+                                and self.analyzer.heart_rate_bpm > 0.0):
+                            result = {
+                                "systolic": round(self.analyzer.SYS),
+                                "diastolic": round(self.analyzer.DIA),
+                                "map": round(self.analyzer.MAP, 1),
+                                "pulseRate": round(self.analyzer.heart_rate_bpm),
+                            }
                         valve_set(False)  # open only after SYS/DIA/HR calculation
                         print(f"Deflation ended at {pressure:.1f} mmHg "
                               f"({end_reason})")
@@ -1077,7 +1117,7 @@ class BloodPressureTest:
                         f"SYS:{self.analyzer.SYS:5.1f} | DIA:{self.analyzer.DIA:5.1f} | "
                         f"MAP:{self.analyzer.MAP:5.1f} | "
                         f"Amp:{self.analyzer.pulse_amplitude:.3f} | "
-                        f"HR:{self.analyzer.heart_rate_bpm:5.1f} | "
+                        f"Pulse:{self.analyzer.heart_rate_bpm:5.1f} | "
                         f"Beats:{self.analyzer.detected_beat_count} | "
                         f"Envelope:{self.analyzer.peak_count} | Pump:{phase}",
                         flush=True)
@@ -1088,6 +1128,8 @@ class BloodPressureTest:
             self.safe_stop()
             GPIO.output(SCK_PIN, GPIO.LOW)
             GPIO.cleanup()
+
+        return result
 
 
 if __name__ == "__main__":

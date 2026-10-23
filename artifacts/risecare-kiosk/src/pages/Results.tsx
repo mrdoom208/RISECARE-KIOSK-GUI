@@ -122,7 +122,9 @@ export default function Results() {
           status,
           currentVitals.bloodPressureSystolic,
           currentVitals.bloodPressureDiastolic,
-        ),
+        ) + (currentVitals.bloodPressurePulse != null
+          ? ` Cuff pulse: ${currentVitals.bloodPressurePulse} bpm.`
+          : ""),
       };
     })(),
     (() => {

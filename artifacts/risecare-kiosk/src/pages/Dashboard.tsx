@@ -251,7 +251,7 @@ export default function Dashboard() {
     switch (vital) {
       case "bp":
         return reading.systolic != null && reading.diastolic != null
-          ? { sys: reading.systolic, dia: reading.diastolic }
+          ? { sys: reading.systolic, dia: reading.diastolic, pulseRate: reading.pulseRate }
           : null;
       case "hr":
         return readValidPulseRate(reading);
@@ -288,8 +288,10 @@ export default function Dashboard() {
   // counted. It stays confirmed even if the finger is lifted afterwards, so
   // the patient can still finish the measurement.
   const bpReading = liveReadings.bp;
+  const cuffPulseRate = Number(bpReading?.pulseRate);
   const bpComplete = readingVital === "bp" && bpReading?.status === "success" &&
-    Number.isFinite(Number(bpReading.systolic)) && Number.isFinite(Number(bpReading.diastolic));
+    Number.isFinite(Number(bpReading.systolic)) && Number.isFinite(Number(bpReading.diastolic)) &&
+    Number.isFinite(cuffPulseRate) && cuffPulseRate > 0 && cuffPulseRate <= 300;
   const readingConfirmed = readingVital === "bp"
     ? bpComplete
     : readingVital != null && confirmedReading != null;
@@ -405,6 +407,7 @@ export default function Dashboard() {
     if (activeKeypad === "bp") {
       payload.bloodPressureSystolic = num1;
       payload.bloodPressureDiastolic = num2;
+      payload.bloodPressurePulse = null;
     } else if (activeKeypad === "hr") payload.heartRate = num1;
     else if (activeKeypad === "spo2") payload.oxygenSaturation = num1;
     else if (activeKeypad === "weight") payload.weight = num1;
@@ -496,6 +499,7 @@ const handleCancelReading = async () => {
   } else if (vital === "bp") {
     clearPayload.bloodPressureSystolic = null;
     clearPayload.bloodPressureDiastolic = null;
+    clearPayload.bloodPressurePulse = null;
   } else if (vital === "weight") {
     clearPayload.weight = null;
   } else if (vital === "height") {
@@ -527,13 +531,20 @@ const handleCancelReading = async () => {
   const getReadingDisplay = (vital: VitalType) => {
     switch (vital) {
       case "bp": {
-        const live = getLiveReadingValue("bp") as { sys: number; dia: number } | null;
+        const live = getLiveReadingValue("bp") as {
+          sys: number;
+          dia: number;
+          pulseRate?: number;
+        } | null;
         const sys = live?.sys ?? currentVitals.bloodPressureSystolic;
         const dia = live?.dia ?? currentVitals.bloodPressureDiastolic;
         return {
           title: "Blood Pressure",
           value: sys != null && dia != null ? `${sys}/${dia}` : "Reading...",
           unit: "mmHg",
+          detail: (live?.pulseRate ?? currentVitals.bloodPressurePulse) != null
+            ? `Cuff pulse: ${live?.pulseRate ?? currentVitals.bloodPressurePulse} bpm`
+            : undefined,
           hasValue: sys != null && dia != null,
         };
       }
@@ -626,6 +637,9 @@ const handleCancelReading = async () => {
             title="Blood Pressure"
             value={currentVitals.bloodPressureSystolic}
             secondaryValue={currentVitals.bloodPressureDiastolic}
+            detail={currentVitals.bloodPressurePulse != null
+              ? `Cuff pulse: ${currentVitals.bloodPressurePulse} bpm`
+              : undefined}
             unit="mmHg"
             icon={<Heart className="w-7 h-7" />}
             status={getBPStatus(
@@ -948,6 +962,12 @@ const handleCancelReading = async () => {
                     {display.unit}
                 </div>
               </div>
+
+              {readingVital === "bp" && bpComplete && (
+                <p className="text-center text-lg font-semibold mb-6">
+                  Cuff pulse: {cuffPulseRate.toFixed(0)} bpm
+                </p>
+              )}
 
               <p className="text-center text-muted-foreground mb-6">
                         {readingVital === "bp"

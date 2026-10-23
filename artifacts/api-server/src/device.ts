@@ -220,6 +220,7 @@ export async function syncPending(): Promise<{ exported: number }> {
       s.source_session_id AS sourceSessionId,
       vr.blood_pressure_systolic AS bloodPressureSystolic,
       vr.blood_pressure_diastolic AS bloodPressureDiastolic,
+      vr.blood_pressure_pulse AS bloodPressurePulse,
       vr.heart_rate AS heartRate, vr.oxygen_saturation AS oxygenSaturation,
       vr.temperature, vr.weight, vr.height, vr.bmi, vr.notes,
       strftime('%Y-%m-%dT%H:%M:%fZ', vr.recorded_at) AS recordedAt

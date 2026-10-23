@@ -227,6 +227,9 @@ def _print_receipt(data):
         bp_dia = vitals.get("bloodPressureDiastolic")
         if bp_sys is not None and bp_dia is not None:
             p.text(f"Blood Pressure:  {bp_sys}/{bp_dia} mmHg\n")
+        bp_pulse = vitals.get("bloodPressurePulse")
+        if bp_pulse is not None:
+            p.text(f"Cuff Pulse:      {bp_pulse} bpm\n")
 
         spo2 = vitals.get("oxygenSaturation")
         if spo2 is not None:

@@ -298,8 +298,8 @@ def handle_command(sensor, session_id, value, payload):
                 result = None
                 error = None
                 try:
-                    from bptest1 import run_bp_algorithm
-                    result = run_bp_algorithm(
+                    from bptest import BloodPressureTest
+                    result = BloodPressureTest().run(
                         progress_callback=lambda stage, percent, pressure: mqtt_client.publish(
                             "risecare/sensors/bp", {
                                 "status": "running", "stage": stage,

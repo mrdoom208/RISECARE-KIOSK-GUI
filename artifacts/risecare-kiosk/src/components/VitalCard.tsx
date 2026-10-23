@@ -6,6 +6,7 @@ interface VitalCardProps {
   title: string;
   value?: string | number | null;
   secondaryValue?: string | number | null; // For Diastolic
+  detail?: string;
   unit: string;
   icon: ReactNode;
   status: VitalStatus;
@@ -18,6 +19,7 @@ export function VitalCard({
   title,
   value,
   secondaryValue,
+  detail,
   unit,
   icon,
   status,
@@ -98,6 +100,8 @@ export function VitalCard({
           </div>
         )}
       </div>
+
+      {detail && <p className="mt-2 text-sm text-muted-foreground">{detail}</p>}
 
       {/* Decorative background element */}
       <div className="absolute -bottom-3 -right-3 opacity-[0.03] pointer-events-none transform scale-150">

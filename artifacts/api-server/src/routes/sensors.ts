@@ -50,22 +50,24 @@ subscribe("risecare/sensors/bp", async (data) => {
   latestReadings["bp"] = { ...data, _receivedAt: Date.now() };
   const systolic = Number(data.systolic);
   const diastolic = Number(data.diastolic);
+  const pulseRate = Number(data.pulseRate);
   if (data.status === "success" && data.sessionId &&
       Number.isFinite(systolic) && Number.isFinite(diastolic) &&
-      systolic > diastolic && systolic <= 300 && diastolic >= 0) {
+      systolic > diastolic && systolic <= 300 && diastolic >= 0 &&
+      Number.isFinite(pulseRate) && pulseRate > 0 && pulseRate <= 300) {
     const existing = await query(
       `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
       [data.sessionId]
     );
     if (existing[0]) {
       await run(
-        `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, recorded_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [systolic, diastolic, existing[0].id]
+        `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, blood_pressure_pulse = ?, recorded_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [systolic, diastolic, pulseRate, existing[0].id]
       );
     } else {
       await run(
-        `INSERT INTO vital_readings (session_id, blood_pressure_systolic, blood_pressure_diastolic) VALUES (?, ?, ?)`,
-        [data.sessionId, systolic, diastolic]
+        `INSERT INTO vital_readings (session_id, blood_pressure_systolic, blood_pressure_diastolic, blood_pressure_pulse) VALUES (?, ?, ?, ?)`,
+        [data.sessionId, systolic, diastolic, pulseRate]
       );
     }
     console.log("💾 BP saved from sensor:", data);

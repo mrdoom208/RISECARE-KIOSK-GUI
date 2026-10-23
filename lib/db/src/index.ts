@@ -51,7 +51,7 @@ function createTables() {
   try {
     db.run("CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT, patient_first_name TEXT NOT NULL, patient_last_name TEXT NOT NULL, patient_phone TEXT, patient_age INTEGER, patient_gender TEXT, started_at DATETIME DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME)");
 
-    db.run("CREATE TABLE IF NOT EXISTS vital_readings (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER NOT NULL, blood_pressure_systolic INTEGER, blood_pressure_diastolic INTEGER, heart_rate INTEGER, oxygen_saturation REAL, temperature REAL, weight REAL, height REAL, bmi REAL, notes TEXT, recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (session_id) REFERENCES sessions(id))");
+    db.run("CREATE TABLE IF NOT EXISTS vital_readings (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER NOT NULL, blood_pressure_systolic INTEGER, blood_pressure_diastolic INTEGER, blood_pressure_pulse INTEGER, heart_rate INTEGER, oxygen_saturation REAL, temperature REAL, weight REAL, height REAL, bmi REAL, notes TEXT, recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (session_id) REFERENCES sessions(id))");
     db.run("CREATE TABLE IF NOT EXISTS sensors (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, instruction TEXT NOT NULL, img TEXT)");
 
     // New tables for settings
@@ -181,6 +181,9 @@ function createTables() {
 
     const syncVitalCols = db.exec("PRAGMA table_info(vital_readings)")[0]?.values || [];
     const syncVitalColNames = syncVitalCols.map((col: any[]) => col[1]);
+    if (!syncVitalColNames.includes("blood_pressure_pulse")) {
+      db.run("ALTER TABLE vital_readings ADD COLUMN blood_pressure_pulse INTEGER");
+    }
     for (const col of ["source_vital_id", "device_uid", "kiosk_id", "payload_id"]) {
       if (!syncVitalColNames.includes(col)) {
         db.run(`ALTER TABLE vital_readings ADD COLUMN ${col} TEXT`);

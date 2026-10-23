@@ -290,6 +290,9 @@ components:
         bloodPressureDiastolic:
           type: integer
           nullable: true
+        bloodPressurePulse:
+          type: integer
+          nullable: true
         heartRate:
           type: integer
           nullable: true
@@ -320,6 +323,9 @@ components:
           type: integer
           nullable: true
         bloodPressureDiastolic:
+          type: integer
+          nullable: true
+        bloodPressurePulse:
           type: integer
           nullable: true
         heartRate:

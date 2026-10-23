@@ -4,6 +4,7 @@ export const insertVitalReadingSchema = z.object({
   sessionId: z.number(),
   bloodPressureSystolic: z.number().optional(),
   bloodPressureDiastolic: z.number().optional(),
+  bloodPressurePulse: z.number().nullable().optional(),
   heartRate: z.number().optional(),
   oxygenSaturation: z.number().optional(),
   temperature: z.number().optional(),
@@ -20,6 +21,7 @@ export interface VitalReading {
   sessionId: number;
   bloodPressureSystolic: number | null;
   bloodPressureDiastolic: number | null;
+  bloodPressurePulse: number | null;
   heartRate: number | null;
   oxygenSaturation: number | null;
   temperature: number | null;
