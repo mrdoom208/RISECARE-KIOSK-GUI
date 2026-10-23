@@ -284,7 +284,51 @@ def handle_command(sensor, session_id, value, payload):
     if value == 1:
         mode = 1
         running = True
-        if sensor == "heartrate":
+        if sensor == "bp":
+            if measure_busy:
+                mqtt_client.publish("risecare/sensors/bp", {
+                    "status": "failed", "error": "Another sensor operation is in progress",
+                    "sessionId": current_session_id, "timestamp": time.time()
+                })
+                return
+
+            def _measure_bp(bp_session_id):
+                global measure_busy
+                measure_busy = True
+                result = None
+                error = None
+                try:
+                    from bptest1 import run_bp_algorithm
+                    result = run_bp_algorithm(
+                        progress_callback=lambda stage, percent, pressure: mqtt_client.publish(
+                            "risecare/sensors/bp", {
+                                "status": "running", "stage": stage,
+                                "progress": percent, "pressure": round(pressure, 1),
+                                "sessionId": bp_session_id, "timestamp": time.time()
+                            }
+                        )
+                    )
+                    if result is None:
+                        error = "No valid pressure result was produced"
+                except Exception as exc:
+                    error = f"{type(exc).__name__}: {exc}"
+                    print(f"BP measurement failed: {error}")
+                finally:
+                    measure_busy = False
+                message = {
+                    "status": "success" if result else "failed",
+                    "sessionId": bp_session_id,
+                    "timestamp": time.time(),
+                }
+                if result:
+                    message.update(result)
+                else:
+                    message["error"] = error or "Measurement failed"
+                mqtt_client.publish("risecare/sensors/bp", message)
+
+            threading.Thread(target=_measure_bp, args=(current_session_id,),
+                             name="bp-measurement", daemon=True).start()
+        elif sensor == "heartrate":
             if hr_sensor is not None:
                 hr_enabled = True
                 spo2_enabled = True

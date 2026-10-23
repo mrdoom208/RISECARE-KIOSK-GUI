@@ -35,6 +35,7 @@ import { VitalCard } from "@/components/VitalCard";
 import InstructionModal from "@/components/InstructionModal";
 import { KeypadDialog } from "@/components/KeypadDialog";
 import { ModalShell } from "@/components/ModalShell";
+import { Progress } from "@/components/ui/progress";
 import type { Vitals } from "@/types/vitals";
 import {
   AlertDialog,
@@ -286,7 +287,12 @@ export default function Dashboard() {
   // A reading is confirmed once enough settled measurements have been
   // counted. It stays confirmed even if the finger is lifted afterwards, so
   // the patient can still finish the measurement.
-  const readingConfirmed = readingVital != null && confirmedReading != null;
+  const bpReading = liveReadings.bp;
+  const bpComplete = readingVital === "bp" && bpReading?.status === "success" &&
+    Number.isFinite(Number(bpReading.systolic)) && Number.isFinite(Number(bpReading.diastolic));
+  const readingConfirmed = readingVital === "bp"
+    ? bpComplete
+    : readingVital != null && confirmedReading != null;
   const isStable = readingConfirmed;
 
   // Values shown in the reading modal: the live measurement while the finger
@@ -303,7 +309,7 @@ export default function Dashboard() {
       : null;
 
   useEffect(() => {
-    if (!readingVital || !session) {
+    if (!readingVital || !session || readingVital === "bp") {
       setStableCount(0);
       setConfirmedReading(null);
       prevValueRef.current = null;
@@ -328,12 +334,6 @@ export default function Dashboard() {
     let prevValue: any = prevValueRef.current;
 
     switch (readingVital) {
-      case "bp":
-        currentValue = getLiveReadingValue("bp") ??
-          (currentVitals.bloodPressureSystolic != null && currentVitals.bloodPressureDiastolic != null
-            ? { sys: currentVitals.bloodPressureSystolic, dia: currentVitals.bloodPressureDiastolic }
-            : null);
-        break;
       case "hr":
         // The MAX30102 reports the pulse rate and the SpO2 from the same
         // capture, so the run follows whichever one the driver accepted.
@@ -925,6 +925,21 @@ const handleCancelReading = async () => {
                 {display.title}
               </h2>
 
+              {readingVital === "bp" && bpReading?.status === "running" && (
+                <div className="mb-6 space-y-2" aria-live="polite">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>{bpReading.stage === "deflating" ? "Releasing cuff pressure" : "Inflating cuff"}</span>
+                    <span>{Math.round(Number(bpReading.progress) || 0)}%</span>
+                  </div>
+                  <Progress value={Number(bpReading.progress) || 0} aria-label="Blood pressure measurement progress" />
+                  {Number.isFinite(Number(bpReading.pressure)) && (
+                    <p className="text-center text-sm text-muted-foreground">
+                      Cuff pressure: {Number(bpReading.pressure).toFixed(0)} mmHg
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="text-center mb-8">
                   <div className={`font-bold font-display text-primary mb-2 ${display.hasValue ? "text-6xl" : "text-4xl"}`}>
                     {display.value}
@@ -935,7 +950,13 @@ const handleCancelReading = async () => {
               </div>
 
               <p className="text-center text-muted-foreground mb-6">
-                {display.hasValue ? "Reading from sensor..." : "Waiting for sensor data..."}
+                        {readingVital === "bp"
+                          ? bpComplete
+                            ? "Measurement complete. Press Done to continue."
+                            : bpReading?.status === "failed"
+                              ? `Measurement failed: ${bpReading.error || "Please cancel and try again."}`
+                              : "Keep your arm still while the cuff measures and releases pressure..."
+                          : display.hasValue ? "Reading from sensor..." : "Waiting for sensor data..."}
               </p>
                 </>
               )}

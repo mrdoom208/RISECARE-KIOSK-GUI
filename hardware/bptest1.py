@@ -168,7 +168,7 @@ def interpolate_crossing(points, map_pressure, max_amp, target_ratio, systolic_s
     return None
 
 
-def run_bp_algorithm():
+def run_bp_algorithm(progress_callback=None):
     adc = TM7711()
     pressure_log = []
     amplitude_log = []
@@ -202,12 +202,23 @@ def run_bp_algorithm():
         target = INITIAL_TARGET
         tracker = PulseTracker(pressure)
         print("Starting inflation toward {:.0f} mmHg...".format(target))
+        last_progress_at = 0.0
+
+        def report_progress(stage, percent, current_pressure):
+            nonlocal last_progress_at
+            now = time.monotonic()
+            if progress_callback and (now - last_progress_at >= 0.25 or percent >= 95):
+                progress_callback(stage, max(0, min(99, round(percent))), current_pressure)
+                last_progress_at = now
+
+        report_progress("inflating", 2, pressure)
 
         while pressure < target:
             raw = adc.read_raw()
             if raw is None or raw == -1:
                 raise RuntimeError("TM7711 read timeout/invalid sample during inflation")
             pressure = raw_to_mmhg(raw)
+            report_progress("inflating", 2 + 43 * min(pressure / max(target, 1), 1), pressure)
             if not 0.0 <= pressure <= HARD_SAFETY_MAX:
                 raise RuntimeError("Pressure outside safety range: {:.1f} mmHg".format(pressure))
 
@@ -224,6 +235,8 @@ def run_bp_algorithm():
         time.sleep(0.3)
 
         # Reset trend extraction at the start of deflation.
+        deflation_start_pressure = pressure
+        report_progress("deflating", 45, pressure)
         tracker = PulseTracker(pressure)
         max_amp = 0.0
         map_pressure = None
@@ -234,6 +247,10 @@ def run_bp_algorithm():
             if raw is None or raw == -1:
                 raise RuntimeError("TM7711 read timeout/invalid sample during deflation")
             pressure = raw_to_mmhg(raw)
+            progress = 45 + 50 * (deflation_start_pressure - pressure) / max(
+                deflation_start_pressure - ABS_FLOOR_PRESSURE, 1
+            )
+            report_progress("deflating", progress, pressure)
             if not -5.0 <= pressure <= HARD_SAFETY_MAX:
                 raise RuntimeError("Pressure outside expected range: {:.1f} mmHg".format(pressure))
 
@@ -265,7 +282,7 @@ def run_bp_algorithm():
 
         if not pressure_log or max_amp <= 0 or map_pressure is None:
             print("RESULT: INVALID (no usable pulse envelope)")
-            return
+            return None
 
         # Smooth isolated amplitude spikes for finding the maximum envelope.
         smoothed = [statistics.median(amplitude_log[max(0, i - 1):i + 2])
@@ -287,8 +304,11 @@ def run_bp_algorithm():
         print("MAP: {:.1f} mmHg".format(map_pressure))
         if systolic is None or diastolic is None or not systolic > map_pressure > diastolic:
             print("RESULT: INVALID (envelope did not cross both sides of MAP)")
+            return None
         else:
             print("RESULT: experimental estimate only; not medically validated")
+            return {"systolic": round(systolic), "diastolic": round(diastolic),
+                    "map": round(map_pressure, 1)}
 
     except KeyboardInterrupt:
         print("\nStopped by user")

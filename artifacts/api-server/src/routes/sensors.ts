@@ -48,7 +48,11 @@ let testAllState: {
 // Subscribe to sensor data from Python
 subscribe("risecare/sensors/bp", async (data) => {
   latestReadings["bp"] = { ...data, _receivedAt: Date.now() };
-  if (data.sessionId && data.systolic != null && data.diastolic != null) {
+  const systolic = Number(data.systolic);
+  const diastolic = Number(data.diastolic);
+  if (data.status === "success" && data.sessionId &&
+      Number.isFinite(systolic) && Number.isFinite(diastolic) &&
+      systolic > diastolic && systolic <= 300 && diastolic >= 0) {
     const existing = await query(
       `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
       [data.sessionId]
@@ -56,12 +60,12 @@ subscribe("risecare/sensors/bp", async (data) => {
     if (existing[0]) {
       await run(
         `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, recorded_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [data.systolic, data.diastolic, existing[0].id]
+        [systolic, diastolic, existing[0].id]
       );
     } else {
       await run(
         `INSERT INTO vital_readings (session_id, blood_pressure_systolic, blood_pressure_diastolic) VALUES (?, ?, ?)`,
-        [data.sessionId, data.systolic, data.diastolic]
+        [data.sessionId, systolic, diastolic]
       );
     }
     console.log("💾 BP saved from sensor:", data);

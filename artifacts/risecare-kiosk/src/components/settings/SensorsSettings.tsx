@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Loader2, CheckCircle2, XCircle, HeartPulse, Ruler, Scale, Thermometer, Zap, RefreshCw, Printer } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2, XCircle, HeartPulse, Ruler, Scale, Thermometer, Zap, RefreshCw, Printer, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -15,6 +15,7 @@ interface SensorsSettingsProps {
 }
 
 const sensors = [
+  { id: "bp", name: "Blood Pressure", icon: Activity, unit: "mmHg", key: "systolic", decimals: 0, canCalibrate: false },
   { id: "heartrate", name: "Heart Rate & SpO2", icon: HeartPulse, unit: "bpm", key: "bpm", decimals: 0, canCalibrate: false },
   { id: "height", name: "Height", icon: Ruler, unit: "cm", key: "cm", decimals: 1, canCalibrate: true },
   { id: "weight", name: "Weight", icon: Scale, unit: "kg", key: "kg", decimals: 2, canCalibrate: true },
