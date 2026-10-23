@@ -45,7 +45,7 @@ INFLATION_STOP_RATIO = 0.50
 # Stop this far above the live peak-amplitude pressure. The ratio is used as
 # a diagnostic; the pulse tail can be too small to detect, so the margin is
 # the primary dynamic stop.
-INFLATION_PEAK_MARGIN = 50.0
+INFLATION_PEAK_MARGIN = 80.0
 INFLATION_MIN_STOP_PRESSURE = 100.0
 INFLATION_TRACK_MIN_PRESSURE = 50.0
 INFLATION_MIN_BEATS = 2
@@ -57,7 +57,7 @@ INFLATION_WARMUP_SECONDS = 1.2
 # crossing. MIN_MEASURE_PRESSURE is only a hard safety floor. If the pulse tail
 # becomes too small to detect, fall back to this distance below MAP.
 MIN_MEASURE_PRESSURE = 25.0
-DEFLATION_END_RATIO = 0.50
+DEFLATION_END_RATIO = 0.65
 DEFLATION_END_BEATS = 2
 # Do not start the tail streak until the cuff is clearly below the MAP
 # candidate; this avoids stopping on a noisy early "peak".
@@ -68,18 +68,18 @@ SETTLE_SECONDS = 0.3
 # Experimental oscillometric ratios (from the Arduino prototype).
 # NOTE: Fixed ratios are approximations; calibrate against reference measurements.
 # Commercial devices fit ratios per-cuff/arm; fixed ratios can err by 5-10+ mmHg.
-SYS_RATIO = 0.35
+SYS_RATIO = 0.25
 DIA_RATIO = 0.85
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
-MIN_PULSE_AMPLITUDE = 0.5       # Minimum accepted pulse amplitude in mmHg; tune within 0.5-1.0
+MIN_PULSE_AMPLITUDE = 0.04     # Minimum accepted pulse amplitude in mmHg; tune within 0.5-1.0
 AMP_FILTER_WINDOW = 3
 AMP_OUTLIER_HIGH = 2.5          # reject isolated beats above 2.5x recent median
 AMP_OUTLIER_LOW = 0.4           # reject isolated beats below 0.4x recent median
 AMP_OUTLIER_CONFIRM_BEATS = 2   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
-PRESSURE_SPIKE_LIMIT = 4.0      
+PRESSURE_SPIKE_LIMIT = 6.0      
 
 # Beat detection timing.
 MIN_BEAT_INTERVAL = 300
@@ -604,6 +604,12 @@ class OscillometricAnalyzer:
     def confirm_beat(self, amplitude, cuff_pressure, peak_time):
         if amplitude < MIN_PULSE_AMPLITUDE:
             self.rejected_low_amplitude += 1
+            print(
+                f"REJECTED LOW AMPLITUDE: P={cuff_pressure:.1f} mmHg, "
+                f"amp={amplitude:.6f} mmHg, "
+                f"minimum={MIN_PULSE_AMPLITUDE:.6f} mmHg",
+                flush=True,
+            )
             return False
 
         # First peak establishes the timing reference.
