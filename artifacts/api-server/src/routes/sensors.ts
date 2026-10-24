@@ -1,34 +1,28 @@
 import { Router, type IRouter } from "express";
 import { query, run } from "@workspace/db";
-import { publish, subscribe, isConnected } from "../mqtt";
-import { existsSync, promises as fs } from "fs";
-import path from "path";
-
-function findWorkspaceRoot(): string {
-  let currentDir = process.cwd();
-  for (let i = 0; i < 10; i++) {
-    if (existsSync(path.resolve(currentDir, "pnpm-workspace.yaml"))) return currentDir;
-    const parent = path.resolve(currentDir, "..");
-    if (parent === currentDir) break;
-    currentDir = parent;
-  }
-  return process.cwd();
-}
-
-const SETTINGS_FILE = path.resolve(findWorkspaceRoot(), "hardware", "settings.json");
+import { publish, subscribe, isConnected, onMQTTConnected } from "../mqtt";
 const SENSOR_SETTING_IDS = ["bp", "heartrate", "spo2", "height", "weight", "temperature", "printer"] as const;
 
 const router: IRouter = Router();
 
+onMQTTConnected(async () => {
+  try {
+    const rows = await query("SELECT value FROM settings WHERE key = 'enabled_sensors'");
+    if (!rows?.[0]?.value) return;
+    publish("risecare/command/settings", {
+      sensor: "settings",
+      enabledSensors: JSON.parse(rows[0].value),
+    }, { retain: true });
+  } catch (error) {
+    console.error("Failed to sync saved sensor settings over MQTT:", error);
+  }
+});
+
 router.get("/sensors/settings", async (_req, res) => {
   try {
-    const data = JSON.parse(await fs.readFile(SETTINGS_FILE, "utf8"));
-    res.json({ enabledSensors: data.enabled_sensors ?? null });
-  } catch (error: any) {
-    if (error.code === "ENOENT") {
-      res.json({ enabledSensors: null });
-      return;
-    }
+    const rows = await query("SELECT value FROM settings WHERE key = 'enabled_sensors'");
+    res.json({ enabledSensors: rows?.[0]?.value ? JSON.parse(rows[0].value) : null });
+  } catch {
     res.status(500).json({ error: "Failed to read sensor settings" });
   }
 });
@@ -45,19 +39,15 @@ router.put("/sensors/settings", async (req, res) => {
   }
 
   try {
-    let data: Record<string, any> = {};
-    try {
-      data = JSON.parse(await fs.readFile(SETTINGS_FILE, "utf8"));
-    } catch (error: any) {
-      if (error.code !== "ENOENT") throw error;
-    }
-    data.enabled_sensors = Object.fromEntries(
+    const normalized = Object.fromEntries(
       SENSOR_SETTING_IDS.map((id) => [id, enabledSensors[id]]),
     );
-    const temporaryFile = `${SETTINGS_FILE}.tmp`;
-    await fs.writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-    await fs.rename(temporaryFile, SETTINGS_FILE);
-    res.json({ success: true, enabledSensors: data.enabled_sensors });
+    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('enabled_sensors', ?)", [JSON.stringify(normalized)]);
+    const hardwareSynced = publish("risecare/command/settings", {
+      sensor: "settings",
+      enabledSensors: normalized,
+    }, { retain: true });
+    res.json({ success: true, enabledSensors: normalized, hardwareSynced });
   } catch (error) {
     console.error("Failed to save sensor settings:", error);
     res.status(500).json({ error: "Failed to save sensor settings" });

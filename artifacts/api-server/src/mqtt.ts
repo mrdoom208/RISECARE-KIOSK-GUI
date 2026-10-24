@@ -8,6 +8,7 @@ type MessageHandler = (payload: any, topic?: string) => void;
 
 let client: mqtt.MqttClient | null = null;
 let messageHandlers: Map<string, MessageHandler[]> = new Map();
+const connectedHandlers = new Set<() => void>();
 
 export function connectMQTT() {
   if (client?.connected) return client;
@@ -30,6 +31,7 @@ export function connectMQTT() {
         console.log(`📡 Subscribed to: ${MQTT_TOPIC}`);
       }
     });
+    connectedHandlers.forEach((handler) => handler());
   });
 
   client.on("message", (topic, payload) => {
@@ -82,6 +84,12 @@ export function connectMQTT() {
   return client;
 }
 
+export function onMQTTConnected(handler: () => void) {
+  connectedHandlers.add(handler);
+  if (client?.connected) handler();
+  return () => connectedHandlers.delete(handler);
+}
+
 export function disconnectMQTT() {
   if (client) {
     client.end();
@@ -90,7 +98,7 @@ export function disconnectMQTT() {
   }
 }
 
-export function publish(topic: string, payload: any): boolean {
+export function publish(topic: string, payload: any, options: { retain?: boolean } = {}): boolean {
   if (!client?.connected) {
     console.warn("⚠️ MQTT not connected, cannot publish");
     return false;
@@ -99,7 +107,7 @@ export function publish(topic: string, payload: any): boolean {
   const message = JSON.stringify(payload);
   
   // Fire and forget - publish is async
-  client.publish(topic, message, { qos: 1 }, (err) => {
+  client.publish(topic, message, { qos: 1, retain: options.retain ?? false }, (err) => {
     if (err) {
       console.error("MQTT publish error:", err);
     }

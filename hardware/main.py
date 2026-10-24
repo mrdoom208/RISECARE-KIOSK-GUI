@@ -5,6 +5,7 @@ from max30102 import MAX30102
 from mlx90614 import MLX90614
 import i2c_bus
 import loadcell
+import settings_store
 import time
 import mqtt_client
 import printer
@@ -319,6 +320,14 @@ def handle_command(sensor, session_id, value, payload):
         print("Status requested — re-probing sensors...")
         _probe_i2c()
         advertise_sensors()
+        return
+
+    if sensor == "settings":
+        try:
+            settings_store.save_enabled_sensors(payload.get("enabledSensors", {}))
+            print("Sensor preferences saved to settings.json")
+        except Exception as exc:
+            print(f"Failed to save sensor preferences: {exc}")
         return
 
     if session_id:
