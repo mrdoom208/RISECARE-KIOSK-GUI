@@ -1,5 +1,7 @@
 import json
 import os
+from pathlib import Path
+from urllib.parse import urlparse
 
 try:
     import paho.mqtt.client as mqtt
@@ -8,8 +10,42 @@ except ImportError:
     print("Warning: paho-mqtt not installed. Install with: pip install paho-mqtt")
     mqtt_available = False
 
-MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
-MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
+
+def _read_project_env():
+    """Read MQTT settings even when sudo strips the caller's environment."""
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    values = {}
+    try:
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                value = value[1:-1]
+            values[key.strip()] = value
+    except OSError:
+        pass
+    return values
+
+
+_project_env = _read_project_env()
+_broker_setting = (
+    os.getenv("MQTT_BROKER") or _project_env.get("MQTT_BROKER") or "127.0.0.1"
+)
+_port_setting = os.getenv("MQTT_PORT") or _project_env.get("MQTT_PORT") or "1883"
+_broker_url = urlparse(
+    _broker_setting if "://" in _broker_setting else f"mqtt://{_broker_setting}"
+)
+MQTT_BROKER = _broker_url.hostname or "127.0.0.1"
+MQTT_PORT = _broker_url.port or int(_port_setting)
+MQTT_USERNAME = (
+    os.getenv("MQTT_USERNAME") or _project_env.get("MQTT_USERNAME") or _broker_url.username
+)
+MQTT_PASSWORD = (
+    os.getenv("MQTT_PASSWORD") or _project_env.get("MQTT_PASSWORD") or _broker_url.password
+)
 MQTT_COMMAND_TOPIC = "risecare/command/+"
 
 client = None
@@ -56,6 +92,9 @@ def connect():
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_message = on_message
+
+    if MQTT_USERNAME:
+        client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
 
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
