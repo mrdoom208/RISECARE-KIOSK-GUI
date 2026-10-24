@@ -16,6 +16,7 @@ export interface Max30102Reading {
   spo2Valid?: boolean;
   fingerDetected?: boolean;
   quality?: number;
+  sampleProgress?: number;
   timestamp?: number;
 }
 

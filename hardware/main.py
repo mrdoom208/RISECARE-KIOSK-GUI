@@ -42,6 +42,8 @@ weight_last_read = 0.0
 temp_last_read = 0.0
 measure_busy = False
 _bp_stop_event = threading.Event()
+_hr_progress_sample_count = 0
+_hr_progress_lock = threading.Lock()
 _last_printer_status = {"connected": False, "paper": False, "paperStatus": "unknown"}
 _bp_sensor_available = False
 _probe_thread = None
@@ -51,6 +53,38 @@ _height_stop = threading.Event()
 _height_lock = threading.Lock()
 _height_value = None
 _height_at = 0.0
+
+
+def _reset_hr_sample_progress():
+    global _hr_progress_sample_count
+    with _hr_progress_lock:
+        _hr_progress_sample_count = 0
+
+
+def _record_hr_samples(sample_count, finger_detected):
+    global _hr_progress_sample_count
+    with _hr_progress_lock:
+        if not finger_detected:
+            _hr_progress_sample_count = 0
+            return
+        try:
+            _hr_progress_sample_count += max(0, int(sample_count or 0))
+        except (TypeError, ValueError):
+            pass
+
+
+def _hr_sample_progress_percent(finger_detected, sample_target):
+    global _hr_progress_sample_count
+    with _hr_progress_lock:
+        if not finger_detected:
+            _hr_progress_sample_count = 0
+            return 0
+
+        target = max(1, int(sample_target))
+        if _hr_progress_sample_count >= target:
+            _hr_progress_sample_count %= target
+            return 100
+        return round(100 * _hr_progress_sample_count / target)
 
 
 def publish_calibration_progress(sensor, message):
@@ -293,6 +327,8 @@ def handle_command(sensor, session_id, value, payload):
     if value == 1:
         mode = 1
         running = True
+        if sensor in ("heartrate", "spo2"):
+            _reset_hr_sample_progress()
         if sensor == "bp":
             if measure_busy:
                 mqtt_client.publish("risecare/sensors/bp", {
@@ -556,12 +592,14 @@ def handle_command(sensor, session_id, value, payload):
             _bp_stop_event.set()
             print("BP stop requested; pump will stop and cuff will vent.")
         elif sensor == "heartrate":
+            _reset_hr_sample_progress()
             hr_enabled = False
             spo2_enabled = False
             if hr_sensor is not None:
                 hr_sensor.shutdown()
                 hr_sensor.clear_buffer()
         elif sensor == "spo2":
+            _reset_hr_sample_progress()
             spo2_enabled = False
             if hr_sensor is not None:
                 hr_sensor.shutdown()
@@ -690,6 +728,7 @@ def main():
                         finger_detected = bool(
                             result.get("finger_present", result.get("hand_present", False))
                         )
+                        _record_hr_samples(result.get("new_samples", 0), finger_detected)
                         hr_quality = float(result.get("quality", 0.0))
                         sample = (
                             result["pulse_rate"],
@@ -757,6 +796,10 @@ def main():
                     payload["spo2Valid"] = bool(spo2_valid and spo2 is not None)
                     payload["fingerDetected"] = bool(finger_detected)
                     payload["quality"] = round(hr_quality, 3)
+                    payload["sampleProgress"] = _hr_sample_progress_percent(
+                        finger_detected,
+                        getattr(hr_sensor, "WINDOW_SIZE", 800),
+                    )
                     mqtt_client.publish("risecare/sensors/vitals", payload)
                     published = True
                     hr_last_publish = now

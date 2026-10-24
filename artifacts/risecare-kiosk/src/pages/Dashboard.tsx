@@ -279,6 +279,10 @@ export default function Dashboard() {
 
   const fingerState = getFingerState(max30102Reading);
   const fingerPresent = fingerState === "present";
+  const reportedSampleProgress = Number(max30102Reading?.sampleProgress);
+  const sampleProgressPercent = fingerPresent && Number.isFinite(reportedSampleProgress)
+    ? Math.max(0, Math.min(100, Math.round(reportedSampleProgress)))
+    : 0;
   const livePulseRate = readValidPulseRate(max30102Reading);
   const liveOxygenSaturation = readValidSpo2(max30102Reading);
 
@@ -945,12 +949,12 @@ const handleCancelReading = async () => {
                   )}
                   <div className="mb-5 space-y-2" aria-live="polite">
                     <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>{readingConfirmed ? "Reading stable" : fingerPresent ? "Stabilizing HR and SpO₂" : "Waiting for finger"}</span>
-                      <span>{stableCount}/{requiredStableCount}</span>
+                      <span>{fingerPresent ? "Collecting sensor samples" : "Waiting for finger"}</span>
+                      <span>{sampleProgressPercent}%</span>
                     </div>
                     <Progress
-                      value={(stableCount / requiredStableCount) * 100}
-                      aria-label="Heart rate and oxygen saturation reading progress"
+                      value={sampleProgressPercent}
+                      aria-label="Heart rate and oxygen saturation sample progress"
                     />
                   </div>
                 </>
@@ -1046,7 +1050,7 @@ const handleCancelReading = async () => {
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Done {!isStable && `(${stableCount}/${requiredStableCount})`}
+                  Done {!isStable && readingVital !== "hr" && `(${stableCount}/${requiredStableCount})`}
                 </button>
               </div>
 

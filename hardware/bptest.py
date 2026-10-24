@@ -68,8 +68,8 @@ SETTLE_SECONDS = 0.3
 # Experimental oscillometric ratios (from the Arduino prototype).
 # NOTE: Fixed ratios are approximations; calibrate against reference measurements.
 # Commercial devices fit ratios per-cuff/arm; fixed ratios can err by 5-10+ mmHg.
-SYS_RATIO = 0.23
-DIA_RATIO = 0.90
+SYS_RATIO = 0.50
+DIA_RATIO = 0.80
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
