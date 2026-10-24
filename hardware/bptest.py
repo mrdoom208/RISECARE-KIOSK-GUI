@@ -1,4 +1,4 @@
-"""Experimental cuff pressure test using a TM7711 ADC.
+"""Experimental cuff pressure test using an HX710B ADC.
 
 The signal-processing pipeline mirrors the Arduino blood-pressure prototype:
 cuff pressure is split into a slow baseline and a pulsatile oscillation, a
@@ -96,9 +96,10 @@ OSC_FILTER_ALPHA = 0.45
 
 MAX_PEAKS = 80
 
-# TM7711 timing copied from hardware/tm7711.py.
+# HX710B serial clock is bit-banged directly through GPIO; no software delay is
+# inserted between edges, keeping each high pulse as short as possible.
 READY_TIMEOUT = 2.0
-CLOCK_HALF_PERIOD = 0.00002
+MAX_CONSECUTIVE_READ_TIMEOUTS = 2
 EXTRA_CLOCK_PULSES = 1
 
 # Relay modules commonly energize on LOW. Change only if your board is active-high.
@@ -131,8 +132,8 @@ def now_ms():
     return int(time.monotonic() * 1000)
 
 
-class TM7711:
-    """Read signed 24-bit conversions using the timing in tm7711.py."""
+class HX710B:
+    """Read signed 24-bit differential conversions from an HX710B."""
 
     def wait_ready(self):
         start = time.monotonic()
@@ -149,16 +150,12 @@ class TM7711:
         value = 0
         for _ in range(24):
             GPIO.output(SCK_PIN, GPIO.HIGH)
-            time.sleep(CLOCK_HALF_PERIOD)
             value = (value << 1) | GPIO.input(OUT_PIN)
             GPIO.output(SCK_PIN, GPIO.LOW)
-            time.sleep(CLOCK_HALF_PERIOD)
 
         for _ in range(EXTRA_CLOCK_PULSES):
             GPIO.output(SCK_PIN, GPIO.HIGH)
-            time.sleep(CLOCK_HALF_PERIOD)
             GPIO.output(SCK_PIN, GPIO.LOW)
-            time.sleep(CLOCK_HALF_PERIOD)
 
         if value & 0x800000:
             value -= 0x1000000
@@ -275,13 +272,13 @@ def debug_noise():
     pump_set(False)
     valve_set(False)  # keep the cuff vented during diagnostics
 
-    adc = TM7711()
+    adc = HX710B()
     recent = deque(maxlen=NOISE_WINDOW)
     valid = []
     invalid = 0
     previous_time = None
     start = time.monotonic()
-    print("TM7711 noise capture: pump OFF, valve OPEN")
+    print("HX710B noise capture: pump OFF, valve OPEN")
     print("time_s,interval_ms,raw,hex,pressure_mmhg,window_stddev,window_range")
     try:
         while time.monotonic() - start < NOISE_DEBUG_SECONDS:
@@ -886,7 +883,7 @@ class OscillometricAnalyzer:
 
 class BloodPressureTest:
     def __init__(self):
-        self.adc = TM7711()
+        self.adc = HX710B()
         self.analyzer = OscillometricAnalyzer()
         self.pressure_filter = PressureSpikeFilter()
         self.pump_running = False
@@ -1000,13 +997,25 @@ class BloodPressureTest:
             pump_set(True)
             self.pump_running = True
             consecutive_invalid = 0
+            consecutive_read_timeouts = 0
             while True:
-                raw = self.adc.read_raw()
-                if raw is None:
-                    print("ERROR: TM7711 ready timeout")
-                    break
+                raw_reading = self.adc.read_raw()
+                if raw_reading is None:
+                    consecutive_read_timeouts += 1
+                    print(
+                        "WARNING: HX710B ready timeout "
+                        f"({consecutive_read_timeouts}/"
+                        f"{MAX_CONSECUTIVE_READ_TIMEOUTS}); skipping sample"
+                    )
+                    if consecutive_read_timeouts >= MAX_CONSECUTIVE_READ_TIMEOUTS:
+                        print("ERROR: repeated HX710B timeouts; aborting safely")
+                        break
+                    continue
 
-                pressure = raw_to_mmhg(raw)
+                consecutive_read_timeouts = 0
+
+                cuff_pressure = raw_to_mmhg(raw_reading)
+                pressure = cuff_pressure
                 if not math.isfinite(pressure) or pressure < -5 or pressure > 250:
                     consecutive_invalid += 1
                     print(f"Invalid pressure {pressure:.1f} mmHg "
@@ -1017,8 +1026,8 @@ class BloodPressureTest:
                     continue
                 consecutive_invalid = 0
 
-                measured_pressure = pressure
-                pressure, was_spike = self.pressure_filter.apply(pressure)
+                measured_pressure = cuff_pressure
+                pressure, was_spike = self.pressure_filter.apply(cuff_pressure)
                 if was_spike:
                     print(f"Ignored pressure outlier: raw={measured_pressure:.1f} mmHg, "
                           f"filtered={pressure:.1f} mmHg")
@@ -1120,7 +1129,7 @@ class BloodPressureTest:
                     else:
                         phase = "WAIT"
                     print(
-                        f"Raw:{raw:9d} | P:{pressure:6.1f} | "
+                        f"Raw:{raw_reading:9d} | P:{pressure:6.1f} | "
                         f"SYS:{self.analyzer.SYS:5.1f} | DIA:{self.analyzer.DIA:5.1f} | "
                         f"MAP:{self.analyzer.MAP:5.1f} | "
                         f"Amp:{self.analyzer.pulse_amplitude:.3f} | "

@@ -97,7 +97,9 @@ def connect():
         client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
 
     try:
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        print(f"Connecting to MQTT broker at {MQTT_BROKER}:{MQTT_PORT}...")
+        # Keep retrying if Mosquitto is starting or temporarily unavailable.
+        client.connect_async(MQTT_BROKER, MQTT_PORT, 60)
         client.loop_start()
         return client
     except Exception as e:
