@@ -41,6 +41,7 @@ height_last_read = 0.0
 weight_last_read = 0.0
 temp_last_read = 0.0
 measure_busy = False
+_bp_stop_event = threading.Event()
 _last_printer_status = {"connected": False, "paper": False, "paperStatus": "unknown"}
 _bp_sensor_available = False
 _probe_thread = None
@@ -299,6 +300,7 @@ def handle_command(sensor, session_id, value, payload):
                     "sessionId": current_session_id, "timestamp": time.time()
                 })
                 return
+            _bp_stop_event.clear()
 
             def _measure_bp(bp_session_id):
                 global measure_busy
@@ -308,6 +310,7 @@ def handle_command(sensor, session_id, value, payload):
                 try:
                     from bptest import BloodPressureTest
                     result = BloodPressureTest().run(
+                        stop_event=_bp_stop_event,
                         progress_callback=lambda stage, percent, pressure: mqtt_client.publish(
                             "risecare/sensors/bp", {
                                 "status": "running", "stage": stage,
@@ -549,7 +552,10 @@ def handle_command(sensor, session_id, value, payload):
             })
 
     elif value == 0:
-        if sensor == "heartrate":
+        if sensor == "bp":
+            _bp_stop_event.set()
+            print("BP stop requested; pump will stop and cuff will vent.")
+        elif sensor == "heartrate":
             hr_enabled = False
             spo2_enabled = False
             if hr_sensor is not None:

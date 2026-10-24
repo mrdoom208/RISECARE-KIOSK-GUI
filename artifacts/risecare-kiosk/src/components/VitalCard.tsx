@@ -6,6 +6,7 @@ interface VitalCardProps {
   title: string;
   value?: string | number | null;
   secondaryValue?: string | number | null; // For Diastolic
+  doubleValueLabels?: [string, string];
   detail?: string;
   unit: string;
   icon: ReactNode;
@@ -19,6 +20,7 @@ export function VitalCard({
   title,
   value,
   secondaryValue,
+  doubleValueLabels,
   detail,
   unit,
   icon,
@@ -100,6 +102,14 @@ export function VitalCard({
           </div>
         )}
       </div>
+
+      {hasValue && isDouble && doubleValueLabels && secondaryValue != null && (
+        <div className="mt-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <span>{doubleValueLabels[0]}</span>
+          <span aria-hidden="true">/</span>
+          <span>{doubleValueLabels[1]}</span>
+        </div>
+      )}
 
       {detail && <p className="mt-2 text-sm text-muted-foreground">{detail}</p>}
 

@@ -123,7 +123,7 @@ export default function Results() {
           currentVitals.bloodPressureSystolic,
           currentVitals.bloodPressureDiastolic,
         ) + (currentVitals.bloodPressurePulse != null
-          ? ` Cuff pulse: ${currentVitals.bloodPressurePulse} bpm.`
+          ? ` Pulse: ${currentVitals.bloodPressurePulse} bpm.`
           : ""),
       };
     })(),
@@ -354,6 +354,11 @@ export default function Results() {
                       <span className="text-sm text-muted-foreground ml-1">
                         {item.unit}
                       </span>
+                      {item.name === "Blood Pressure" && item.val != null && (
+                        <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          SYS / DIA
+                        </div>
+                      )}
                     </div>
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold ${

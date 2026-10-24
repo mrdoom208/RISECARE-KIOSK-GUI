@@ -312,7 +312,9 @@ def debug_noise():
         pump_set(False)
         valve_set(False)
         GPIO.output(SCK_PIN, GPIO.LOW)
-        GPIO.cleanup()
+        # Keep GPIO channels owned by other sensors (for example HX711 on
+        # BCM 5/6) configured; BP only releases the pins it uses.
+        GPIO.cleanup([OUT_PIN, SCK_PIN, PUMP, VALVE])
 
     print(f"Samples: valid={len(valid)}, invalid/timeouts={invalid}")
     if len(valid) > 1:
@@ -968,7 +970,7 @@ class BloodPressureTest:
 
         return False, ""
 
-    def run(self, progress_callback=None):
+    def run(self, progress_callback=None, stop_event=None):
         self.setup()
         print("RiseCare pressure test (experimental; not for diagnosis)")
         print(f"Calibration: {RAW_PER_MMHG} raw/mmHg, offset {RAW_OFFSET}")
@@ -999,7 +1001,15 @@ class BloodPressureTest:
             consecutive_invalid = 0
             consecutive_read_timeouts = 0
             while True:
+                if stop_event is not None and stop_event.is_set():
+                    print("BP measurement stopped by operator")
+                    break
+
                 raw_reading = self.adc.read_raw()
+                if stop_event is not None and stop_event.is_set():
+                    print("BP measurement stopped by operator")
+                    break
+
                 if raw_reading is None:
                     consecutive_read_timeouts += 1
                     print(
@@ -1143,7 +1153,9 @@ class BloodPressureTest:
         finally:
             self.safe_stop()
             GPIO.output(SCK_PIN, GPIO.LOW)
-            GPIO.cleanup()
+            # GPIO.cleanup() without channels resets every pin, which breaks
+            # the load-cell HX711 configured on BCM 5/6 after a BP run.
+            GPIO.cleanup([OUT_PIN, SCK_PIN, PUMP, VALVE])
 
         return result
 

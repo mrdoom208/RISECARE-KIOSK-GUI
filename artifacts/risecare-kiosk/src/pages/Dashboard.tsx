@@ -104,6 +104,7 @@ export default function Dashboard() {
   // availability update instead of again on every poll / state change.
   const lastHandledAvailabilityRef = useRef<number | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [showStopBpConfirm, setShowStopBpConfirm] = useState(false);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
   const [liveReadings, setLiveReadings] = useState<Record<string, any>>({});
   readingVitalRef.current = readingVital;
@@ -541,15 +542,14 @@ const handleCancelReading = async () => {
           dia: number;
           pulseRate?: number;
         } | null;
-        const sys = live?.sys ?? currentVitals.bloodPressureSystolic;
-        const dia = live?.dia ?? currentVitals.bloodPressureDiastolic;
+        const failed = bpReading?.status === "failed" || bpReading?.status === "invalid";
+        const sys = live?.sys;
+        const dia = live?.dia;
         return {
           title: "Blood Pressure",
-          value: sys != null && dia != null ? `${sys}/${dia}` : "Reading...",
-          unit: "mmHg",
-          detail: (live?.pulseRate ?? currentVitals.bloodPressurePulse) != null
-            ? `Cuff pulse: ${live?.pulseRate ?? currentVitals.bloodPressurePulse} bpm`
-            : undefined,
+          value: failed ? "Invalid" : sys != null && dia != null ? `${sys}/${dia}` : "Reading...",
+          unit: failed ? "" : "mmHg",
+          detail: failed ? undefined : `Pulse: ${live?.pulseRate ?? "—"} bpm`,
           hasValue: sys != null && dia != null,
         };
       }
@@ -642,9 +642,7 @@ const handleCancelReading = async () => {
             title="Blood Pressure"
             value={currentVitals.bloodPressureSystolic}
             secondaryValue={currentVitals.bloodPressureDiastolic}
-            detail={currentVitals.bloodPressurePulse != null
-              ? `Cuff pulse: ${currentVitals.bloodPressurePulse} bpm`
-              : undefined}
+            detail={`Pulse: ${currentVitals.bloodPressurePulse ?? "—"} bpm`}
             unit="mmHg"
             icon={<Heart className="w-7 h-7" />}
             status={getBPStatus(
@@ -662,6 +660,7 @@ const handleCancelReading = async () => {
             }}
             disabled={isVitalDisabled("bp")}
             isDouble
+            doubleValueLabels={["SYS", "DIA"]}
           />
 
            {/* Heart Rate & SpO2 (combined) */}
@@ -973,16 +972,28 @@ const handleCancelReading = async () => {
 
               {readingVital === "bp" && bpComplete && (
                 <p className="text-center text-lg font-semibold mb-6">
-                  Cuff pulse: {cuffPulseRate.toFixed(0)} bpm
+                  Pulse: {cuffPulseRate.toFixed(0)} bpm
                 </p>
+              )}
+
+              {readingVital === "bp" && (bpReading?.status === "failed" || bpReading?.status === "invalid") && (
+                <div role="alert" className="mb-6 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-center">
+                  <p className="text-lg font-bold text-destructive">Invalid BP result</p>
+                  <p className="mt-1 text-sm text-foreground">
+                    {bpReading.error || "The cuff could not calculate a valid SYS/DIA reading."}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Reposition the cuff, keep your arm still, and try again.
+                  </p>
+                </div>
               )}
 
               <p className="text-center text-muted-foreground mb-6">
                         {readingVital === "bp"
                           ? bpComplete
                             ? "Measurement complete. Press Done to continue."
-                            : bpReading?.status === "failed"
-                              ? `Measurement failed: ${bpReading.error || "Please cancel and try again."}`
+                            : bpReading?.status === "failed" || bpReading?.status === "invalid"
+                              ? "Cancel this attempt before starting another measurement."
                               : "Keep your arm still while the cuff measures and releases pressure..."
                           : display.hasValue ? "Reading from sensor..." : "Waiting for sensor data..."}
               </p>
@@ -993,6 +1004,17 @@ const handleCancelReading = async () => {
               })()}
 
               <div className="flex gap-4">
+                {readingVital === "bp" && bpReading?.status === "running" && (
+                  <button
+                    onClick={() => {
+                      if (isRateLimited("stop-bp")) return;
+                      setShowStopBpConfirm(true);
+                    }}
+                    className="flex-1 px-6 py-4 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 font-semibold text-lg"
+                  >
+                    Stop
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     if (isRateLimited("cancel-reading")) return;
@@ -1024,6 +1046,31 @@ const handleCancelReading = async () => {
             </>
           )}
       </ModalShell>
+      <AlertDialog open={showStopBpConfirm} onOpenChange={setShowStopBpConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl">Stop BP Measurement?</AlertDialogTitle>
+            <AlertDialogDescription className="text-lg">
+              This will stop the pump and open the cuff valve to release pressure. The current reading will be discarded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-6">
+            <AlertDialogCancel className="h-12 text-xl font-bold flex-1 bg-secondary hover:bg-secondary/80">
+              Keep Measuring
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (isRateLimited("stop-bp-confirm")) return;
+                setShowStopBpConfirm(false);
+                await handleCancelReading();
+              }}
+              className="h-12 text-xl font-bold flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Stop &amp; Release
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
