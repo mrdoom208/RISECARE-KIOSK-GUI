@@ -30,6 +30,7 @@ import { useMemo, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
+import { fetchSensorSettings } from "@/lib/sensor-settings";
 // @ts-ignore - Session type from @workspace/api-zod
 type Session = any;
 export default function Results() {
@@ -51,7 +52,44 @@ export default function Results() {
   const { isRateLimited } = useRateLimit(1000);
   const [countdown, setCountdown] = useState(60);
   const [printCooldown, setPrintCooldown] = useState(false);
+  const [printerEnabled, setPrinterEnabled] = useState(false);
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
+
+  const { data: sensorStatus } = useQuery({
+    queryKey: ["sensor-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/status");
+      if (!res.ok) throw new Error("Failed to fetch sensor status");
+      return res.json();
+    },
+    refetchInterval: 5000,
+  });
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const saved = localStorage.getItem("enabledSensors");
+        if (saved) {
+          setPrinterEnabled(JSON.parse(saved).printer === true);
+          return;
+        }
+      } catch { /* Load from the device settings below. */ }
+      try {
+        const settings = await fetchSensorSettings();
+        if (active) setPrinterEnabled(settings?.printer === true);
+      } catch { if (active) setPrinterEnabled(false); }
+    };
+    void load();
+    return () => { active = false; };
+  }, []);
+
+  const printerReady =
+    printerEnabled && sensorStatus?.connected === true &&
+    sensorStatus?.sensorsStale !== true &&
+    sensorStatus?.sensors?.printer?.connected === true &&
+    sensorStatus?.sensors?.printer?.paper !== false &&
+    sensorStatus?.sensors?.printer?.paperStatus !== "empty";
 
   const printMutation = useMutation({
     mutationFn: async (data: { sessionId: number; recommendation: string }) => {
@@ -224,16 +262,17 @@ export default function Results() {
     };
   }, [resultsList]);
 
+  const criticalCount = resultsList.filter((item) => item.status === "critical").length;
+  const warningCount = resultsList.filter((item) => item.status === "warning").length;
   const printAssessment = [
-    overallRecommendation.title,
-    overallRecommendation.message,
-    `Action: ${overallRecommendation.action}`,
-    "Recorded measurements:",
-    ...resultsList.map(
-      (item) =>
-        `${item.name}: ${item.val} ${item.unit.replace("°", "")} - ${getStatusText(item.status)}. ${item.msg}`,
-    ),
-    "General adult screening thresholds are shown for all ages; pediatric results need age-specific clinical interpretation. The SpO2 value is an unvalidated screening estimate. This report is not a diagnosis.",
+    overallRecommendation.status === "critical"
+      ? `Overall: ${criticalCount} high-risk reading${criticalCount === 1 ? "" : "s"}; ${warningCount} need attention.`
+      : overallRecommendation.status === "warning"
+        ? `Overall: ${warningCount} reading${warningCount === 1 ? "" : "s"} need attention.`
+        : overallRecommendation.status === "normal"
+          ? "Overall: Classifiable readings are within screening ranges."
+          : "Overall: Not enough readings for assessment.",
+    `Record: ${resultsList.length} vital measurements included.`,
   ].join("\n");
 
   // Auto-reset the session after showing results (kiosk mode only)
@@ -406,7 +445,7 @@ export default function Results() {
                 recommendation: printAssessment,
               });
             }}
-            disabled={printMutation.isPending || printCooldown}
+            disabled={printMutation.isPending || printCooldown || !printerReady}
             className="flex-1 h-16 bg-secondary text-secondary-foreground text-lg sm:text-xl md:text-2xl font-display font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Printer className="w-6 h-6" />

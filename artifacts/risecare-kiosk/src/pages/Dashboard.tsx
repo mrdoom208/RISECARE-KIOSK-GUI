@@ -51,7 +51,7 @@ import NotFound from "./not-found";
 
 import { sensorGuides } from "@/data/sensorGuides";
 import { sensorStabilityConfig } from "@/lib/sensor-stability";
-import { disableMissingSensors } from "@/lib/sensor-availability";
+import { fetchSensorSettings, normalizeSensorSettings, persistSensorSettings } from "@/lib/sensor-settings";
 
 type VitalType =
   | "bp"
@@ -100,9 +100,6 @@ export default function Dashboard() {
     oxygenSaturation: number | null;
   } | null>(null);
   const readingVitalRef = useRef<VitalType | null>(null);
-  // Snapshot timestamp already handled, so the auto-disable effect runs once per
-  // availability update instead of again on every poll / state change.
-  const lastHandledAvailabilityRef = useRef<number | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [showStopBpConfirm, setShowStopBpConfirm] = useState(false);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
@@ -155,15 +152,28 @@ export default function Dashboard() {
     const loadEnabledSensors = () => {
       const saved = localStorage.getItem("enabledSensors");
       if (saved) {
-        setEnabledSensors(JSON.parse(saved));
+        setEnabledSensors(normalizeSensorSettings(JSON.parse(saved)));
       }
     };
-    
     loadEnabledSensors();
-    
-    // Listen for changes from other components
     window.addEventListener("sensorStateChange", loadEnabledSensors);
-    return () => window.removeEventListener("sensorStateChange", loadEnabledSensors);
+    let active = true;
+    void fetchSensorSettings().then(async (persisted) => {
+      if (!active) return;
+      if (persisted) {
+        localStorage.setItem("enabledSensors", JSON.stringify(persisted));
+        setEnabledSensors(persisted);
+      } else {
+        const legacy = normalizeSensorSettings(
+          JSON.parse(localStorage.getItem("enabledSensors") || "{}"),
+        );
+        await persistSensorSettings(legacy);
+      }
+    }).catch(() => {});
+    return () => {
+      active = false;
+      window.removeEventListener("sensorStateChange", loadEnabledSensors);
+    };
   }, []);
 
   // Check if a vital's sensor is enabled
@@ -184,42 +194,24 @@ export default function Dashboard() {
 
   const mqttConnected = sensorStatus?.connected ?? false;
   const max30102Available = sensorStatus?.sensors?.max30102;
-  const bpAvailable = sensorStatus?.sensors?.bp;
   const availabilityStale = sensorStatus?.sensorsStale === true;
 
   const isVitalDisabled = (vital: VitalType) => {
     const usesMax30102 = vital === "hr" || vital === "spo2";
-    // A stale snapshot can't tell us the chip is missing, so don't lock the
-    // operator out of HR/SpO2 based on old data.
-    const max30102Missing = !availabilityStale && max30102Available === false;
-    const bpMissing = vital === "bp" && !availabilityStale && bpAvailable === false;
-    return !mqttConnected || !isVitalEnabled(vital) || (usesMax30102 && max30102Missing) || bpMissing;
+    const availabilityId = usesMax30102 ? "max30102" : vitalToSensorId[vital];
+    const sensorMissing = availabilityStale || sensorStatus?.sensors?.[availabilityId] === false;
+    return !mqttConnected || !isVitalEnabled(vital) || sensorMissing;
   };
 
-  // Auto-disable sensors the device reports as missing so the kiosk never
-  // offers a vital whose hardware is absent. Persist + notify other views.
-  useEffect(() => {
-    const updatedAt = sensorStatus?.sensorsUpdatedAt ?? null;
-    if (updatedAt === null || updatedAt === lastHandledAvailabilityRef.current) {
-      return;
-    }
-    lastHandledAvailabilityRef.current = updatedAt;
+  const getVitalDisabledLabel = (vital: VitalType) => {
+    if (!mqttConnected) return "Not detected";
+    if (!isVitalEnabled(vital)) return "Disabled";
+    const availabilityId = vital === "hr" || vital === "spo2" ? "max30102" : vitalToSensorId[vital];
+    if (availabilityStale || sensorStatus?.sensors?.[availabilityId] === false) return "Not detected";
+    return "Disabled";
+  };
 
-    const { next, disabled } = disableMissingSensors(
-      enabledSensors,
-      sensorStatus?.sensors,
-      {
-        connected: sensorStatus?.connected === true,
-        stale: sensorStatus?.sensorsStale === true,
-      },
-    );
 
-    if (disabled.length === 0) return;
-
-    localStorage.setItem("enabledSensors", JSON.stringify(next));
-    setEnabledSensors(next);
-    window.dispatchEvent(new Event("sensorStateChange"));
-  }, [sensorStatus, enabledSensors]);
 
   const { data: session, isLoading } = useQuery<Session>({
     queryKey: ["session", sessionToken],
@@ -636,7 +628,7 @@ const handleCancelReading = async () => {
             <p className="text-base text-muted-foreground mt-1">
               {!mqttConnected
                 ? "MQTT disconnected — sensors unavailable."
-                : max30102Available === false
+                : !availabilityStale && max30102Available === false
                   ? "MAX30102 not detected at I²C address 0x57 — heart rate and SpO₂ are unavailable."
                   : "Tap any card to record a measurement."}
             </p>
@@ -668,6 +660,7 @@ const handleCancelReading = async () => {
               );
             }}
             disabled={isVitalDisabled("bp")}
+            disabledLabel={getVitalDisabledLabel("bp")}
             isDouble
             doubleValueLabels={["SYS", "DIA"]}
           />
@@ -699,7 +692,7 @@ const handleCancelReading = async () => {
                {isVitalDisabled("hr") && isVitalDisabled("spo2") ? (
                  <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
                    <Lock className="w-4 h-4" />
-                   <span>{max30102Available === false ? "Not detected" : "Disabled"}</span>
+                   <span>{getVitalDisabledLabel("hr")}</span>
                  </div>
                ) : (
                  <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
@@ -746,6 +739,7 @@ const handleCancelReading = async () => {
                 );
               }}
               disabled={isVitalDisabled("temperature")}
+              disabledLabel={getVitalDisabledLabel("temperature")}
             />
 
             {/* Weight */}
@@ -765,6 +759,7 @@ const handleCancelReading = async () => {
                );
              }}
              disabled={isVitalDisabled("weight")}
+             disabledLabel={getVitalDisabledLabel("weight")}
            />
 
            {/* Height */}
@@ -787,6 +782,7 @@ const handleCancelReading = async () => {
                );
              }}
              disabled={isVitalDisabled("height")}
+             disabledLabel={getVitalDisabledLabel("height")}
            />
 
           {/* Auto BMI */}

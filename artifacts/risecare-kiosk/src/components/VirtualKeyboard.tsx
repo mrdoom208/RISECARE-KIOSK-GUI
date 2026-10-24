@@ -103,7 +103,6 @@ export function VirtualKeyboard() {
   const { setVisible } = useVirtualKeyboard();
   const [visible, setVisibleInternal] = useState(false);
   const [shift, setShift] = useState(false);
-  const [capsLock, setCapsLock] = useState(false);
   const [layout, setLayout] = useState<Layout>("qwerty");
   const elRef = useRef<HTMLElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -186,20 +185,6 @@ export function VirtualKeyboard() {
     };
   }, []);
 
-  useEffect(() => {
-    const updateCapsLock = (e: KeyboardEvent) => {
-      if (typeof e.getModifierState === "function") {
-        setCapsLock(e.getModifierState("CapsLock"));
-      }
-    };
-    window.addEventListener("keydown", updateCapsLock);
-    window.addEventListener("keyup", updateCapsLock);
-    return () => {
-      window.removeEventListener("keydown", updateCapsLock);
-      window.removeEventListener("keyup", updateCapsLock);
-    };
-  }, []);
-
   const handleChar = useCallback((char: string) => {
     const el = elRef.current;
     if (!isInputElement(el)) return;
@@ -272,7 +257,7 @@ export function VirtualKeyboard() {
         setLayout("qwerty");
         break;
       default:
-        handleChar(capsLock !== shift ? key.toUpperCase() : key);
+        handleChar(shift ? key.toUpperCase() : key);
         break;
     }
   };
@@ -331,11 +316,11 @@ export function VirtualKeyboard() {
           : label === "Space"
             ? "Space"
             : label === "Shift"
-              ? shift || capsLock
+              ? shift
                 ? "⇧"
                 : "⇪"
               : /^[a-z]$/.test(label)
-                ? capsLock !== shift
+                ? shift
                   ? label.toUpperCase()
                   : label
                 : label}

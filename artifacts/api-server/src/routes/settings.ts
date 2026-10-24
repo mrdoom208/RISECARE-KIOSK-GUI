@@ -8,9 +8,12 @@ import { logActivity } from "../activity-log";
 import { SyncError, getPortalBaseUrl, syncPending } from "../device";
 import path from "path";
 import fs from "fs";
+import { execFile } from "child_process";
+import { promisify } from "util";
 
 const BCRYPT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 12;
+const execFileAsync = promisify(execFile);
 
 function findWorkspaceRoot(): string {
   let currentDir = process.cwd();
@@ -478,6 +481,12 @@ router.get("/network-enabled", async (_req, res) => {
 router.post("/network-enabled", requireAuth, async (req, res) => {
   try {
     const { enabled } = req.body ?? {};
+    if (typeof enabled !== "boolean") {
+      res.status(400).json({ error: "enabled must be a boolean" });
+      return;
+    }
+    const wifiScript = path.resolve(findWorkspaceRoot(), "hardware", "wifi.py");
+    await execFileAsync("python3", [wifiScript, "radio", enabled ? "on" : "off"], { timeout: 20000 });
     const val = enabled ? "true" : "false";
     await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('network_enabled', ?)", [val]);
     await logActivity(

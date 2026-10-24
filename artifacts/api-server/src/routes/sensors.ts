@@ -1,8 +1,68 @@
 import { Router, type IRouter } from "express";
 import { query, run } from "@workspace/db";
 import { publish, subscribe, isConnected } from "../mqtt";
+import { existsSync, promises as fs } from "fs";
+import path from "path";
+
+function findWorkspaceRoot(): string {
+  let currentDir = process.cwd();
+  for (let i = 0; i < 10; i++) {
+    if (existsSync(path.resolve(currentDir, "pnpm-workspace.yaml"))) return currentDir;
+    const parent = path.resolve(currentDir, "..");
+    if (parent === currentDir) break;
+    currentDir = parent;
+  }
+  return process.cwd();
+}
+
+const SETTINGS_FILE = path.resolve(findWorkspaceRoot(), "hardware", "settings.json");
+const SENSOR_SETTING_IDS = ["bp", "heartrate", "spo2", "height", "weight", "temperature", "printer"] as const;
 
 const router: IRouter = Router();
+
+router.get("/sensors/settings", async (_req, res) => {
+  try {
+    const data = JSON.parse(await fs.readFile(SETTINGS_FILE, "utf8"));
+    res.json({ enabledSensors: data.enabled_sensors ?? null });
+  } catch (error: any) {
+    if (error.code === "ENOENT") {
+      res.json({ enabledSensors: null });
+      return;
+    }
+    res.status(500).json({ error: "Failed to read sensor settings" });
+  }
+});
+
+router.put("/sensors/settings", async (req, res) => {
+  const enabledSensors = req.body?.enabledSensors;
+  if (!enabledSensors || typeof enabledSensors !== "object" || Array.isArray(enabledSensors)) {
+    res.status(400).json({ error: "enabledSensors object required" });
+    return;
+  }
+  if (SENSOR_SETTING_IDS.some((id) => typeof enabledSensors[id] !== "boolean")) {
+    res.status(400).json({ error: "All sensor settings must be boolean values" });
+    return;
+  }
+
+  try {
+    let data: Record<string, any> = {};
+    try {
+      data = JSON.parse(await fs.readFile(SETTINGS_FILE, "utf8"));
+    } catch (error: any) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    data.enabled_sensors = Object.fromEntries(
+      SENSOR_SETTING_IDS.map((id) => [id, enabledSensors[id]]),
+    );
+    const temporaryFile = `${SETTINGS_FILE}.tmp`;
+    await fs.writeFile(temporaryFile, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+    await fs.rename(temporaryFile, SETTINGS_FILE);
+    res.json({ success: true, enabledSensors: data.enabled_sensors });
+  } catch (error) {
+    console.error("Failed to save sensor settings:", error);
+    res.status(500).json({ error: "Failed to save sensor settings" });
+  }
+});
 
 async function saveSensorValue(sessionId: number, column: string, value: number) {
   const existing = await query(

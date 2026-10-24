@@ -36,7 +36,7 @@ else:
 _hung_reset = None
 
 CALIBRATION_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "calibration.json"
+    os.path.dirname(os.path.abspath(__file__)), "settings.json"
 )
 # HX711 raw counts per kilogram. Weight calibration only needs to capture the
 # empty platform offset; the scale's per-kg factor is fixed for this hardware.

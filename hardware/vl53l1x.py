@@ -72,7 +72,7 @@ _init_lock = threading.RLock()
 _height_history = collections.deque(maxlen=HEIGHT_HISTORY)
 
 CALIBRATION_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "calibration.json"
+    os.path.dirname(os.path.abspath(__file__)), "settings.json"
 )
 
 

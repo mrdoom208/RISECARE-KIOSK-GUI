@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { ModalShell } from "@/components/ModalShell";
-import { disableMissingSensors } from "@/lib/sensor-availability";
+import { fetchSensorSettings, normalizeSensorSettings, persistSensorSettings } from "@/lib/sensor-settings";
 
 interface SensorsSettingsProps {
   isOpen: boolean;
@@ -47,9 +47,6 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const calTimestamps = useRef<Record<string, number>>({});
   const feedbackTimers = useRef<Record<string, NodeJS.Timeout>>({});
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Snapshot timestamp already handled, so the auto-disable effect (and its
-  // toast) fires once per availability update instead of twice.
-  const lastHandledAvailabilityRef = useRef<number | null>(null);
   const lastAction = useRef<Record<string, number>>({});
   const isRateLimited = (sensorId: string) => {
     const last = lastAction.current[sensorId];
@@ -65,14 +62,36 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("enabledSensors");
-    if (saved) setEnabledSensors(JSON.parse(saved));
+    let active = true;
+    const load = async () => {
+      let local = normalizeSensorSettings({});
+      try {
+        const saved = localStorage.getItem("enabledSensors");
+        if (saved) local = normalizeSensorSettings(JSON.parse(saved));
+      } catch { /* Use the persisted device settings. */ }
+      try {
+        const persisted = await fetchSensorSettings();
+        if (!active) return;
+        const next = persisted ?? local;
+        setEnabledSensors(next);
+        localStorage.setItem("enabledSensors", JSON.stringify(next));
+        if (!persisted) await persistSensorSettings(next);
+      } catch {
+        if (active) setEnabledSensors(local);
+      }
+    };
+    void load();
+    return () => { active = false; };
   }, []);
 
   const saveEnabledState = (state: Record<string, boolean>) => {
-    localStorage.setItem("enabledSensors", JSON.stringify(state));
-    setEnabledSensors(state);
+    const next = normalizeSensorSettings(state);
+    localStorage.setItem("enabledSensors", JSON.stringify(next));
+    setEnabledSensors(next);
     window.dispatchEvent(new Event("sensorStateChange"));
+    void persistSensorSettings(next).catch(() => {
+      toast({ title: "Settings not saved", description: "Could not save sensor settings to the device.", variant: "destructive" });
+    });
   };
 
   const {
@@ -92,36 +111,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     refetchInterval: isOpen ? (refreshing ? 1500 : 5000) : false,
   });
 
-  // Auto-disable any sensor the device reports as missing, so the kiosk never
-  // waits on absent hardware. Only acts on a fresh, connected snapshot.
-  useEffect(() => {
-    const updatedAt = sensorStatus?.sensorsUpdatedAt ?? null;
-    if (updatedAt === null || updatedAt === lastHandledAvailabilityRef.current) {
-      return;
-    }
-    lastHandledAvailabilityRef.current = updatedAt;
 
-    const { next, disabled } = disableMissingSensors(
-      enabledSensors,
-      sensorStatus?.sensors,
-      {
-        connected: sensorStatus?.connected === true,
-        stale: sensorStatus?.sensorsStale === true,
-      },
-    );
-
-    if (disabled.length === 0) return;
-
-    saveEnabledState(next);
-    const names = disabled
-      .map((id) => sensors.find((s) => s.id === id)?.name ?? id)
-      .join(", ");
-    toast({
-      title: "Sensor disabled",
-      description: `${names} not detected — turned off automatically.`,
-      variant: "destructive",
-    });
-  }, [sensorStatus, enabledSensors]);
 
   const { data: calibrationResults } = useQuery({
     queryKey: ["calibration-results"],
@@ -455,14 +445,13 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     saveEnabledState(newState);
   };
 
-  // When the last availability snapshot is too old, badges say "Status unknown"
-  // instead of claiming hardware is present or absent.
+  // Missing or stale availability responses mean the sensors were not detected.
   const availabilityStale = sensorStatus?.sensorsStale === true;
+  const availabilityUnavailableLabel = "Not detected";
 
   const printerStatus = sensorStatus?.sensors?.printer as
     | { connected?: boolean; paper?: boolean; paperStatus?: string }
     | undefined;
-
   const printTestMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/print/test", { method: "POST" });
@@ -537,6 +526,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                 const feedbackMessage = progressMessage ?? fb?.message;
                 const availabilityId = sensor.id === "heartrate" ? "max30102" : sensor.id;
                 const detected = sensorStatus?.sensors?.[availabilityId];
+                const sensorUnavailable = availabilityStale || detected === false;
                 const calibrationSaved =
                   (sensor.id === "height" || sensor.id === "weight") &&
                   calibrationResults?.[sensor.id]?.status === "ok" &&
@@ -563,7 +553,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           variant="outline"
                           className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground border-border/60"
                         >
-                          Status unknown
+                          {availabilityUnavailableLabel}
                         </Badge>
                       ) : detected === false ? (
                         <Badge variant="destructive" className="shrink-0 px-3 py-1.5 text-sm">
@@ -589,10 +579,12 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           if (isGloballyRateLimited("toggle-" + sensor.id)) return;
                           toggleSensor(sensor.id);
                         }}
-                        disabled={commandMutation.isPending || !sensorStatus?.connected || (!availabilityStale && detected === false)}
                         className="flex-1 min-w-0 text-left disabled:opacity-50"
                       >
                         <p className="text-base font-medium">Sensor enabled</p>
+                        {sensorUnavailable && enabledSensors[sensor.id] && (
+                          <p className="text-sm text-muted-foreground truncate">Will resume when the sensor is detected</p>
+                        )}
                         {calibrationSaved && (
                           <p className="text-sm text-muted-foreground truncate">
                             {sensor.id === "height"
@@ -607,7 +599,6 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           if (isGloballyRateLimited("toggle-" + sensor.id)) return;
                           toggleSensor(sensor.id, checked === true);
                         }}
-                        disabled={commandMutation.isPending || !sensorStatus?.connected || (!availabilityStale && detected === false)}
                         className="h-8 w-[52px] shrink-0 [&>span]:h-6! [&>span]:w-6! [&>span]:data-[state=checked]:translate-x-6! [&>span]:data-[state=unchecked]:translate-x-0!"
                       />
                     </div>
@@ -673,6 +664,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           disabled={
                             commandMutation.isPending ||
                             !sensorStatus?.connected ||
+                            sensorUnavailable ||
                             !enabledSensors[sensor.id] ||
                             fb?.status === "pending" ||
                             isRateLimited(sensor.id)
@@ -689,6 +681,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                         disabled={
                           commandMutation.isPending ||
                           !sensorStatus?.connected ||
+                          sensorUnavailable ||
                           !enabledSensors[sensor.id] ||
                           fb?.status === "pending" ||
                           isRateLimited(sensor.id)
@@ -722,7 +715,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                     variant="outline"
                     className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground border-border/60"
                   >
-                    Status unknown
+                    {availabilityUnavailableLabel}
                   </Badge>
                 ) : !printerStatus?.connected ? (
                   <Badge variant="destructive" className="shrink-0 px-3 py-1.5 text-sm">
@@ -765,10 +758,12 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                     if (isGloballyRateLimited("toggle-printer")) return;
                     toggleSensor("printer");
                   }}
-                  disabled={commandMutation.isPending || !printerStatus?.connected}
                   className="flex-1 min-w-0 text-left disabled:opacity-50"
                 >
                   <p className="text-base font-medium">Printer enabled</p>
+                  {(!printerStatus?.connected || !printerStatus?.paper || availabilityStale) && enabledSensors["printer"] && (
+                    <p className="text-sm text-muted-foreground truncate">Printing will resume when the printer and paper are detected</p>
+                  )}
                   {!enabledSensors["printer"] && (
                     <p className="text-sm text-muted-foreground truncate">Printing will be skipped</p>
                   )}
@@ -779,7 +774,6 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                     if (isGloballyRateLimited("toggle-printer")) return;
                     toggleSensor("printer", checked === true);
                   }}
-                  disabled={commandMutation.isPending || !printerStatus?.connected}
                   className="h-8 w-[52px] shrink-0 [&>span]:h-6! [&>span]:w-6! [&>span]:data-[state=checked]:translate-x-6! [&>span]:data-[state=unchecked]:translate-x-0!"
                 />
               </div>
@@ -820,6 +814,8 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                   onClick={() => { if (isGloballyRateLimited("print-test")) return; printTestMutation.mutate(); }}
                   disabled={
                     printTestMutation.isPending ||
+                    !sensorStatus?.connected ||
+                    availabilityStale ||
                     !printerStatus?.connected ||
                     !printerStatus?.paper ||
                     !enabledSensors["printer"]

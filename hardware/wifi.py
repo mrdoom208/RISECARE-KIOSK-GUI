@@ -5,6 +5,7 @@ Usage:
   python3 wifi.py scan
   python3 wifi.py connect <ssid> [password]
   python3 wifi.py disconnect
+  python3 wifi.py radio on|off
   python3 wifi.py lan
 
 Prints a single JSON document to stdout. On failure the document contains
@@ -256,6 +257,14 @@ def cmd_disconnect():
     return {"success": True, "message": out.strip() or "Disconnected"}
 
 
+def cmd_radio(enabled):
+    """Enable or disable the Wi-Fi radio through NetworkManager."""
+    code, out = _run(["nmcli", "radio", "wifi", "on" if enabled else "off"], timeout=15)
+    if code != 0:
+        raise NMCliError(out or "Failed to update Wi-Fi radio")
+    return {"success": True, "enabled": enabled, "message": out.strip() or ("Wi-Fi enabled" if enabled else "Wi-Fi disabled")}
+
+
 def main():
     command = sys.argv[1] if len(sys.argv) > 1 else "status"
     try:
@@ -267,6 +276,10 @@ def main():
             result = cmd_connect(sys.argv[2:])
         elif command == "disconnect":
             result = cmd_disconnect()
+        elif command == "radio":
+            if len(sys.argv) < 3 or sys.argv[2] not in ("on", "off"):
+                raise NMCliError("radio requires on or off")
+            result = cmd_radio(sys.argv[2] == "on")
         elif command == "lan":
             result = cmd_lan()
         else:

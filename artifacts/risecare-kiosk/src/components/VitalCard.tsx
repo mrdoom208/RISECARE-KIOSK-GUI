@@ -17,6 +17,7 @@ interface VitalCardProps {
   onClick: () => void;
   isDouble?: boolean;
   disabled?: boolean;
+  disabledLabel?: string;
 }
 
 export function VitalCard({
@@ -34,6 +35,7 @@ export function VitalCard({
   onClick,
   isDouble,
   disabled = false,
+  disabledLabel = "Disabled",
 }: VitalCardProps) {
   const hasValue = value !== undefined && value !== null && value !== "";
 
@@ -76,7 +78,7 @@ export function VitalCard({
          {disabled && (
            <div className="flex items-center gap-1.5 text-base text-muted-foreground/60 py-1">
              <Lock className="w-4 h-4" />
-             <span>Disabled</span>
+             <span>{disabledLabel}</span>
            </div>
          )}
       </div>
