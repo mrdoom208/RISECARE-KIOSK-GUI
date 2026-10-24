@@ -183,6 +183,7 @@ export default function Dashboard() {
 
   const mqttConnected = sensorStatus?.connected ?? false;
   const max30102Available = sensorStatus?.sensors?.max30102;
+  const bpAvailable = sensorStatus?.sensors?.bp;
   const availabilityStale = sensorStatus?.sensorsStale === true;
 
   const isVitalDisabled = (vital: VitalType) => {
@@ -190,7 +191,8 @@ export default function Dashboard() {
     // A stale snapshot can't tell us the chip is missing, so don't lock the
     // operator out of HR/SpO2 based on old data.
     const max30102Missing = !availabilityStale && max30102Available === false;
-    return !mqttConnected || !isVitalEnabled(vital) || (usesMax30102 && max30102Missing);
+    const bpMissing = vital === "bp" && !availabilityStale && bpAvailable === false;
+    return !mqttConnected || !isVitalEnabled(vital) || (usesMax30102 && max30102Missing) || bpMissing;
   };
 
   // Auto-disable sensors the device reports as missing so the kiosk never
@@ -395,6 +397,9 @@ export default function Dashboard() {
   }, [readingVital, stableCount, requiredStableCount, confirmedReading, livePulseRate, liveOxygenSaturation, currentVitals]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
+  const heightInches = currentVitals.height != null
+    ? Math.round(currentVitals.height / 2.54)
+    : null;
 
   const handleSaveVital = (val1: string, val2?: string) => {
     if (!activeKeypad) return;
@@ -758,6 +763,9 @@ const handleCancelReading = async () => {
            <VitalCard
              title="Height"
              value={currentVitals.height}
+             detail={heightInches != null
+               ? `${Math.floor(heightInches / 12)} ft ${heightInches % 12} in`
+               : undefined}
              unit="cm"
              icon={<Ruler className="w-7 h-7" />}
              status="unknown"

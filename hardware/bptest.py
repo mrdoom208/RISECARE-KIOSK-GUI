@@ -164,6 +164,13 @@ class TM7711:
             value -= 0x1000000
         return value
 
+    def probe(self):
+        """Return whether the ADC has produced a ready conversion."""
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+        GPIO.setup(OUT_PIN, GPIO.IN)
+        return self.wait_ready()
+
 
 class PressureSpikeFilter:
     """Reject isolated jumps without fighting steady inflation/deflation."""

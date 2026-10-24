@@ -42,6 +42,7 @@ weight_last_read = 0.0
 temp_last_read = 0.0
 measure_busy = False
 _last_printer_status = {"connected": False, "paper": False, "paperStatus": "unknown"}
+_bp_sensor_available = False
 _probe_thread = None
 _probe_busy = False
 _height_thread = None
@@ -166,16 +167,23 @@ def _probe_i2c():
 
 def _probe_slow():
     """Printer USB scan plus the blocking I2C probes (VL53L1X, HX711)."""
-    global _last_printer_status
+    global _last_printer_status, _bp_sensor_available
     _last_printer_status = printer.printer_status()
     if not measure_busy:
         vl53l1x.sensor_available = vl53l1x.probe()
         loadcell.sensor_available = loadcell.probe()
+        try:
+            from bptest import TM7711
+            _bp_sensor_available = TM7711().probe()
+        except Exception as e:
+            _bp_sensor_available = False
+            print(f"BP sensor probe failed: {e}")
 
 
 def _availability_snapshot():
     return {
         "max30102": hr_sensor is not None and hr_sensor.handle is not None,
+        "bp": _bp_sensor_available,
         "height": vl53l1x.sensor_available,
         "weight": loadcell.sensor_available,
         "temperature": temp_sensor is not None and temp_sensor.handle is not None,
@@ -378,10 +386,15 @@ def handle_command(sensor, session_id, value, payload):
                     "timestamp": time.time()
                 })
             elif sensor == "weight":
-                known_weight = payload.get("knownWeightGrams", 1000)
                 tare_ok = loadcell.calibrate_tare()
                 if tare_ok is not None:
-                    publish_calibration_progress("weight", f"Tare done. Place {known_weight}g weight and click Done.")
+                    factor = loadcell.calibrate_finalize()
+                    mqtt_client.publish("risecare/calibration/weight", {
+                        "status": "ok" if factor is not None else "failed",
+                        "factor": factor,
+                        "sessionId": current_session_id,
+                        "timestamp": time.time()
+                    })
                 else:
                     mqtt_client.publish("risecare/calibration/weight", {
                         "status": "failed",
@@ -401,12 +414,10 @@ def handle_command(sensor, session_id, value, payload):
         if sensor == "weight":
             measure_busy = True
             try:
-                known_weight = payload.get("knownWeightGrams", 1000)
-                factor = loadcell.calibrate_finalize(known_weight_grams=known_weight)
+                factor = loadcell.calibrate_finalize()
                 mqtt_client.publish("risecare/calibration/weight", {
                     "status": "ok" if factor is not None else "failed",
                     "factor": factor,
-                    "knownWeightGrams": known_weight,
                     "sessionId": current_session_id,
                     "timestamp": time.time()
                 })

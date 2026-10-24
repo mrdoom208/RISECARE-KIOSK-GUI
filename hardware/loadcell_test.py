@@ -5,8 +5,7 @@ Usage:
     python3 loadcell_test.py                         stream raw ADC readings
     python3 loadcell_test.py --weight                stream calibrated weight
     python3 loadcell_test.py --stable-weight         stream filtered weight
-    python3 loadcell_test.py --calibrate              tare, then calibrate with 1 kg
-    python3 loadcell_test.py --calibrate --known-weight-grams 500
+    python3 loadcell_test.py --calibrate              tare and apply the fixed 26700 counts/kg factor
 """
 
 import argparse
@@ -25,9 +24,7 @@ def main():
     mode.add_argument("--raw", action="store_true", help="stream raw ADC counts (default)")
     mode.add_argument("--weight", action="store_true", help="stream calibrated weight in kg")
     mode.add_argument("--stable-weight", action="store_true", help="stream noise-filtered weight in kg")
-    mode.add_argument("--calibrate", action="store_true", help="tare empty scale and calibrate with a known mass")
-    parser.add_argument("--known-weight-grams", type=float, default=1000,
-                        help="calibration mass in grams (default: 1000)")
+    mode.add_argument("--calibrate", action="store_true", help="tare the empty scale and apply the fixed factor")
     args = parser.parse_args()
 
     try:
@@ -36,16 +33,11 @@ def main():
             return 1
 
         if args.calibrate:
-            if args.known_weight_grams <= 0:
-                print("Known weight must be greater than zero grams")
-                return 2
             print("Remove all weight from the scale.")
             input("Press Enter to tare the empty scale...")
             if loadcell.calibrate_tare() is None:
                 return 1
-            print(f"Place the {args.known_weight_grams:g} g calibration weight on the scale.")
-            input("Press Enter when the weight is settled...")
-            factor = loadcell.calibrate_finalize(args.known_weight_grams)
+            factor = loadcell.calibrate_finalize()
             return 0 if factor is not None else 1
 
         if args.weight and loadcell.calibration_factor is None:

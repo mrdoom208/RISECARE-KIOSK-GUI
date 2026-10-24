@@ -3,6 +3,7 @@
 const SENSOR_AVAILABILITY_ID: Record<string, string> = {
   heartrate: "max30102",
   spo2: "max30102",
+  bp: "bp",
   height: "height",
   weight: "weight",
   temperature: "temperature",

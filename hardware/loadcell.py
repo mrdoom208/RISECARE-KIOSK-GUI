@@ -38,6 +38,9 @@ _hung_reset = None
 CALIBRATION_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "calibration.json"
 )
+# HX711 raw counts per kilogram. Weight calibration only needs to capture the
+# empty platform offset; the scale's per-kg factor is fixed for this hardware.
+CALIBRATION_FACTOR_PER_KG = 26700
 calibration_factor = None
 empty_offset = None
 
@@ -107,6 +110,7 @@ def load_calibration():
             calibration_factor = loadcell_data.get("calibration_factor")
             empty_offset = loadcell_data.get("empty_offset")
         if calibration_factor:
+            calibration_factor = CALIBRATION_FACTOR_PER_KG
             print(f" Loaded LoadCell Calibration: factor={calibration_factor}, offset={empty_offset}")
         else:
             print(" No loadcell calibration found. Please calibrate.")
@@ -170,28 +174,14 @@ def _stable_raw(samples=10):
     return sum(clean) / len(clean)
 
 
-def calibrate_finalize(known_weight_grams=1000):
+def calibrate_finalize():
     global calibration_factor, empty_offset
 
     if not sensor_available or empty_offset is None:
         print("Calibration not started or sensor unavailable")
         return None
 
-    known_weight_kg = known_weight_grams / 1000
-
-    print("Taking 10 readings...")
-    stable = _stable_raw(10)
-    if stable is None:
-        print("Calibration failed: could not get stable readings")
-        return None
-    print(f"Stable value (noise-filtered average): {stable:.0f}")
-
-    difference = stable - empty_offset
-    if difference <= 0:
-        print("Calibration failed: loaded reading must be higher than empty reading")
-        return None
-
-    calibration_factor = difference / known_weight_kg
+    calibration_factor = CALIBRATION_FACTOR_PER_KG
 
     if os.path.exists(CALIBRATION_FILE):
         with open(CALIBRATION_FILE, "r") as f:
@@ -207,7 +197,7 @@ def calibrate_finalize(known_weight_grams=1000):
     with open(CALIBRATION_FILE, "w") as f:
         json.dump(data, f)
 
-    print(f"Saved weight calibration: factor={calibration_factor:.2f}, offset={empty_offset}")
+    print(f"Saved weight calibration: factor={calibration_factor}, offset={empty_offset}")
     return calibration_factor
 
 

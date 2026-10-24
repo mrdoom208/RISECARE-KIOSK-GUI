@@ -160,16 +160,14 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     mutationFn: async ({
       sensor,
       value,
-      knownWeightGrams,
     }: {
       sensor: string;
       value: number;
-      knownWeightGrams?: number;
     }) => {
       const res = await fetch("/api/sensors/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, sensor, value, knownWeightGrams }),
+        body: JSON.stringify({ sessionId, sensor, value }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -330,7 +328,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
           const isHeight = sensorId === "height";
           const value = isHeight
             ? `${Number(result.totalHeight).toFixed(2)} cm`
-            : `factor=${Number(result.factor).toFixed(2)}`;
+            : `${Number(result.factor).toFixed(0)} counts/kg`;
           const message = isHeight
             ? `Saved height calibration ${value}`
             : `Saved weight calibration ${value}`;
@@ -401,12 +399,11 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     setSensorFeedback(sensorId, {
       type: "calibrate",
       status: "pending",
-      message: isWeight ? "Clearing scale..." : "Measuring height...",
+      message: isWeight ? "Zeroing scale. Leave the platform empty..." : "Measuring height...",
     });
     commandMutation.mutate({
       sensor: sensorId,
       value: 2,
-      knownWeightGrams: isWeight ? 1000 : undefined,
     });
   };
 
@@ -418,14 +415,8 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     commandMutation.mutate({
       sensor: sensorId,
       value: 12,
-      knownWeightGrams: sensorId === "weight" ? 1000 : undefined,
     });
   };
-
-  const isWaitingForWeight =
-    feedback["weight"]?.type === "calibrate" &&
-    feedback["weight"]?.status === "pending" &&
-    calibrationProgress?.weight?.message?.startsWith("Tare done");
 
   const isWaitingForHeight =
     feedback["height"]?.type === "calibrate" &&
@@ -606,7 +597,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           <p className="text-sm text-muted-foreground truncate">
                             {sensor.id === "height"
                               ? `Calibrated ${calibrationResults.height.totalHeight?.toFixed(1)} cm`
-                              : `Calibrated · factor ${calibrationResults.weight.factor?.toFixed(2)}`}
+                              : `Calibrated · ${calibrationResults.weight.factor?.toFixed(0)} counts/kg`}
                           </p>
                         )}
                       </button>
@@ -661,16 +652,6 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                             )}
                           </div>
                         </div>
-                        {sensor.id === "weight" && isWaitingForWeight && (
-                          <Button
-                            onClick={() => handleFinalizeCalibrate("weight")}
-                            disabled={commandMutation.isPending || doneCooldown["weight"]}
-                            className="mt-3 w-full h-12 text-base"
-                            size="lg"
-                          >
-                            Done — weight placed
-                          </Button>
-                        )}
                         {sensor.id === "height" && isWaitingForHeight && (
                           <Button
                             onClick={() => handleFinalizeCalibrate("height")}
