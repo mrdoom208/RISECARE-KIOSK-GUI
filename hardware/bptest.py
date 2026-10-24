@@ -45,8 +45,8 @@ INFLATION_STOP_RATIO = 0.50
 # Stop this far above the live peak-amplitude pressure. The ratio is used as
 # a diagnostic; the pulse tail can be too small to detect, so the margin is
 # the primary dynamic stop.
-INFLATION_PEAK_MARGIN = 80.0
-INFLATION_MIN_STOP_PRESSURE = 100.0
+INFLATION_PEAK_MARGIN = 100.0
+INFLATION_MIN_STOP_PRESSURE = 150.0
 INFLATION_TRACK_MIN_PRESSURE = 50.0
 INFLATION_MIN_BEATS = 2
 # The baseline EMA needs a moment to settle after the pump starts. Beats during
