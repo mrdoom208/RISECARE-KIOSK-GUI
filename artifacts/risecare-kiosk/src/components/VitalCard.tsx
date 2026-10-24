@@ -7,6 +7,9 @@ interface VitalCardProps {
   value?: string | number | null;
   secondaryValue?: string | number | null; // For Diastolic
   doubleValueLabels?: [string, string];
+  asideValue?: string | number | null;
+  asideLabel?: string;
+  asideUnit?: string;
   detail?: string;
   unit: string;
   icon: ReactNode;
@@ -21,6 +24,9 @@ export function VitalCard({
   value,
   secondaryValue,
   doubleValueLabels,
+  asideValue,
+  asideLabel,
+  asideUnit,
   detail,
   unit,
   icon,
@@ -75,25 +81,52 @@ export function VitalCard({
          )}
       </div>
 
-      <div className="mt-3 flex items-baseline justify-between">
+      <div className={`mt-3 flex ${asideLabel ? "items-stretch justify-start gap-4" : "items-baseline justify-between"}`}>
         {hasValue ? (
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-4xl font-display font-bold text-foreground tracking-tight">
-              {value}
-            </span>
-            {isDouble && secondaryValue && (
-              <>
-                <span className="text-3xl text-muted-foreground font-light">
-                  /
-                </span>
+          <div className="flex items-center gap-1.5">
+            <div className="flex flex-col">
+              <div className="flex items-baseline gap-1.5">
                 <span className="text-4xl font-display font-bold text-foreground tracking-tight">
-                  {secondaryValue}
+                  {value}
                 </span>
+                {isDouble && secondaryValue != null && (
+                  <>
+                    <span className="text-3xl text-muted-foreground font-light">/</span>
+                    <span className="text-4xl font-display font-bold text-foreground tracking-tight">
+                      {secondaryValue}
+                    </span>
+                  </>
+                )}
+                <span className="text-2xl font-medium text-muted-foreground ml-1">
+                  {unit}
+                </span>
+              </div>
+              {isDouble && doubleValueLabels && secondaryValue != null && (
+                <div className="mt-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>{doubleValueLabels[0]}</span>
+                  <span aria-hidden="true">/</span>
+                  <span>{doubleValueLabels[1]}</span>
+                </div>
+              )}
+            </div>
+            {asideLabel && (
+              <>
+                <span aria-hidden="true" className="mx-1 self-stretch border-l border-border" />
+                <div className="flex flex-col justify-center">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-display font-bold text-foreground tracking-tight">
+                      {asideValue ?? "—"}
+                    </span>
+                    {asideUnit && (
+                      <span className="text-lg font-medium text-muted-foreground">{asideUnit}</span>
+                    )}
+                  </div>
+                  <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {asideLabel}
+                  </span>
+                </div>
               </>
             )}
-            <span className="text-2xl font-medium text-muted-foreground ml-1">
-              {unit}
-            </span>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-2xl font-medium text-muted-foreground/60 py-1">
@@ -102,14 +135,6 @@ export function VitalCard({
           </div>
         )}
       </div>
-
-      {hasValue && isDouble && doubleValueLabels && secondaryValue != null && (
-        <div className="mt-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <span>{doubleValueLabels[0]}</span>
-          <span aria-hidden="true">/</span>
-          <span>{doubleValueLabels[1]}</span>
-        </div>
-      )}
 
       {detail && <p className="mt-2 text-sm text-muted-foreground">{detail}</p>}
 

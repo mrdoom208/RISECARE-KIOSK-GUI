@@ -102,6 +102,9 @@ export default function Results() {
   }, [session]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
+  const heightCmRoundedUp = currentVitals.height != null
+    ? Math.ceil(currentVitals.height)
+    : null;
 
   // Create results list (MUST be before conditional returns)
   const resultsList = [
@@ -166,7 +169,7 @@ export default function Results() {
     },
     {
       name: "Height",
-      val: currentVitals.height,
+      val: heightCmRoundedUp,
       unit: "cm",
       status: "unknown" as VitalStatus,
       msg: "Recorded value; no standalone screening category is assigned.",

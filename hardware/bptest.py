@@ -85,7 +85,7 @@ PRESSURE_SPIKE_LIMIT = 4.0
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.02   # was 0.002; must exceed noise to confirm peak
+PEAK_DROP_THRESHOLD = 0.04   # was 0.002; must exceed noise to confirm peak
 
 # Filtering.
 BASELINE_ALPHA = 0.01

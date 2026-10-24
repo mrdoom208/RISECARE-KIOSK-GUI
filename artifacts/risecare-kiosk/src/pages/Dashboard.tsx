@@ -398,8 +398,11 @@ export default function Dashboard() {
   }, [readingVital, stableCount, requiredStableCount, confirmedReading, livePulseRate, liveOxygenSaturation, currentVitals]);
 
   const autoBMI = calculateBMI(currentVitals.weight, currentVitals.height);
-  const heightInches = currentVitals.height != null
-    ? Math.round(currentVitals.height / 2.54)
+  const heightCmRoundedUp = currentVitals.height != null
+    ? Math.ceil(currentVitals.height)
+    : null;
+  const heightFeet = heightCmRoundedUp != null
+    ? heightCmRoundedUp / 30.48
     : null;
 
   const handleSaveVital = (val1: string, val2?: string) => {
@@ -586,7 +589,7 @@ const handleCancelReading = async () => {
         const value = getLiveReadingValue("height") ?? currentVitals.height;
         return {
           title: "Height",
-          value: value != null ? Number(value).toFixed(1) : "Reading...",
+          value: value != null ? Math.ceil(Number(value)).toString() : "Reading...",
           unit: "cm",
           hasValue: value != null,
         };
@@ -639,10 +642,12 @@ const handleCancelReading = async () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 portrait:grid-cols-1 gap-3 mb-4">
           {/* Blood Pressure */}
           <VitalCard
-            title="Blood Pressure"
+            title="Blood Pressure & Pulse"
             value={currentVitals.bloodPressureSystolic}
             secondaryValue={currentVitals.bloodPressureDiastolic}
-            detail={`Pulse: ${currentVitals.bloodPressurePulse ?? "—"} bpm`}
+            asideValue={currentVitals.bloodPressurePulse}
+            asideLabel="Pulse"
+            asideUnit="bpm"
             unit="mmHg"
             icon={<Heart className="w-7 h-7" />}
             status={getBPStatus(
@@ -761,10 +766,9 @@ const handleCancelReading = async () => {
            {/* Height */}
            <VitalCard
              title="Height"
-             value={currentVitals.height}
-             detail={heightInches != null
-               ? `${Math.floor(heightInches / 12)} ft ${heightInches % 12} in`
-               : undefined}
+             value={heightCmRoundedUp}
+             asideValue={heightFeet != null ? heightFeet.toFixed(2) : null}
+             asideLabel="ft"
              unit="cm"
              icon={<Ruler className="w-7 h-7" />}
              status="unknown"
@@ -939,6 +943,16 @@ const handleCancelReading = async () => {
                       </p>
                     </div>
                   )}
+                  <div className="mb-5 space-y-2" aria-live="polite">
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>{readingConfirmed ? "Reading stable" : fingerPresent ? "Stabilizing HR and SpO₂" : "Waiting for finger"}</span>
+                      <span>{stableCount}/{requiredStableCount}</span>
+                    </div>
+                    <Progress
+                      value={(stableCount / requiredStableCount) * 100}
+                      aria-label="Heart rate and oxygen saturation reading progress"
+                    />
+                  </div>
                 </>
               ) : (
                 <>
