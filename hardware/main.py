@@ -1,3 +1,4 @@
+import os
 import subprocess
 import threading
 import vl53l1x
@@ -191,6 +192,19 @@ def _availability_snapshot():
     }
 
 
+def _prioritize_bp_thread():
+    """Give BP acquisition the highest real-time userspace scheduling class."""
+    try:
+        policy = os.SCHED_RR
+        priority = os.sched_get_priority_max(policy)
+        os.sched_setscheduler(0, policy, os.sched_param(priority))
+        print(f"BP measurement using SCHED_RR priority {priority}")
+    except (AttributeError, OSError) as e:
+        # Keep BP usable on hosts that do not grant CAP_SYS_NICE; Linux's
+        # kernel and interrupt handling always retain control of the machine.
+        print(f"BP real-time priority unavailable; using default scheduling: {e}")
+
+
 def advertise_sensors():
     """Publish a fast snapshot now, then re-publish once the slow probes land."""
     mqtt_client.publish("risecare/sensors/availability", _availability_snapshot())
@@ -306,6 +320,7 @@ def handle_command(sensor, session_id, value, payload):
                 result = None
                 error = None
                 try:
+                    _prioritize_bp_thread()
                     from bptest import BloodPressureTest
                     result = BloodPressureTest().run(
                         progress_callback=lambda stage, percent, pressure: mqtt_client.publish(
