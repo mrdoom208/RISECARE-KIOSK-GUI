@@ -64,6 +64,7 @@ DEFLATION_END_BEATS = 2
 DEFLATION_TAIL_MIN_DROP = 20.0
 DEFLATION_FALLBACK_MARGIN = 40.0
 SETTLE_SECONDS = 0.3
+SETTLE_MAX_PRESSURE_DROP = 15.0
 
 # Experimental oscillometric ratios (from the Arduino prototype).
 # NOTE: Fixed ratios are approximations; calibrate against reference measurements.
@@ -73,7 +74,7 @@ DIA_RATIO = 0.80
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
-MIN_PULSE_AMPLITUDE = 0.04     # Minimum accepted pulse amplitude in mmHg; tune within 0.5-1.0
+MIN_PULSE_AMPLITUDE = 0.5      # Minimum accepted pulse amplitude in mmHg.
 AMP_FILTER_WINDOW = 3
 AMP_OUTLIER_HIGH = 4          # reject isolated beats above 4x recent median
 AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
@@ -85,7 +86,7 @@ PRESSURE_SPIKE_LIMIT = 4.0
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.04   # was 0.002; must exceed noise to confirm peak
+PEAK_DROP_THRESHOLD = 0.05
 
 # Filtering.
 BASELINE_ALPHA = 0.01
@@ -1111,6 +1112,17 @@ class BloodPressureTest:
                 if (not self.pump_running and not self.measuring
                         and self.settle_started is not None
                         and time.monotonic() - self.settle_started >= SETTLE_SECONDS):
+                    if (self.pump_off_pressure is not None
+                            and self.pump_off_pressure - pressure
+                            > SETTLE_MAX_PRESSURE_DROP):
+                        self.failure_reason = (
+                            "Cuff pressure dropped unexpectedly after inflation "
+                            f"({self.pump_off_pressure:.1f} to {pressure:.1f} mmHg); "
+                            "check Pi power, pressure sensor wiring, and cuff tubing"
+                        )
+                        print(f"ERROR: {self.failure_reason}", flush=True)
+                        break
+
                     self.pressure_filter.reset(pressure)
                     self.measuring = True
                     self.measurement_start_pressure = pressure
