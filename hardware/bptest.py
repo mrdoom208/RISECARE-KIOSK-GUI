@@ -486,6 +486,7 @@ class OscillometricAnalyzer:
 
         self.current_pressure = 0.0
         self.deflation_end_reason = ""
+        self.valid_envelope_result = None
         self.invalid_reason = None
 
     @property
@@ -797,6 +798,16 @@ class OscillometricAnalyzer:
         if (systolic > envelope_map_pressure > diastolic
                 and 10.0 <= pulse_pressure <= 150.0
                 and self.heart_rate_bpm > 0.0):
+            # Freeze the exact envelope and crossings that justified ending
+            # deflation. calculate_bp() consumes this snapshot so its final
+            # DIA cannot diverge from the successful stop check.
+            self.valid_envelope_result = (
+                envelope_pressures,
+                envelope_amplitudes,
+                envelope_map_pressure,
+                systolic,
+                diastolic,
+            )
             self.deflation_end_reason = "valid envelope crossings"
             return True
 
@@ -842,11 +853,19 @@ class OscillometricAnalyzer:
         # Use the same pressure-ordered, smoothed envelope as the early-stop
         # check. Keep the raw beat records intact so this calculation cannot
         # accidentally smooth the envelope a second time on a later call.
-        envelope_pressures, envelope_amplitudes = self.filtered_envelope_points()
-        map_index = max(range(len(envelope_amplitudes)),
-                        key=envelope_amplitudes.__getitem__)
-        self.max_amplitude = envelope_amplitudes[map_index]
-        self.map_pressure = envelope_pressures[map_index]
+        if self.valid_envelope_result is not None:
+            (envelope_pressures, envelope_amplitudes, self.map_pressure,
+             self.SYS, self.DIA) = self.valid_envelope_result
+            map_index = max(range(len(envelope_amplitudes)),
+                            key=envelope_amplitudes.__getitem__)
+            self.max_amplitude = envelope_amplitudes[map_index]
+            print("USING VALIDATED ENVELOPE SNAPSHOT")
+        else:
+            envelope_pressures, envelope_amplitudes = self.filtered_envelope_points()
+            map_index = max(range(len(envelope_amplitudes)),
+                            key=envelope_amplitudes.__getitem__)
+            self.max_amplitude = envelope_amplitudes[map_index]
+            self.map_pressure = envelope_pressures[map_index]
         self.map_amplitude = self.max_amplitude
 
         self.MAP = self.map_pressure
@@ -868,14 +887,15 @@ class OscillometricAnalyzer:
         sys_target = self.max_amplitude * SYS_RATIO
         dia_target = self.max_amplitude * DIA_RATIO
 
-        self.SYS = self.find_envelope_crossing(
-            envelope_pressures, envelope_amplitudes, self.map_pressure,
-            sys_target, systolic_side=True,
-        )
-        self.DIA = self.find_envelope_crossing(
-            envelope_pressures, envelope_amplitudes, self.map_pressure,
-            dia_target, systolic_side=False,
-        )
+        if self.valid_envelope_result is None:
+            self.SYS = self.find_envelope_crossing(
+                envelope_pressures, envelope_amplitudes, self.map_pressure,
+                sys_target, systolic_side=True,
+            )
+            self.DIA = self.find_envelope_crossing(
+                envelope_pressures, envelope_amplitudes, self.map_pressure,
+                dia_target, systolic_side=False,
+            )
 
         print(f"SYS TARGET: {sys_target:.3f}")
         print(f"DIA TARGET: {dia_target:.3f}")
