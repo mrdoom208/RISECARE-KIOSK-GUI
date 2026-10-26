@@ -591,7 +591,10 @@ class OscillometricAnalyzer:
         if self.peak_count >= MAX_PEAKS:
             return
 
-        if not self.pulse_is_valid(amplitude, cuff_pressure):
+        # Envelope crossings must use the same gated amplitude that updates
+        # MAP. Storing the raw beat here lets rejected/noisy variation leak
+        # into SYS/DIA even though the beat passed the stability gate.
+        if not self.pulse_is_valid(stable_amplitude, cuff_pressure):
             return
 
         # Require pressure separation between records.
@@ -601,7 +604,7 @@ class OscillometricAnalyzer:
             return
 
         self.peak_pressures.append(cuff_pressure)
-        self.peak_amplitudes.append(amplitude)
+        self.peak_amplitudes.append(stable_amplitude)
 
         if stable_amplitude > self.max_amplitude:
             self.max_amplitude = stable_amplitude

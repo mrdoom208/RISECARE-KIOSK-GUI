@@ -54,8 +54,28 @@ _probe_busy = False
 _height_thread = None
 _height_stop = threading.Event()
 _height_lock = threading.Lock()
+_height_io_lock = threading.Lock()
 _height_value = None
 _height_at = 0.0
+
+
+def _reserve_sensor_operation():
+    """Atomically reserve the hardware for one test/calibration/BP operation."""
+    global measure_busy
+    with _sensor_probe_lock:
+        if measure_busy:
+            return False
+        measure_busy = True
+    # Drain any ToF read that began before this operation reserved the sensors.
+    with _height_io_lock:
+        pass
+    return True
+
+
+def _release_sensor_operation():
+    global measure_busy
+    with _sensor_probe_lock:
+        measure_busy = False
 
 
 def _reset_hr_sample_progress():
@@ -118,7 +138,12 @@ def _start_height_worker():
                 _height_stop.wait(0.1)
                 continue
             try:
-                value = vl53l1x.get_height()
+                with _height_io_lock:
+                    # The owner may have reserved sensors after our first
+                    # check but before this worker acquired the I/O lock.
+                    if measure_busy or _height_stop.is_set():
+                        continue
+                    value = vl53l1x.get_height()
                 last_error = None
             except Exception as e:
                 error_message = f"{type(e).__name__}: {e}"
@@ -322,8 +347,12 @@ def handle_command(sensor, session_id, value, payload):
         return
 
     if sensor == "status":
+        if not _reserve_sensor_operation():
+            print("Status probe skipped while a sensor operation is active")
+            return
         print("Status requested — re-probing sensors...")
         _probe_i2c()
+        _release_sensor_operation()
         advertise_sensors()
         return
 
@@ -344,13 +373,9 @@ def handle_command(sensor, session_id, value, payload):
         if sensor in ("heartrate", "spo2"):
             _reset_hr_sample_progress()
         if sensor == "bp":
-            with _sensor_probe_lock:
-                already_busy = measure_busy
-                if not already_busy:
-                    # Reserve the sensor before starting the worker so the
-                    # availability probe cannot touch GPIO during BP setup.
-                    measure_busy = True
-            if already_busy:
+            # Reserve the sensor before starting the worker so another
+            # one-off operation or availability probe cannot overlap it.
+            if not _reserve_sensor_operation():
                 mqtt_client.publish("risecare/sensors/bp", {
                     "status": "failed", "error": "Another sensor operation is in progress",
                     "sessionId": current_session_id, "timestamp": time.time()
@@ -381,8 +406,7 @@ def handle_command(sensor, session_id, value, payload):
                     error = f"{type(exc).__name__}: {exc}"
                     print(f"BP measurement failed: {error}")
                 finally:
-                    with _sensor_probe_lock:
-                        measure_busy = False
+                    _release_sensor_operation()
                 message = {
                     "status": "success" if result else "failed",
                     "sessionId": bp_session_id,
@@ -426,15 +450,15 @@ def handle_command(sensor, session_id, value, payload):
         if sensor not in ("height", "weight"):
             print(f"Unknown sensor for calibration: {sensor}")
             return
-        if measure_busy:
+        if not _reserve_sensor_operation():
             mqtt_client.publish(f"risecare/calibration/{sensor}", {
-                "status": "failed", "sessionId": current_session_id,
+                "status": "failed", "error": "Another sensor operation is in progress",
+                "sessionId": current_session_id,
                 "timestamp": time.time()
             })
             return
         stop_event = threading.Event()
         _calibration_stop_events[sensor] = stop_event
-        measure_busy = True
 
         def _run_calibration(calibration_sensor, calibration_session_id, calibration_stop_event):
             global measure_busy, mode, running
@@ -480,7 +504,7 @@ def handle_command(sensor, session_id, value, payload):
                     mqtt_client.publish(f"risecare/calibration/{calibration_sensor}", message)
                 if _calibration_stop_events.get(calibration_sensor) is calibration_stop_event:
                     del _calibration_stop_events[calibration_sensor]
-                measure_busy = False
+                _release_sensor_operation()
                 mode = 1
                 running = True
 
@@ -493,7 +517,14 @@ def handle_command(sensor, session_id, value, payload):
 
     elif value == 12:
         if sensor == "weight":
-            measure_busy = True
+            if not _reserve_sensor_operation():
+                mqtt_client.publish("risecare/calibration/weight", {
+                    "status": "failed",
+                    "error": "Another sensor operation is in progress",
+                    "sessionId": current_session_id,
+                    "timestamp": time.time()
+                })
+                return
             try:
                 factor = loadcell.calibrate_finalize()
                 mqtt_client.publish("risecare/calibration/weight", {
@@ -504,7 +535,7 @@ def handle_command(sensor, session_id, value, payload):
                     "timestamp": time.time()
                 })
             finally:
-                measure_busy = False
+                _release_sensor_operation()
         elif sensor == "height":
             # The kiosk confirms the height calibration with its "Done" button:
             # the calibration itself already ran, so the stored value is sent
@@ -519,7 +550,15 @@ def handle_command(sensor, session_id, value, payload):
 
     elif value == 3:
         print(f"🧪 Testing {sensor}...")
-        measure_busy = True
+        if not _reserve_sensor_operation():
+            mqtt_client.publish(f"risecare/test/{sensor}", {
+                "sensor": sensor,
+                "status": "failed",
+                "error": "Another sensor operation is in progress",
+                "sessionId": current_session_id,
+                "timestamp": time.time(),
+            })
+            return
         try:
             success = False
             result = {}
@@ -615,20 +654,31 @@ def handle_command(sensor, session_id, value, payload):
             mqtt_client.publish(f"risecare/test/{sensor}", payload)
             print(f"   Test {'successful' if success else 'failed'}: {payload}")
         finally:
-            measure_busy = False
+            _release_sensor_operation()
         mode = 1
         running = True
 
     elif value == 99:
         if sensor == "calibration":
-            print("Resetting all calibration...")
-            loadcell.reset_calibration()
-            vl53l1x.reset_calibration()
-            mqtt_client.publish("risecare/calibration/reset", {
-                "status": "ok",
-                "sessionId": current_session_id,
-                "timestamp": time.time()
-            })
+            if not _reserve_sensor_operation():
+                mqtt_client.publish("risecare/calibration/reset", {
+                    "status": "failed",
+                    "error": "Another sensor operation is in progress",
+                    "sessionId": current_session_id,
+                    "timestamp": time.time()
+                })
+                return
+            try:
+                print("Resetting all calibration...")
+                loadcell.reset_calibration()
+                vl53l1x.reset_calibration()
+                mqtt_client.publish("risecare/calibration/reset", {
+                    "status": "ok",
+                    "sessionId": current_session_id,
+                    "timestamp": time.time()
+                })
+            finally:
+                _release_sensor_operation()
 
     elif value == 0:
         if sensor == "bp":
