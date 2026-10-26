@@ -1,5 +1,6 @@
 import subprocess
 import threading
+import queue
 import vl53l1x
 from max30102 import MAX30102
 from mlx90614 import MLX90614
@@ -387,18 +388,48 @@ def handle_command(sensor, session_id, value, payload):
                 global measure_busy
                 result = None
                 error = None
+                progress_updates = queue.Queue(maxsize=1)
+                progress_stop = threading.Event()
+
+                def _publish_bp_progress():
+                    while not progress_stop.is_set() or not progress_updates.empty():
+                        try:
+                            update = progress_updates.get(timeout=0.05)
+                        except queue.Empty:
+                            continue
+                        mqtt_client.publish("risecare/sensors/bp", update)
+
+                def _queue_bp_progress(stage, percent, pressure):
+                    update = {
+                        "status": "running", "stage": stage,
+                        "progress": percent, "pressure": round(pressure, 1),
+                        "sessionId": bp_session_id, "timestamp": time.time()
+                    }
+                    try:
+                        progress_updates.put_nowait(update)
+                    except queue.Full:
+                        # Keep only the newest display update if publishing falls behind.
+                        try:
+                            progress_updates.get_nowait()
+                        except queue.Empty:
+                            pass
+                        try:
+                            progress_updates.put_nowait(update)
+                        except queue.Full:
+                            pass
+
+                progress_thread = threading.Thread(
+                    target=_publish_bp_progress,
+                    name="bp-progress-publisher",
+                    daemon=True,
+                )
+                progress_thread.start()
                 try:
                     from bptest import BloodPressureTest
                     bp_test = BloodPressureTest()
                     result = bp_test.run(
                         stop_event=_bp_stop_event,
-                        progress_callback=lambda stage, percent, pressure: mqtt_client.publish(
-                            "risecare/sensors/bp", {
-                                "status": "running", "stage": stage,
-                                "progress": percent, "pressure": round(pressure, 1),
-                                "sessionId": bp_session_id, "timestamp": time.time()
-                            }
-                        )
+                        progress_callback=_queue_bp_progress,
                     )
                     if result is None:
                         error = bp_test.failure_reason or "No valid pressure result was produced"
@@ -406,6 +437,8 @@ def handle_command(sensor, session_id, value, payload):
                     error = f"{type(exc).__name__}: {exc}"
                     print(f"BP measurement failed: {error}")
                 finally:
+                    progress_stop.set()
+                    progress_thread.join(timeout=1.0)
                     _release_sensor_operation()
                 message = {
                     "status": "success" if result else "failed",

@@ -102,6 +102,7 @@ MAX_PEAKS = 80
 READY_TIMEOUT = 2.0
 MAX_CONSECUTIVE_READ_TIMEOUTS = 2
 EXTRA_CLOCK_PULSES = 1
+PROGRESS_UPDATE_INTERVAL = 0.25
 
 # Relay modules commonly energize on LOW. Change only if your board is active-high.
 RELAYS_ACTIVE_LOW = True
@@ -1052,7 +1053,7 @@ class BloodPressureTest:
         def report_progress(stage, percent, pressure):
             nonlocal last_progress_at
             now = time.monotonic()
-            if progress_callback and now - last_progress_at >= 0.25:
+            if progress_callback and now - last_progress_at >= PROGRESS_UPDATE_INTERVAL:
                 progress_callback(stage, max(0, min(99, round(percent))), pressure)
                 last_progress_at = now
 
