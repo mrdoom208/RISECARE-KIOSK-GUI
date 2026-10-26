@@ -1,5 +1,5 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { VirtualKeyboard } from "@/components/VirtualKeyboard";
@@ -21,6 +21,14 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
+});
+
+// The kiosk UI talks to its local API and sensor services. Turning off Wi-Fi
+// must not make TanStack Query pause local reads and commands based on the
+// browser's navigator.onLine state.
+onlineManager.setEventListener((setOnline) => {
+  setOnline(true);
+  return () => {};
 });
 
 function Router() {

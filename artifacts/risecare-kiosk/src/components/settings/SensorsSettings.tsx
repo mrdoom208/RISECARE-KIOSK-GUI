@@ -134,6 +134,8 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     enabled: isOpen && hasPending,
     refetchInterval: hasPending ? 500 : false,
   });
+  const calibrationProgressRef = useRef(calibrationProgress);
+  calibrationProgressRef.current = calibrationProgress;
 
   const { data: testResults } = useQuery({
     queryKey: ["test-results"],
@@ -162,7 +164,17 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
-    onError: () => {
+    onError: (_error, variables) => {
+      if (variables.value === 12) {
+        setDoneCooldown((prev) => ({ ...prev, [variables.sensor]: false }));
+      }
+      if (variables.value === 0 && (variables.sensor === "height" || variables.sensor === "weight")) {
+        setSensorFeedback(variables.sensor, {
+          type: "calibrate",
+          status: "pending",
+          message: "Could not cancel calibration. It is still running.",
+        });
+      }
       toast({
         title: "Error",
         description: "Failed to send command",
@@ -252,6 +264,10 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
             }
           } else if (fb.type === "calibrate") {
             const started = calTimestamps.current[sensorId];
+            const heightReady = sensorId === "height" &&
+              calibrationProgressRef.current?.height?._receivedAt > started &&
+              calibrationProgressRef.current?.height?.message?.startsWith("Height measured");
+            if (heightReady) continue;
             if (now - started > CAL_TIMEOUT) {
               next[sensorId] = { type: "calibrate", status: "fail", message: "Calibration timed out" };
               changed = true;
@@ -318,10 +334,10 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
           const isHeight = sensorId === "height";
           const value = isHeight
             ? `${Number(result.totalHeight).toFixed(2)} cm`
-            : `${Number(result.factor).toFixed(0)} counts/kg`;
+            : `${Number(result.offset).toFixed(0)}`;
           const message = isHeight
             ? `Saved height calibration ${value}`
-            : `Saved weight calibration ${value}`;
+            : `Saved weight calibration offset ${value}`;
           setSensorFeedback(sensorId, {
             type: "calibrate",
             status: "success",
@@ -330,6 +346,12 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
           toast({
             title: "Calibration saved",
             description: message,
+          });
+        } else if (result.status === "cancelled") {
+          setSensorFeedback(sensorId, {
+            type: "calibrate",
+            status: "success",
+            message: "Calibration cancelled",
           });
         } else {
           setSensorFeedback(sensorId, {
@@ -411,7 +433,19 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const isWaitingForHeight =
     feedback["height"]?.type === "calibrate" &&
     feedback["height"]?.status === "pending" &&
+    calibrationProgress?.height?._receivedAt > calTimestamps.current["height"] &&
     calibrationProgress?.height?.message?.startsWith("Height measured");
+
+  const handleCancelCalibration = (sensorId: string) => {
+    if (isRateLimited(sensorId + "_cancel_calibration")) return;
+    setDoneCooldown((prev) => ({ ...prev, [sensorId]: false }));
+    commandMutation.mutate({ sensor: sensorId, value: 0 });
+    setSensorFeedback(sensorId, {
+      type: "calibrate",
+      status: "success",
+      message: "Calibration cancelled",
+    });
+  };
 
   const resetMutation = useMutation({
     mutationFn: async () => {
@@ -589,7 +623,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           <p className="text-sm text-muted-foreground truncate">
                             {sensor.id === "height"
                               ? `Calibrated ${calibrationResults.height.totalHeight?.toFixed(1)} cm`
-                              : `Calibrated · ${calibrationResults.weight.factor?.toFixed(0)} counts/kg`}
+                              : `Offset ${Number(calibrationResults.weight.offset).toFixed(0)}`}
                           </p>
                         )}
                       </button>
@@ -653,6 +687,18 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                             Done — height measured
                           </Button>
                         )}
+                        {(sensor.id === "height" || sensor.id === "weight") &&
+                          fb.status === "pending" && fb.type === "calibrate" && !isWaitingForHeight && (
+                            <Button
+                              onClick={() => handleCancelCalibration(sensor.id)}
+                              disabled={commandMutation.isPending}
+                              variant="outline"
+                              className="mt-3 w-full h-12 text-base"
+                              size="lg"
+                            >
+                              Cancel calibration
+                            </Button>
+                          )}
                       </div>
                     )}
 

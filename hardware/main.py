@@ -43,6 +43,7 @@ weight_last_read = 0.0
 temp_last_read = 0.0
 measure_busy = False
 _bp_stop_event = threading.Event()
+_calibration_stop_events = {}
 _hr_progress_sample_count = 0
 _hr_progress_lock = threading.Lock()
 _last_printer_status = {"connected": False, "paper": False, "paperStatus": "unknown"}
@@ -410,52 +411,73 @@ def handle_command(sensor, session_id, value, payload):
 
     elif value == 2:
         print(f"⚙️ Calibrating {sensor}...")
+        if sensor not in ("height", "weight"):
+            print(f"Unknown sensor for calibration: {sensor}")
+            return
+        if measure_busy:
+            mqtt_client.publish(f"risecare/calibration/{sensor}", {
+                "status": "failed", "sessionId": current_session_id,
+                "timestamp": time.time()
+            })
+            return
+        stop_event = threading.Event()
+        _calibration_stop_events[sensor] = stop_event
         measure_busy = True
-        try:
-            if sensor == "height":
-                # The calibration owns the sensor: the background sampler
-                # would steal the ranging transactions.
-                _stop_height_worker()
-                try:
-                    total_height = vl53l1x.calibrate_height(
-                        progress_callback=lambda message: publish_calibration_progress("height", message)
-                    )
-                except Exception as e:
-                    print(f"⚠️ Height calibration failed: {e}")
-                    total_height = None
-                finally:
-                    if height_enabled:
-                        _start_height_worker()
-                mqtt_client.publish("risecare/calibration/height", {
-                    "status": "ok" if total_height is not None else "failed",
-                    "totalHeight": total_height,
-                    "sessionId": current_session_id,
-                    "timestamp": time.time()
-                })
-            elif sensor == "weight":
-                tare_ok = loadcell.calibrate_tare()
-                if tare_ok is not None:
-                    factor = loadcell.calibrate_finalize()
-                    mqtt_client.publish("risecare/calibration/weight", {
-                        "status": "ok" if factor is not None else "failed",
-                        "factor": factor,
-                        "sessionId": current_session_id,
-                        "timestamp": time.time()
-                    })
+
+        def _run_calibration(calibration_sensor, calibration_session_id, calibration_stop_event):
+            global measure_busy, mode, running
+            result = None
+            try:
+                if calibration_sensor == "height":
+                    _stop_height_worker()
+                    try:
+                        result = vl53l1x.calibrate_height(
+                            progress_callback=lambda message: publish_calibration_progress("height", message),
+                            stop_event=calibration_stop_event,
+                        )
+                    finally:
+                        if height_enabled:
+                            _start_height_worker()
                 else:
-                    mqtt_client.publish("risecare/calibration/weight", {
-                        "status": "failed",
-                        "sessionId": current_session_id,
-                        "timestamp": time.time()
-                    })
-            elif sensor == "heartrate" or sensor == "spo2":
-                print("⚠️ Calibration not implemented for heartrate/spo2")
-            else:
-                print(f"⚠️ Unknown sensor for calibration: {sensor}")
-        finally:
-            measure_busy = False
-        mode = 1
-        running = True
+                    tare_ok = loadcell.calibrate_tare(stop_event=calibration_stop_event)
+                    if tare_ok is not None and not calibration_stop_event.is_set():
+                        result = loadcell.calibrate_finalize()
+            except Exception as exc:
+                print(f"Calibration failed for {calibration_sensor}: {exc}")
+            finally:
+                # Height calibration is confirmed by the UI after it receives
+                # the final "Height measured" progress message. Publishing
+                # success here would clear the pending state before the user
+                # can press Done. Failures and cancellations still need a
+                # terminal result so the UI can close the operation.
+                height_waiting_for_confirmation = (
+                    calibration_sensor == "height"
+                    and result is not None
+                    and not calibration_stop_event.is_set()
+                )
+                if not height_waiting_for_confirmation:
+                    status = "cancelled" if calibration_stop_event.is_set() else ("ok" if result is not None else "failed")
+                    message = {
+                        "status": status,
+                        "sessionId": calibration_session_id,
+                        "timestamp": time.time(),
+                    }
+                    message["totalHeight" if calibration_sensor == "height" else "factor"] = result
+                    if calibration_sensor == "weight":
+                        message["offset"] = loadcell.empty_offset
+                    mqtt_client.publish(f"risecare/calibration/{calibration_sensor}", message)
+                if _calibration_stop_events.get(calibration_sensor) is calibration_stop_event:
+                    del _calibration_stop_events[calibration_sensor]
+                measure_busy = False
+                mode = 1
+                running = True
+
+        threading.Thread(
+            target=_run_calibration,
+            args=(sensor, current_session_id, stop_event),
+            name=f"{sensor}-calibration",
+            daemon=True,
+        ).start()
 
     elif value == 12:
         if sensor == "weight":
@@ -465,6 +487,7 @@ def handle_command(sensor, session_id, value, payload):
                 mqtt_client.publish("risecare/calibration/weight", {
                     "status": "ok" if factor is not None else "failed",
                     "factor": factor,
+                    "offset": loadcell.empty_offset,
                     "sessionId": current_session_id,
                     "timestamp": time.time()
                 })
@@ -613,13 +636,23 @@ def handle_command(sensor, session_id, value, payload):
                 hr_sensor.shutdown()
                 hr_sensor.clear_buffer()
         elif sensor == "height":
-            height_enabled = False
-            _stop_height_worker()
+            calibration_stop_event = _calibration_stop_events.get(sensor)
+            if calibration_stop_event:
+                calibration_stop_event.set()
+                print("Height calibration cancellation requested")
+            else:
+                height_enabled = False
+                _stop_height_worker()
         elif sensor == "weight":
-            weight_enabled = False
+            calibration_stop_event = _calibration_stop_events.get(sensor)
+            if calibration_stop_event:
+                calibration_stop_event.set()
+                print("Weight calibration cancellation requested")
+            else:
+                weight_enabled = False
         elif sensor == "temperature":
             temp_enabled = False
-        if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled and not temp_enabled:
+        if not hr_enabled and not spo2_enabled and not height_enabled and not weight_enabled and not temp_enabled and not measure_busy:
             running = False
             mode = 0
 

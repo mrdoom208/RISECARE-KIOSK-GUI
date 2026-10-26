@@ -1,4 +1,4 @@
 {
   "ultrasonic": { "total_height": 213 },
-  "loadcell": { "calibration_factor": 26900, "empty_offset": 0 }
+  "loadcell": { "calibration_factor": 27100, "empty_offset": 0 }
 }

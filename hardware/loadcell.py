@@ -40,7 +40,7 @@ CALIBRATION_FILE = os.path.join(
 )
 # HX711 raw counts per kilogram. Weight calibration only needs to capture the
 # empty platform offset; the scale's per-kg factor is fixed for this hardware.
-CALIBRATION_FACTOR_PER_KG = 26900
+CALIBRATION_FACTOR_PER_KG = 27100
 calibration_factor = None
 empty_offset = None
 
@@ -118,7 +118,7 @@ def load_calibration():
         print(" No calibration file found. Please calibrate.")
 
 
-def calibrate_tare():
+def calibrate_tare(stop_event=None):
     global empty_offset
 
     if not sensor_available:
@@ -131,7 +131,15 @@ def calibrate_tare():
         hx.reset()
     finally:
         hw_lock.release()
-    time.sleep(1)
+    if stop_event:
+        if stop_event.wait(1):
+            print("Tare cancelled")
+            return None
+    else:
+        time.sleep(1)
+    if stop_event and stop_event.is_set():
+        print("Tare cancelled")
+        return None
     try:
         empty_offset = _raw()
     except SensorBusy:

@@ -187,17 +187,22 @@ def _smooth_height(height):
     return round(statistics.median(_height_history), 2)
 
 
-def calibrate_height(progress_callback=None):
+def calibrate_height(progress_callback=None, stop_event=None):
     global TOTAL_HEIGHT
     message = "Calibrating height... Make sure nothing is under the sensor."
     print(message)
     if progress_callback:
         progress_callback(message)
 
-    time.sleep(2)
+    if stop_event and stop_event.wait(2):
+        return None
+    if not stop_event:
+        time.sleep(2)
     readings = []
 
     for _ in range(CALIBRATION_SAMPLES):
+        if stop_event and stop_event.is_set():
+            return None
         d = measure_distance()
         if _is_valid_distance(d):
             readings.append(d)
@@ -210,7 +215,11 @@ def calibrate_height(progress_callback=None):
             print(message)
             if progress_callback:
                 progress_callback(message)
-        time.sleep(0.2)
+        if stop_event:
+            if stop_event.wait(0.2):
+                return None
+        else:
+            time.sleep(0.2)
 
     if len(readings) < MIN_CALIBRATION_READINGS:
         message = (
@@ -220,6 +229,9 @@ def calibrate_height(progress_callback=None):
         print(message)
         if progress_callback:
             progress_callback(message)
+        return None
+
+    if stop_event and stop_event.is_set():
         return None
 
     TOTAL_HEIGHT = _median_readings(readings)

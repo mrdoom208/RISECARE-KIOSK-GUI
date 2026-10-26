@@ -20,6 +20,7 @@ import {
   Lock,
   Thermometer,
   Fingerprint,
+  Loader2,
 } from "lucide-react";
 import { getStatusColor, getStatusText, getBPStatus, getHRStatus, getSpO2Status, getTempStatus, getBMIStatus, calculateBMI } from "@/lib/vitals-utils";
 import {
@@ -906,7 +907,11 @@ const handleCancelReading = async () => {
                       <div className="flex items-center justify-center gap-6 mb-6">
                         <div className="text-center">
                           <div className={`font-bold font-display text-primary mb-1 ${hrDisplay?.hasValue ? "text-5xl" : "text-3xl"}`}>
-                            {hrDisplay?.value}
+                            {hrDisplay?.hasValue ? hrDisplay.value : (
+                              <span role="status" aria-label="Measuring heart rate" className="inline-flex items-center justify-center">
+                                <Loader2 className="w-8 h-8 animate-spin" />
+                              </span>
+                            )}
                           </div>
                           <div className="text-base text-muted-foreground">{hrDisplay?.unit}</div>
                           <div className="text-sm text-muted-foreground/70 mt-1">Heart Rate</div>
@@ -914,7 +919,11 @@ const handleCancelReading = async () => {
                         <div className="text-4xl text-muted-foreground/30 font-light">|</div>
                         <div className="text-center">
                           <div className={`font-bold font-display text-primary mb-1 ${spo2Display?.hasValue ? "text-5xl" : "text-3xl"}`}>
-                            {spo2Display?.value}
+                            {spo2Display?.hasValue ? spo2Display.value : (
+                              <span role="status" aria-label="Measuring oxygen saturation" className="inline-flex items-center justify-center">
+                                <Loader2 className="w-8 h-8 animate-spin" />
+                              </span>
+                            )}
                           </div>
                           <div className="text-base text-muted-foreground">{spo2Display?.unit}</div>
                           <div className="text-sm text-muted-foreground/70 mt-1">SpO2</div>
@@ -977,7 +986,13 @@ const handleCancelReading = async () => {
 
               <div className="text-center mb-8">
                   <div className={`font-bold font-display text-primary mb-2 ${display.hasValue ? "text-6xl" : "text-4xl"}`}>
-                    {display.value}
+                    {display.hasValue || (readingVital === "bp" && (bpReading?.status === "failed" || bpReading?.status === "invalid"))
+                      ? display.value
+                      : (
+                        <span role="status" aria-label={`Measuring ${display.title.toLowerCase()}`} className="inline-flex items-center justify-center">
+                          <Loader2 className="w-10 h-10 animate-spin" />
+                        </span>
+                      )}
                   </div>
                   <div className="text-xl text-muted-foreground">
                     {display.unit}

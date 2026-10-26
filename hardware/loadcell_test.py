@@ -5,7 +5,7 @@ Usage:
     python3 loadcell_test.py                         stream raw ADC readings
     python3 loadcell_test.py --weight                stream calibrated weight
     python3 loadcell_test.py --stable-weight         stream filtered weight
-    python3 loadcell_test.py --calibrate              tare and apply the fixed 26700 counts/kg factor
+    python3 loadcell_test.py --calibrate              tare and apply the fixed 27100 counts/kg factor
 """
 
 import argparse
