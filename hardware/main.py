@@ -1,3 +1,4 @@
+import os
 import subprocess
 import threading
 import vl53l1x
@@ -57,6 +58,29 @@ _height_lock = threading.Lock()
 _height_io_lock = threading.Lock()
 _height_value = None
 _height_at = 0.0
+_sensor_read_lock = threading.Lock()
+
+
+def _read_sensor_now(read_fn, default=None):
+    """Run a sensor read unless an exclusive operation owns the hardware."""
+    with _sensor_read_lock:
+        if measure_busy:
+            return default
+        return read_fn()
+
+
+def _reserve_measurement_core():
+    """Keep ordinary kiosk threads off the CPU used for cuff sampling."""
+    try:
+        cpus = sorted(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        return
+    if len(cpus) < 2:
+        return
+    try:
+        os.sched_setaffinity(0, set(cpus[:-1]))
+    except (AttributeError, OSError):
+        pass
 
 
 def _reserve_sensor_operation():
@@ -68,6 +92,10 @@ def _reserve_sensor_operation():
         measure_busy = True
     # Drain any ToF read that began before this operation reserved the sensors.
     with _height_io_lock:
+        pass
+    # Let any I2C/weight read finish so it cannot overlap the first cuff
+    # samples, then keep new reads out for the whole operation.
+    with _sensor_read_lock:
         pass
     # Stop the background height sampler entirely: while another sensor owns
     # the hardware it must not add I2C, CPU, or scheduling jitter.
@@ -393,7 +421,19 @@ def handle_command(sensor, session_id, value, payload):
                 global measure_busy
                 result = None
                 error = None
+                # The MAX30102 keeps its LEDs and ADC running between reads.
+                # Turn it off for the cuff cycle so it cannot inject supply
+                # noise into the HX710B, then restore it afterwards.
+                hr_was_active = (
+                    hr_sensor is not None and (hr_enabled or spo2_enabled)
+                )
                 try:
+                    if hr_was_active:
+                        try:
+                            hr_sensor.shutdown()
+                            hr_sensor.clear_buffer()
+                        except Exception:
+                            pass
                     from bptest import BloodPressureTest
                     bp_test = BloodPressureTest()
                     # Diagnostic: publish the start once, but keep MQTT work
@@ -404,6 +444,7 @@ def handle_command(sensor, session_id, value, payload):
                     })
                     result = bp_test.run(
                         stop_event=_bp_stop_event,
+                        verbose=False,
                     )
                     if result is None:
                         error = bp_test.failure_reason or "No valid pressure result was produced"
@@ -411,6 +452,12 @@ def handle_command(sensor, session_id, value, payload):
                     error = f"{type(exc).__name__}: {exc}"
                     print(f"BP measurement failed: {error}")
                 finally:
+                    if hr_was_active and (hr_enabled or spo2_enabled):
+                        try:
+                            hr_sensor.setup()
+                            hr_sensor.clear_buffer()
+                        except Exception as exc:
+                            print(f"MAX30102 resume failed: {exc}")
                     _release_sensor_operation()
                 message = {
                     "status": "success" if result else "failed",
@@ -730,6 +777,7 @@ def handle_command(sensor, session_id, value, payload):
 def main():
     global running, mode, hr_last_read, height_last_read, weight_last_read, temp_last_read
 
+    _reserve_measurement_core()
     print("Starting RiseCare Health Kiosk...")
 
     print("\nLoading calibration data...")
@@ -839,7 +887,9 @@ def main():
                 spo2_valid = False
                 if (hr_enabled or spo2_enabled) and hr_sensor is not None and now - hr_last_read >= HR_POLL_INTERVAL:
                     try:
-                        result = hr_sensor.get_reading()
+                        result = _read_sensor_now(hr_sensor.get_reading)
+                        if result is None:
+                            continue
                         finger_detected = bool(
                             result.get("finger_present", result.get("hand_present", False))
                         )
@@ -883,7 +933,7 @@ def main():
                 weight = None
                 if weight_enabled and now - weight_last_read >= READ_INTERVAL:
                     try:
-                        weight = loadcell.get_weight()
+                        weight = _read_sensor_now(loadcell.get_weight)
                         weight_last_read = time.time()
                     except Exception:
                         pass
@@ -891,7 +941,7 @@ def main():
                 temperature = None
                 if temp_enabled and temp_sensor is not None and now - temp_last_read >= TEMP_READ_INTERVAL:
                     try:
-                        temperature = temp_sensor.get_temperature()
+                        temperature = _read_sensor_now(temp_sensor.get_temperature)
                         temp_last_read = time.time()
                     except Exception:
                         pass

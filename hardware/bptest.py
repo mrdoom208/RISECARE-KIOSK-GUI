@@ -20,6 +20,7 @@ Pump/valve relay test: python pump_valve_test.py
 
 from collections import deque
 import math
+import os
 import statistics
 import sys
 import time
@@ -81,6 +82,10 @@ AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
 AMP_OUTLIER_CONFIRM_BEATS = 1   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
 PRESSURE_SPIKE_LIMIT = 5.0
+# A real trend change (pump off, cuff bump) looks like a spike but repeats at
+# a consistent new level. Adopt it after this many matching readings instead
+# of rejecting forever; genuinely random jumps stay inconsistent and abort.
+PRESSURE_SPIKE_CONFIRM_SAMPLES = 2
 MAX_CONSECUTIVE_PRESSURE_SPIKES = 4
 
 # Beat detection timing.
@@ -98,8 +103,12 @@ OSC_FILTER_ALPHA = 0.45
 
 MAX_PEAKS = 80
 
-# HX710B serial clock is bit-banged directly through GPIO; no software delay is
-# inserted between edges, keeping each high pulse as short as possible.
+# HX710B serial clock is bit-banged directly through GPIO. Follow the
+# datasheet: T3 high = 1 us (0.2-50 us) and T4 low = 0.2 us (0.2-1 us).
+# DOUT is ready T2 = 0.1 us after the rising edge, so sample while SCK is
+# high; this keeps the low phase short instead of stretching it with the read.
+CLOCK_HIGH_TIME = 0.000001   # 1 us
+CLOCK_LOW_TIME = 0.0000002   # 0.2 us; interpreter overhead adds the rest
 READY_TIMEOUT = 2.0
 MAX_CONSECUTIVE_READ_TIMEOUTS = 2
 EXTRA_CLOCK_PULSES = 1
@@ -148,6 +157,13 @@ def now_ms():
     return int(time.monotonic() * 1000)
 
 
+def busy_wait(seconds):
+    """Delay without releasing the GIL, keeping SCK edges deterministic."""
+    deadline = time.perf_counter() + seconds
+    while time.perf_counter() < deadline:
+        pass
+
+
 class HX710B:
     """Read signed 24-bit differential conversions from an HX710B."""
 
@@ -166,14 +182,19 @@ class HX710B:
         value = 0
         for _ in range(24):
             GPIO.output(SCK_PIN, GPIO.HIGH)
-            GPIO.output(SCK_PIN, GPIO.LOW)
-            # Sample after lowering SCK so the GPIO read does not stretch
-            # the HX710B's clock-high pulse.
+            busy_wait(CLOCK_HIGH_TIME)
+            # DOUT is valid 0.1 us after the rising edge; reading here instead
+            # of after the falling edge keeps the SCK low phase within its
+            # 1 us datasheet maximum.
             value = (value << 1) | GPIO.input(OUT_PIN)
+            GPIO.output(SCK_PIN, GPIO.LOW)
+            busy_wait(CLOCK_LOW_TIME)
 
         for _ in range(EXTRA_CLOCK_PULSES):
             GPIO.output(SCK_PIN, GPIO.HIGH)
+            busy_wait(CLOCK_HIGH_TIME)
             GPIO.output(SCK_PIN, GPIO.LOW)
+            busy_wait(CLOCK_LOW_TIME)
 
         if value & 0x800000:
             value -= 0x1000000
@@ -192,11 +213,13 @@ class PressureSpikeFilter:
 
     def __init__(self):
         self.recent = deque(maxlen=5)
+        self.pending = deque(maxlen=PRESSURE_SPIKE_CONFIRM_SAMPLES)
         self.rejected_streak = 0
 
     def reset(self, pressure):
         self.recent.clear()
         self.recent.append(pressure)
+        self.pending.clear()
         self.rejected_streak = 0
 
     def expected_next(self):
@@ -215,11 +238,25 @@ class PressureSpikeFilter:
             reference = self.expected_next()
             if abs(pressure - reference) > PRESSURE_SPIKE_LIMIT:
                 self.rejected_streak += 1
+                self.pending.append(pressure)
+
+                # A sustained, consistent new level is a real trend change
+                # (for example the pump turning off), not sensor noise.
+                if (self.rejected_streak >= PRESSURE_SPIKE_CONFIRM_SAMPLES
+                        and max(self.pending) - min(self.pending)
+                        <= PRESSURE_SPIKE_LIMIT):
+                    self.recent.clear()
+                    self.recent.append(pressure)
+                    self.pending.clear()
+                    self.rejected_streak = 0
+                    return pressure, False
+
                 # Never let a jump redefine the live pressure trend. Repeated
-                # jumps are handled as an unstable sensor signal by run().
+                # inconsistent jumps are handled as an unstable sensor signal.
                 return reference, True
 
         self.rejected_streak = 0
+        self.pending.clear()
         self.recent.append(pressure)
         return pressure, False
 
@@ -1064,13 +1101,35 @@ class BloodPressureTest:
 
         return False, ""
 
-    def run(self, progress_callback=None, stop_event=None):
+    def run(self, progress_callback=None, stop_event=None, verbose=True):
         self.setup()
-        print("RiseCare pressure test (experimental; not for diagnosis)")
-        print(f"Calibration: {RAW_PER_MMHG} raw/mmHg, offset {RAW_OFFSET}")
+        if verbose:
+            print("RiseCare pressure test (experimental; not for diagnosis)")
+            print(f"Calibration: {RAW_PER_MMHG} raw/mmHg, offset {RAW_OFFSET}")
         result = None
         self.failure_reason = None
         last_progress_at = 0.0
+
+        # Keep the sampling thread away from the threads that wake every tick.
+        # Affinity is best-effort: a single-core Pi or a restricted container
+        # simply keeps the default scheduling.
+        previous_affinity = None
+        previous_nice = None
+        try:
+            cpus = os.sched_getaffinity(0)
+            previous_affinity = cpus
+            # The kiosk leaves the highest-numbered CPU free for this thread.
+            # Use the system CPU count because our own affinity mask may have
+            # already been narrowed to the non-measurement cores.
+            target_cpu = max(0, (os.cpu_count() or 1) - 1)
+            os.sched_setaffinity(0, {target_cpu})
+        except (AttributeError, OSError):
+            previous_affinity = None
+        try:
+            previous_nice = os.nice(0)
+            os.nice(-10)
+        except (AttributeError, OSError):
+            previous_nice = None
 
         # Fewer thread switches during a bit-banged conversion means fewer
         # corrupted samples when this runs alongside the other kiosk threads.
@@ -1189,6 +1248,10 @@ class BloodPressureTest:
                         self.pump_running = False
                         self.pump_off_pressure = pressure
                         self.settle_started = time.monotonic()
+                        # The rising inflation trend ends here, so re-seed the
+                        # spike filter instead of rejecting the settle samples.
+                        self.pressure_filter.reset(pressure)
+                        consecutive_pressure_spikes = 0
                         print(f"Pump off at {pressure:.1f} mmHg ({reason}); "
                               f"allowing pressure to settle")
 
@@ -1268,7 +1331,7 @@ class BloodPressureTest:
                         break
 
                 # Log deflation rate during measurement (target: 2-3 mmHg/s).
-                if (self.measuring and self._last_time is not None
+                if (verbose and self.measuring and self._last_time is not None
                         and now_ms() - self._last_rate_log
                         > DEFLATION_RATE_LOG_INTERVAL_MS):
                     dt = (now_ms() - self._last_time) / 1000.0
@@ -1281,7 +1344,7 @@ class BloodPressureTest:
                     self._last_time = now_ms()
 
                 current = time.monotonic()
-                if current - self.last_live_print >= LIVE_PRINT_INTERVAL:
+                if verbose and current - self.last_live_print >= LIVE_PRINT_INTERVAL:
                     self.last_live_print = current
                     if self.pump_running:
                         phase = "ON"
@@ -1310,6 +1373,16 @@ class BloodPressureTest:
                 try:
                     sys.setswitchinterval(previous_switch_interval)
                 except (AttributeError, ValueError):
+                    pass
+            if previous_affinity is not None:
+                try:
+                    os.sched_setaffinity(0, previous_affinity)
+                except (AttributeError, OSError):
+                    pass
+            if previous_nice is not None:
+                try:
+                    os.nice(previous_nice - os.nice(0))
+                except (AttributeError, OSError):
                     pass
 
         if result is None and self.failure_reason is None:
