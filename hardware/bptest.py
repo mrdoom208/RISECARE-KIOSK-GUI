@@ -80,7 +80,8 @@ AMP_OUTLIER_HIGH = 4          # reject isolated beats above 4x recent median
 AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
 AMP_OUTLIER_CONFIRM_BEATS = 2   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
-PRESSURE_SPIKE_LIMIT = 4.0
+PRESSURE_SPIKE_LIMIT = 5.0
+MAX_CONSECUTIVE_PRESSURE_SPIKES = 4
 
 # Beat detection timing.
 MIN_BEAT_INTERVAL = 300
@@ -152,8 +153,10 @@ class HX710B:
         value = 0
         for _ in range(24):
             GPIO.output(SCK_PIN, GPIO.HIGH)
-            value = (value << 1) | GPIO.input(OUT_PIN)
             GPIO.output(SCK_PIN, GPIO.LOW)
+            # Sample after lowering SCK so the GPIO read does not stretch
+            # the HX710B's clock-high pulse.
+            value = (value << 1) | GPIO.input(OUT_PIN)
 
         for _ in range(EXTRA_CLOCK_PULSES):
             GPIO.output(SCK_PIN, GPIO.HIGH)
@@ -199,16 +202,8 @@ class PressureSpikeFilter:
             reference = self.expected_next()
             if abs(pressure - reference) > PRESSURE_SPIKE_LIMIT:
                 self.rejected_streak += 1
-
-                # A sustained level change is real; accept it after two
-                # consecutive outliers and restart the trend from that level.
-                if self.rejected_streak >= 2:
-                    self.recent.clear()
-                    self.recent.append(pressure)
-                    self.rejected_streak = 0
-                    return pressure, False
-
-                # Do not let an isolated spike poison the trend estimate.
+                # Never let a jump redefine the live pressure trend. Repeated
+                # jumps are handled as an unstable sensor signal by run().
                 return reference, True
 
         self.rejected_streak = 0
@@ -1073,6 +1068,7 @@ class BloodPressureTest:
             self.pump_running = True
             consecutive_invalid = 0
             consecutive_read_timeouts = 0
+            consecutive_pressure_spikes = 0
             while True:
                 if stop_event is not None and stop_event.is_set():
                     print("BP measurement stopped by operator")
@@ -1116,8 +1112,18 @@ class BloodPressureTest:
                 measured_pressure = cuff_pressure
                 pressure, was_spike = self.pressure_filter.apply(cuff_pressure)
                 if was_spike:
+                    consecutive_pressure_spikes += 1
                     print(f"Ignored pressure outlier: raw={measured_pressure:.1f} mmHg, "
                           f"filtered={pressure:.1f} mmHg")
+                    if consecutive_pressure_spikes >= MAX_CONSECUTIVE_PRESSURE_SPIKES:
+                        self.failure_reason = (
+                            "Pressure signal unstable: "
+                            f"{consecutive_pressure_spikes} consecutive pressure jumps"
+                        )
+                        print(f"ERROR: {self.failure_reason}", flush=True)
+                        break
+                else:
+                    consecutive_pressure_spikes = 0
 
                 if self.pump_running:
                     report_progress(
@@ -1159,6 +1165,7 @@ class BloodPressureTest:
                         break
 
                     self.pressure_filter.reset(pressure)
+                    consecutive_pressure_spikes = 0
                     self.measuring = True
                     self.measurement_start_pressure = pressure
                     self.analyzer.start_measurement(pressure)
