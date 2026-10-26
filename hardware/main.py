@@ -762,12 +762,19 @@ def main():
         while True:
             # Runs in every mode, so availability keeps updating even after all
             # sensors are stopped (mode == 0) instead of freezing forever.
-            if time.time() - last_avail >= AVAIL_INTERVAL:
+            if (not measure_busy
+                    and time.time() - last_avail >= AVAIL_INTERVAL):
                 last_avail = time.time()
                 _probe_i2c()
                 advertise_sensors()
 
             if mode == 1 and running:
+                if measure_busy:
+                    # Keep background sensor transactions from adding timing
+                    # jitter while the BP worker samples cuff pulses.
+                    time.sleep(0.1)
+                    continue
+
                 tick += 1
                 now = time.time()
 
