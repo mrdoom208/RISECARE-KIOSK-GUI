@@ -485,6 +485,7 @@ class OscillometricAnalyzer:
 
         self.current_pressure = 0.0
         self.deflation_end_reason = ""
+        self.invalid_reason = None
 
     @property
     def peak_count(self):
@@ -680,21 +681,22 @@ class OscillometricAnalyzer:
 
         return p1 + fraction * (p2 - p1)
 
-    def find_pressure_at_target(self, target, systolic_side):
-        for i in range(self.peak_count - 1):
-            p1 = self.peak_pressures[i]
-            a1 = self.peak_amplitudes[i]
+    @staticmethod
+    def find_envelope_crossing(pressures, amplitudes, map_pressure, target, systolic_side):
+        for i in range(len(pressures) - 1):
+            p1 = pressures[i]
+            a1 = amplitudes[i]
 
-            p2 = self.peak_pressures[i + 1]
-            a2 = self.peak_amplitudes[i + 1]
+            p2 = pressures[i + 1]
+            a2 = amplitudes[i + 1]
 
             # Systolic crossing must be above MAP.
             if systolic_side:
-                if p1 < self.map_pressure or p2 < self.map_pressure:
+                if p1 < map_pressure or p2 < map_pressure:
                     continue
             else:
                 # Diastolic crossing must be below MAP.
-                if p1 > self.map_pressure or p2 > self.map_pressure:
+                if p1 > map_pressure or p2 > map_pressure:
                     continue
 
             crosses = ((a1 <= target <= a2) or (a2 <= target <= a1))
@@ -702,12 +704,21 @@ class OscillometricAnalyzer:
             if not crosses:
                 continue
 
-            result = self.interpolate_pressure(p1, a1, p2, a2, target)
+            result = OscillometricAnalyzer.interpolate_pressure(p1, a1, p2, a2, target)
 
             if result > 0.0:
                 return result
 
         return 0.0
+
+    def find_pressure_at_target(self, target, systolic_side):
+        return self.find_envelope_crossing(
+            self.peak_pressures,
+            self.peak_amplitudes,
+            self.map_pressure,
+            target,
+            systolic_side,
+        )
 
     def envelope_point_counts(self):
         above_map = sum(1 for p in self.peak_pressures if p > self.map_pressure)
@@ -765,31 +776,24 @@ class OscillometricAnalyzer:
         if above_map < 3 or below_map < 3:
             return False
 
-        # Stop once the measured envelope has bracketed the same diastolic
-        # ratio used by calculate_bp(). This can finish before the pulse tail
-        # becomes too small for confirm_beat() to accept another beat.
+        # Stop only once both configured BP crossings pass the same checks as
+        # calculate_bp(). A diastolic crossing alone is not enough to produce
+        # a valid result.
+        sys_target = envelope_max_amplitude * SYS_RATIO
         dia_target = envelope_max_amplitude * DIA_RATIO
-        for (higher_pressure, higher_amplitude), (lower_pressure, lower_amplitude) in zip(
-            zip(envelope_pressures, envelope_amplitudes),
-            zip(envelope_pressures[1:], envelope_amplitudes[1:]),
-        ):
-            if (lower_pressure < envelope_map_pressure
-                    and higher_pressure > lower_pressure
-                    and higher_amplitude >= dia_target
-                    and lower_amplitude <= dia_target):
-                self.deflation_end_reason = "diastolic envelope crossing"
-                return True
-
-        # Fallback: once we are well below MAP, the diastolic side has been
-        # sampled even if the pulse tail is too small/noisy to detect.
-        if (envelope_map_pressure > 0.0 and self.current_pressure > 0.0
-                and self.current_pressure
-                <= envelope_map_pressure - DEFLATION_FALLBACK_MARGIN):
-            self.deflation_end_reason = "MAP margin"
-            return True
-
-        if self.low_amplitude_streak >= DEFLATION_END_BEATS:
-            self.deflation_end_reason = "oscillation tail"
+        systolic = self.find_envelope_crossing(
+            envelope_pressures, envelope_amplitudes, envelope_map_pressure,
+            sys_target, systolic_side=True,
+        )
+        diastolic = self.find_envelope_crossing(
+            envelope_pressures, envelope_amplitudes, envelope_map_pressure,
+            dia_target, systolic_side=False,
+        )
+        pulse_pressure = systolic - diastolic
+        if (systolic > envelope_map_pressure > diastolic
+                and 10.0 <= pulse_pressure <= 150.0
+                and self.heart_rate_bpm > 0.0):
+            self.deflation_end_reason = "valid envelope crossings"
             return True
 
         return False
@@ -805,6 +809,7 @@ class OscillometricAnalyzer:
         self.SYS = 0.0
         self.DIA = 0.0
         self.MAP = 0.0
+        self.invalid_reason = None
 
         print()
         print("========== OSCILLOMETRIC DATA ==========")
@@ -826,6 +831,7 @@ class OscillometricAnalyzer:
         if self.peak_count < 5 or self.max_amplitude <= 0.0:
             print("RESULT: INVALID")
             print("REASON: INSUFFICIENT ENVELOPE DATA")
+            self.invalid_reason = "Insufficient oscillometric envelope data"
             self.print_envelope()
             return
 
@@ -844,6 +850,7 @@ class OscillometricAnalyzer:
         if not self.envelope_has_enough_points():
             print("RESULT: INVALID")
             print("REASON: INSUFFICIENT DATA AROUND MAP")
+            self.invalid_reason = "Insufficient envelope points above and below MAP"
             self.print_envelope()
             return
 
@@ -859,15 +866,18 @@ class OscillometricAnalyzer:
         print(f"DIA CROSSING: {self.DIA:.1f}")
 
         valid = True
+        validation_errors = []
 
         print("--- VALIDATION DIAGNOSTICS ---")
 
         if self.SYS <= 0.0 or self.DIA <= 0.0 or self.MAP <= 0.0:
             print("FAIL: Missing pressure crossing")
+            validation_errors.append("missing SYS/DIA crossing")
             valid = False
 
         if not (self.SYS > self.MAP > self.DIA):
             print("FAIL: SYS > MAP > DIA is not satisfied")
+            validation_errors.append("SYS, MAP, and DIA are out of order")
             valid = False
 
         pulse_pressure = self.SYS - self.DIA
@@ -875,6 +885,7 @@ class OscillometricAnalyzer:
 
         if pulse_pressure < 10.0 or pulse_pressure > 150.0:
             print("FAIL: Pulse pressure outside code limits")
+            validation_errors.append(f"pulse pressure {pulse_pressure:.1f} mmHg outside 10-150")
             valid = False
 
         if valid:
@@ -888,6 +899,7 @@ class OscillometricAnalyzer:
         if not valid:
             print("RESULT: INVALID")
             print("REASON: POOR OSCILLOMETRIC DATA")
+            self.invalid_reason = "; ".join(validation_errors)
             self.SYS = 0.0
             self.DIA = 0.0
             self.MAP = 0.0
@@ -1184,7 +1196,7 @@ class BloodPressureTest:
             GPIO.cleanup([OUT_PIN, SCK_PIN, PUMP, VALVE])
 
         if result is None and self.failure_reason is None:
-            self.failure_reason = (
+            self.failure_reason = self.analyzer.invalid_reason or (
                 "No valid SYS/DIA result; "
                 f"accepted beats={self.analyzer.detected_beat_count}, "
                 f"envelope points={self.analyzer.peak_count}, "
