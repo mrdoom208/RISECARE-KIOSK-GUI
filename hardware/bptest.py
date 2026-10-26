@@ -74,7 +74,7 @@ DIA_RATIO = 0.80
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
-MIN_PULSE_AMPLITUDE = 0.01      # Minimum accepted pulse amplitude in mmHg.
+MIN_PULSE_AMPLITUDE = 0.02      # Minimum accepted pulse amplitude in mmHg.
 AMP_FILTER_WINDOW = 3
 AMP_OUTLIER_HIGH = 4          # reject isolated beats above 4x recent median
 AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
@@ -840,18 +840,25 @@ class OscillometricAnalyzer:
             return
 
         # Use the same pressure-ordered, smoothed envelope as the early-stop
-        # check so stopping and final SYS/DIA crossings agree.
-        self.peak_pressures, self.peak_amplitudes = self.filtered_envelope_points()
-        map_index = max(range(len(self.peak_amplitudes)),
-                        key=self.peak_amplitudes.__getitem__)
-        self.max_amplitude = self.peak_amplitudes[map_index]
-        self.map_pressure = self.peak_pressures[map_index]
+        # check. Keep the raw beat records intact so this calculation cannot
+        # accidentally smooth the envelope a second time on a later call.
+        envelope_pressures, envelope_amplitudes = self.filtered_envelope_points()
+        map_index = max(range(len(envelope_amplitudes)),
+                        key=envelope_amplitudes.__getitem__)
+        self.max_amplitude = envelope_amplitudes[map_index]
+        self.map_pressure = envelope_pressures[map_index]
         self.map_amplitude = self.max_amplitude
 
         self.MAP = self.map_pressure
         print(f"MAP PRESSURE: {self.MAP:.1f}")
 
-        if not self.envelope_has_enough_points():
+        above_map = sum(1 for pressure in envelope_pressures
+                        if pressure > self.map_pressure)
+        below_map = sum(1 for pressure in envelope_pressures
+                        if pressure < self.map_pressure)
+        print(f"POINTS ABOVE MAP: {above_map}")
+        print(f"POINTS BELOW MAP: {below_map}")
+        if above_map < 3 or below_map < 3:
             print("RESULT: INVALID")
             print("REASON: INSUFFICIENT DATA AROUND MAP")
             self.invalid_reason = "Insufficient envelope points above and below MAP"
@@ -861,8 +868,14 @@ class OscillometricAnalyzer:
         sys_target = self.max_amplitude * SYS_RATIO
         dia_target = self.max_amplitude * DIA_RATIO
 
-        self.SYS = self.find_pressure_at_target(sys_target, True)
-        self.DIA = self.find_pressure_at_target(dia_target, False)
+        self.SYS = self.find_envelope_crossing(
+            envelope_pressures, envelope_amplitudes, self.map_pressure,
+            sys_target, systolic_side=True,
+        )
+        self.DIA = self.find_envelope_crossing(
+            envelope_pressures, envelope_amplitudes, self.map_pressure,
+            dia_target, systolic_side=False,
+        )
 
         print(f"SYS TARGET: {sys_target:.3f}")
         print(f"DIA TARGET: {dia_target:.3f}")
