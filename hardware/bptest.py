@@ -76,9 +76,9 @@ DIA_RATIO = 0.85
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
 MIN_PULSE_AMPLITUDE = 0.03      # Minimum accepted pulse amplitude in mmHg.
-AMP_FILTER_WINDOW = 5
+AMP_FILTER_WINDOW = 3
 AMP_OUTLIER_HIGH = 4          # reject isolated beats above 4x recent median
-AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
+AMP_OUTLIER_LOW = 0.2           # reject isolated beats below 2x recent median
 AMP_OUTLIER_CONFIRM_BEATS = 1   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
 PRESSURE_SPIKE_LIMIT = 5.0
@@ -107,8 +107,8 @@ MAX_PEAKS = 80
 # datasheet: T3 high = 1 us (0.2-50 us) and T4 low = 0.2 us (0.2-1 us).
 # DOUT is ready T2 = 0.1 us after the rising edge, so sample while SCK is
 # high; this keeps the low phase short instead of stretching it with the read.
-CLOCK_HIGH_TIME = 0.000001   # 1 us
-CLOCK_LOW_TIME = 0.0000002   # 0.2 us; interpreter overhead adds the rest
+CLOCK_HIGH_TIME = 0.000002   # 1 us
+CLOCK_LOW_TIME = 0.000002   # 0.2 us; interpreter overhead adds the rest
 READY_TIMEOUT = 2.0
 MAX_CONSECUTIVE_READ_TIMEOUTS = 2
 EXTRA_CLOCK_PULSES = 1
@@ -1139,11 +1139,12 @@ class BloodPressureTest:
         except (AttributeError, ValueError):
             pass
 
-        def report_progress(stage, percent, pressure):
+        def report_progress(stage, percent, pressure, force=False):
             nonlocal last_progress_at
             now = time.monotonic()
-            if progress_callback and now - last_progress_at >= PROGRESS_UPDATE_INTERVAL:
-                progress_callback(stage, max(0, min(99, round(percent))), pressure)
+            if progress_callback and (
+                    force or now - last_progress_at >= PROGRESS_UPDATE_INTERVAL):
+                progress_callback(stage, max(0, min(100, round(percent))), pressure)
                 last_progress_at = now
 
         try:
@@ -1217,6 +1218,7 @@ class BloodPressureTest:
                         self.settle_started = time.monotonic()
                         print(f"Pump off at {cuff_pressure:.1f} mmHg "
                               "(safety ceiling); allowing pressure to settle")
+                        report_progress("settling", 45, cuff_pressure, force=True)
                     continue
 
                 measured_pressure = cuff_pressure
@@ -1254,6 +1256,7 @@ class BloodPressureTest:
                         consecutive_pressure_spikes = 0
                         print(f"Pump off at {pressure:.1f} mmHg ({reason}); "
                               f"allowing pressure to settle")
+                        report_progress("settling", 45, pressure, force=True)
 
                 if self.measuring and self.measurement_start_pressure is not None:
                     # During deflation pressure only goes down; reject readings
@@ -1314,6 +1317,7 @@ class BloodPressureTest:
 
                     if end_reason:
                         self.measuring = False
+                        report_progress("deflating", 100, pressure, force=True)
                         self.analyzer.calculate_bp()
                         if (self.analyzer.SYS > 0.0 and self.analyzer.DIA > 0.0
                                 and self.analyzer.heart_rate_bpm > 0.0):

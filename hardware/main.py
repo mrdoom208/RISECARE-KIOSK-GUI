@@ -436,15 +436,43 @@ def handle_command(sensor, session_id, value, payload):
                             pass
                     from bptest import BloodPressureTest
                     bp_test = BloodPressureTest()
+
+                    def _publish_bp_progress(stage, percent, pressure):
+                        pct = max(0, min(100, int(percent)))
+                        if stage == "inflating":
+                            inflation = max(0, min(100, round((pct - 5) * 2.5)))
+                            deflation = 0
+                        elif stage == "deflating":
+                            inflation = 100
+                            deflation = max(0, min(100, round((pct - 45) * 2)))
+                        elif stage == "settling":
+                            inflation = 100
+                            deflation = 0
+                        else:
+                            inflation = 0
+                            deflation = 0
+                        mqtt_client.publish("risecare/sensors/bp", {
+                            "status": "running",
+                            "stage": stage,
+                            "progress": pct,
+                            "inflationProgress": inflation,
+                            "deflationProgress": deflation,
+                            "pressure": round(float(pressure), 1),
+                            "sessionId": bp_session_id,
+                            "timestamp": time.time(),
+                        }, quiet=True)
+
                     # Diagnostic: publish the start once, but keep MQTT work
                     # out of the HX710B sampling loop for this measurement.
                     mqtt_client.publish("risecare/sensors/bp", {
                         "status": "running", "stage": "starting", "progress": 0,
+                        "inflationProgress": 0, "deflationProgress": 0,
                         "sessionId": bp_session_id, "timestamp": time.time()
                     })
                     result = bp_test.run(
                         stop_event=_bp_stop_event,
                         verbose=False,
+                        progress_callback=_publish_bp_progress,
                     )
                     if result is None:
                         error = bp_test.failure_reason or "No valid pressure result was produced"

@@ -114,12 +114,13 @@ def disconnect():
         client.disconnect()
 
 
-def publish(topic, payload):
+def publish(topic, payload, quiet=False):
     global _warned_not_connected
     if client and client.is_connected():
         _warned_not_connected = False
         message = json.dumps(payload)
-        print(f"📤 MQTT published [{topic}]: {payload}")
+        if not quiet:
+            print(f"📤 MQTT published [{topic}]: {payload}")
         client.publish(topic, message)
         return True
     if not _warned_not_connected:

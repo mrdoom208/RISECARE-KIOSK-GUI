@@ -308,6 +308,32 @@ export default function Dashboard() {
   const bpComplete = readingVital === "bp" && bpReading?.status === "success" &&
     Number.isFinite(Number(bpReading.systolic)) && Number.isFinite(Number(bpReading.diastolic)) &&
     Number.isFinite(cuffPulseRate) && cuffPulseRate > 0 && cuffPulseRate <= 300;
+  const bpStage = String(bpReading?.stage ?? "");
+  const bpOverallProgress = Math.max(0, Math.min(100, Number(bpReading?.progress) || 0));
+  const reportedInflationProgress = Number(bpReading?.inflationProgress);
+  const reportedDeflationProgress = Number(bpReading?.deflationProgress);
+  const inflationProgress = Number.isFinite(reportedInflationProgress)
+    ? Math.max(0, Math.min(100, reportedInflationProgress))
+    : bpStage === "inflating"
+      ? Math.max(0, Math.min(100, ((bpOverallProgress - 5) / 40) * 100))
+      : bpStage === "settling" || bpStage === "deflating"
+        ? 100
+        : 0;
+  const deflationProgress = Number.isFinite(reportedDeflationProgress)
+    ? Math.max(0, Math.min(100, reportedDeflationProgress))
+    : bpStage === "deflating"
+      ? Math.max(0, Math.min(100, ((bpOverallProgress - 45) / 50) * 100))
+      : 0;
+  const bpStageLabel =
+    bpStage === "starting"
+      ? "Preparing cuff..."
+      : bpStage === "inflating"
+        ? "Inflating cuff..."
+        : bpStage === "settling"
+          ? "Cuff inflated; settling..."
+          : bpStage === "deflating"
+            ? "Releasing cuff pressure..."
+            : "Measuring cuff pressure...";
   const readingConfirmed = readingVital === "bp"
     ? bpComplete
     : readingVital != null && confirmedReading != null;
@@ -988,12 +1014,32 @@ const handleCancelReading = async () => {
               </h2>
 
               {readingVital === "bp" && bpReading?.status === "running" && (
-                <div className="mb-6 space-y-2" aria-live="polite">
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>{bpReading.stage === "deflating" ? "Releasing cuff pressure" : "Inflating cuff"}</span>
-                    <span>{Math.round(Number(bpReading.progress) || 0)}%</span>
+                <div className="mb-6 space-y-4" aria-live="polite">
+                  <p className="text-center text-sm font-medium text-foreground">
+                    {bpStageLabel}
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className={bpStage === "inflating" ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                        Inflating cuff
+                      </span>
+                      <span className={bpStage === "inflating" ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                        {Math.round(inflationProgress)}%
+                      </span>
+                    </div>
+                    <Progress value={inflationProgress} aria-label="Cuff inflation progress" />
                   </div>
-                  <Progress value={Number(bpReading.progress) || 0} aria-label="Blood pressure measurement progress" />
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className={bpStage === "deflating" ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                        Releasing pressure
+                      </span>
+                      <span className={bpStage === "deflating" ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                        {Math.round(deflationProgress)}%
+                      </span>
+                    </div>
+                    <Progress value={deflationProgress} aria-label="Cuff deflation progress" />
+                  </div>
                   {Number.isFinite(Number(bpReading.displayPressure ?? bpReading.pressure)) && (
                     <p className="text-center text-sm text-muted-foreground">
                       Cuff pressure: {Number(bpReading.displayPressure ?? bpReading.pressure).toFixed(0)} mmHg

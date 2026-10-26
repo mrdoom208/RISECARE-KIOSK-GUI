@@ -40,7 +40,7 @@ CALIBRATION_FILE = os.path.join(
 )
 # HX711 raw counts per kilogram. Weight calibration only needs to capture the
 # empty platform offset; the scale's per-kg factor is fixed for this hardware.
-CALIBRATION_FACTOR_PER_KG = 27100
+CALIBRATION_FACTOR_PER_KG = 28205
 calibration_factor = None
 empty_offset = None
 
