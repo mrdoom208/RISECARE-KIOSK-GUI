@@ -795,7 +795,8 @@ class OscillometricAnalyzer:
             dia_target, systolic_side=False,
         )
         pulse_pressure = systolic - diastolic
-        if (systolic > envelope_map_pressure > diastolic
+        if (systolic > 0.0 and diastolic > 0.0
+                and systolic > envelope_map_pressure > diastolic
                 and 10.0 <= pulse_pressure <= 150.0
                 and self.heart_rate_bpm > 0.0):
             # Freeze the exact envelope and crossings that justified ending
