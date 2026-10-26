@@ -93,6 +93,9 @@ export default function Dashboard() {
   // Monotonic counter for received payloads. It identifies a payload
   // uniquely, unlike a timestamp, which can repeat within a millisecond.
   const payloadSeqRef = useRef(0);
+  // Keep a short rolling window for the live cuff-pressure display only.
+  // The raw pressure remains untouched for the final measurement payload.
+  const bpPressureSamplesRef = useRef<number[]>([]);
   // The values that were on screen when the reading was confirmed. Latching
   // them means lifting the finger (or a drifting measurement afterwards)
   // cannot take a finished reading away.
@@ -119,6 +122,19 @@ export default function Dashboard() {
         : vitalToSensorId[activeVital];
       if (sensor !== expectedSensor) return;
 
+      let displayData = data;
+      if (sensor === "bp") {
+        const pressure = Number(data.pressure);
+        if (data.status !== "running") {
+          bpPressureSamplesRef.current = [];
+        } else if (Number.isFinite(pressure)) {
+          const samples = [...bpPressureSamplesRef.current, pressure].slice(-3);
+          bpPressureSamplesRef.current = samples;
+          const sorted = [...samples].sort((a, b) => a - b);
+          displayData = { ...data, displayPressure: sorted[Math.floor(sorted.length / 2)] };
+        }
+      }
+
       setLiveReadings((prev) => {
         const previous = prev[sensor] ?? {};
         // The MAX30102 publishes every second, with or without a measurement.
@@ -126,7 +142,7 @@ export default function Dashboard() {
         // arrives, so a stable reading is not wiped between ticks.
         const next = {
           ...previous,
-          ...data,
+          ...displayData,
           _receivedAt: Date.now(),
           _seq: ++payloadSeqRef.current,
         };
@@ -454,6 +470,7 @@ const handleStartReading = async () => {
   }
 
   setLiveReadings({});
+  bpPressureSamplesRef.current = [];
   setReadingVital(activeKeypad);
   setActiveSensor(null);
   setStableCount(0);
@@ -483,6 +500,7 @@ const stopSensor = async () => {
   setStableCount(0);
   setConfirmedReading(null);
   setLiveReadings({});
+  bpPressureSamplesRef.current = [];
   prevValueRef.current = null;
   countedReadingRef.current = null;
 };
@@ -976,9 +994,9 @@ const handleCancelReading = async () => {
                     <span>{Math.round(Number(bpReading.progress) || 0)}%</span>
                   </div>
                   <Progress value={Number(bpReading.progress) || 0} aria-label="Blood pressure measurement progress" />
-                  {Number.isFinite(Number(bpReading.pressure)) && (
+                  {Number.isFinite(Number(bpReading.displayPressure ?? bpReading.pressure)) && (
                     <p className="text-center text-sm text-muted-foreground">
-                      Cuff pressure: {Number(bpReading.pressure).toFixed(0)} mmHg
+                      Cuff pressure: {Number(bpReading.displayPressure ?? bpReading.pressure).toFixed(0)} mmHg
                     </p>
                   )}
                 </div>

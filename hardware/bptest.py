@@ -74,7 +74,7 @@ DIA_RATIO = 0.80
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
-MIN_PULSE_AMPLITUDE = 0.02      # Minimum accepted pulse amplitude in mmHg.
+MIN_PULSE_AMPLITUDE = 0.03      # Minimum accepted pulse amplitude in mmHg.
 AMP_FILTER_WINDOW = 3
 AMP_OUTLIER_HIGH = 4          # reject isolated beats above 4x recent median
 AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
@@ -86,7 +86,7 @@ PRESSURE_SPIKE_LIMIT = 4.0
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.05
+PEAK_DROP_THRESHOLD = 0.06
 
 # Filtering.
 BASELINE_ALPHA = 0.01
