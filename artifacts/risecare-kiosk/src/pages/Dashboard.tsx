@@ -1046,7 +1046,7 @@ const handleCancelReading = async () => {
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Done {!isStable && readingVital !== "hr" && `(${stableCount}/${requiredStableCount})`}
+                  Done {!isStable && `(${stableCount}/${requiredStableCount})`}
                 </button>
               </div>
 

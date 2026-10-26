@@ -83,7 +83,6 @@ def _hr_sample_progress_percent(finger_detected, sample_target):
 
         target = max(1, int(sample_target))
         if _hr_progress_sample_count >= target:
-            _hr_progress_sample_count %= target
             return 100
         return round(100 * _hr_progress_sample_count / target)
 
