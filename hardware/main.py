@@ -69,6 +69,9 @@ def _reserve_sensor_operation():
     # Drain any ToF read that began before this operation reserved the sensors.
     with _height_io_lock:
         pass
+    # Stop the background height sampler entirely: while another sensor owns
+    # the hardware it must not add I2C, CPU, or scheduling jitter.
+    _stop_height_worker()
     return True
 
 
@@ -76,6 +79,9 @@ def _release_sensor_operation():
     global measure_busy
     with _sensor_probe_lock:
         measure_busy = False
+    # Resume the height sampler only if the kiosk still has height enabled.
+    if height_enabled:
+        _start_height_worker()
 
 
 def _reset_hr_sample_progress():

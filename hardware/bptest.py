@@ -69,16 +69,16 @@ SETTLE_MAX_PRESSURE_DROP = 15.0
 # Experimental oscillometric ratios (from the Arduino prototype).
 # NOTE: Fixed ratios are approximations; calibrate against reference measurements.
 # Commercial devices fit ratios per-cuff/arm; fixed ratios can err by 5-10+ mmHg.
-SYS_RATIO = 0.50
-DIA_RATIO = 0.80
+SYS_RATIO = 0.40
+DIA_RATIO = 0.85
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
 MIN_PULSE_AMPLITUDE = 0.03      # Minimum accepted pulse amplitude in mmHg.
-AMP_FILTER_WINDOW = 3
+AMP_FILTER_WINDOW = 5
 AMP_OUTLIER_HIGH = 4          # reject isolated beats above 4x recent median
 AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
-AMP_OUTLIER_CONFIRM_BEATS = 2   # accept a sustained change after two beats
+AMP_OUTLIER_CONFIRM_BEATS = 1   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
 PRESSURE_SPIKE_LIMIT = 5.0
 MAX_CONSECUTIVE_PRESSURE_SPIKES = 4
@@ -104,6 +104,19 @@ READY_TIMEOUT = 2.0
 MAX_CONSECUTIVE_READ_TIMEOUTS = 2
 EXTRA_CLOCK_PULSES = 1
 PROGRESS_UPDATE_INTERVAL = 0.25
+
+# A conversion can be corrupted when the OS preempts the bit-banged clock.
+# Retry before counting it as a bad sample.
+INVALID_PRESSURE_MIN = -5.0
+INVALID_PRESSURE_MAX = 250.0
+BAD_READ_RETRIES = 3
+ADC_WARMUP_SAMPLES = 5
+MEASUREMENT_WARMUP_SAMPLES = 2
+
+# Writing to a piped stdout can block and stretch the next ADC read, so keep
+# periodic diagnostic logging infrequent during a measurement.
+LIVE_PRINT_INTERVAL = 0.5
+DEFLATION_RATE_LOG_INTERVAL_MS = 1000
 
 # Relay modules commonly energize on LOW. Change only if your board is active-high.
 RELAYS_ACTIVE_LOW = True
@@ -985,6 +998,20 @@ class BloodPressureTest:
         valve_set(False)  # open the cuff to release pressure
         self.pump_running = False
 
+    def read_pressure(self):
+        """Return (raw, mmHg), retrying transient out-of-range conversions."""
+        raw = None
+        pressure = 0.0
+        for _ in range(BAD_READ_RETRIES + 1):
+            raw = self.adc.read_raw()
+            if raw is None:
+                return None, 0.0
+            pressure = raw_to_mmhg(raw)
+            if (math.isfinite(pressure)
+                    and INVALID_PRESSURE_MIN <= pressure <= INVALID_PRESSURE_MAX):
+                return raw, pressure
+        return raw, pressure
+
     def update_inflation(self, pressure, now, raw_pressure=None):
         """Return (stop, reason) using live oscillation tracking."""
         # Enforce the ceiling on the raw reading so filter lag cannot overshoot.
@@ -1045,6 +1072,14 @@ class BloodPressureTest:
         self.failure_reason = None
         last_progress_at = 0.0
 
+        # Fewer thread switches during a bit-banged conversion means fewer
+        # corrupted samples when this runs alongside the other kiosk threads.
+        previous_switch_interval = None
+        try:
+            previous_switch_interval = sys.setswitchinterval(0.05)
+        except (AttributeError, ValueError):
+            pass
+
         def report_progress(stage, percent, pressure):
             nonlocal last_progress_at
             now = time.monotonic()
@@ -1069,13 +1104,15 @@ class BloodPressureTest:
             consecutive_invalid = 0
             consecutive_read_timeouts = 0
             consecutive_pressure_spikes = 0
+            warmup_remaining = ADC_WARMUP_SAMPLES
+            measurement_warmup_remaining = 0
             while True:
                 if stop_event is not None and stop_event.is_set():
                     print("BP measurement stopped by operator")
                     self.failure_reason = "Measurement stopped by operator"
                     break
 
-                raw_reading = self.adc.read_raw()
+                raw_reading, cuff_pressure = self.read_pressure()
                 if stop_event is not None and stop_event.is_set():
                     print("BP measurement stopped by operator")
                     self.failure_reason = "Measurement stopped by operator"
@@ -1096,9 +1133,10 @@ class BloodPressureTest:
 
                 consecutive_read_timeouts = 0
 
-                cuff_pressure = raw_to_mmhg(raw_reading)
                 pressure = cuff_pressure
-                if not math.isfinite(pressure) or pressure < -5 or pressure > 250:
+                if (not math.isfinite(pressure)
+                        or pressure < INVALID_PRESSURE_MIN
+                        or pressure > INVALID_PRESSURE_MAX):
                     consecutive_invalid += 1
                     print(f"Invalid pressure {pressure:.1f} mmHg "
                           f"({consecutive_invalid}/3 consecutive)")
@@ -1108,6 +1146,19 @@ class BloodPressureTest:
                         break
                     continue
                 consecutive_invalid = 0
+
+                if warmup_remaining > 0:
+                    warmup_remaining -= 1
+                    # Even discarded warm-up samples must honor the safety
+                    # ceiling so a pre-pressurized cuff cannot overshoot.
+                    if cuff_pressure >= MAX_INFLATE_PRESSURE:
+                        pump_set(False)
+                        self.pump_running = False
+                        self.pump_off_pressure = cuff_pressure
+                        self.settle_started = time.monotonic()
+                        print(f"Pump off at {cuff_pressure:.1f} mmHg "
+                              "(safety ceiling); allowing pressure to settle")
+                    continue
 
                 measured_pressure = cuff_pressure
                 pressure, was_spike = self.pressure_filter.apply(cuff_pressure)
@@ -1172,12 +1223,16 @@ class BloodPressureTest:
                     self._last_pressure = None
                     self._last_time = None
                     self._last_rate_log = 0.0
+                    measurement_warmup_remaining = MEASUREMENT_WARMUP_SAMPLES
                     print(f"Measuring from {pressure:.1f} mmHg "
                           f"(inflation peak {self.inflation_peak_amplitude:.3f} "
                           f"at {self.inflation_peak_pressure:.1f} mmHg); "
                           f"valve closed, natural leakage ~6 mmHg/s")
 
                 if not self.pump_running and self.measuring:
+                    if measurement_warmup_remaining > 0:
+                        measurement_warmup_remaining -= 1
+                        continue
                     self.analyzer.process_pressure(pressure, now_ms())
                     deflation_span = max(
                         self.measurement_start_pressure - MIN_MEASURE_PRESSURE, 1.0
@@ -1214,18 +1269,19 @@ class BloodPressureTest:
 
                 # Log deflation rate during measurement (target: 2-3 mmHg/s).
                 if (self.measuring and self._last_time is not None
-                        and now_ms() - self._last_rate_log > 500):
+                        and now_ms() - self._last_rate_log
+                        > DEFLATION_RATE_LOG_INTERVAL_MS):
                     dt = (now_ms() - self._last_time) / 1000.0
                     if dt > 0:
                         rate = (self._last_pressure - pressure) / dt
                         self._last_rate_log = now_ms()
-                        print(f"DEFLATION RATE: {rate:.2f} mmHg/s", flush=True)
+                        print(f"DEFLATION RATE: {rate:.2f} mmHg/s")
                 if self.measuring:
                     self._last_pressure = pressure
                     self._last_time = now_ms()
 
                 current = time.monotonic()
-                if current - self.last_live_print >= 0.1:
+                if current - self.last_live_print >= LIVE_PRINT_INTERVAL:
                     self.last_live_print = current
                     if self.pump_running:
                         phase = "ON"
@@ -1240,8 +1296,7 @@ class BloodPressureTest:
                         f"Amp:{self.analyzer.pulse_amplitude:.3f} | "
                         f"Pulse:{self.analyzer.heart_rate_bpm:5.1f} | "
                         f"Beats:{self.analyzer.detected_beat_count} | "
-                        f"Envelope:{self.analyzer.peak_count} | Pump:{phase}",
-                        flush=True)
+                        f"Envelope:{self.analyzer.peak_count} | Pump:{phase}")
 
         except KeyboardInterrupt:
             print("\nStopped by user")
@@ -1251,6 +1306,11 @@ class BloodPressureTest:
             # GPIO.cleanup() without channels resets every pin, which breaks
             # the load-cell HX711 configured on BCM 5/6 after a BP run.
             GPIO.cleanup([OUT_PIN, SCK_PIN, PUMP, VALVE])
+            if previous_switch_interval is not None:
+                try:
+                    sys.setswitchinterval(previous_switch_interval)
+                except (AttributeError, ValueError):
+                    pass
 
         if result is None and self.failure_reason is None:
             self.failure_reason = self.analyzer.invalid_reason or (
