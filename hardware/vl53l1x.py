@@ -33,6 +33,8 @@ MAX_DISTANCE_CM = 400
 # the sensor while it runs.
 CALIBRATION_SAMPLES = 11
 MIN_CALIBRATION_READINGS = 7
+MAX_CALIBRATION_ATTEMPTS = CALIBRATION_SAMPLES * 3
+CALIBRATION_SAMPLE_TIMEOUT = 1.0
 
 # One height reading is built from a few samples, so a single noisy ranging
 # result cannot move the published height.
@@ -199,31 +201,40 @@ def calibrate_height(progress_callback=None, stop_event=None):
     if not stop_event:
         time.sleep(2)
     readings = []
+    started_at = time.monotonic()
 
-    for _ in range(CALIBRATION_SAMPLES):
+    for attempt in range(1, MAX_CALIBRATION_ATTEMPTS + 1):
         if stop_event and stop_event.is_set():
             return None
-        d = measure_distance()
+        if len(readings) >= CALIBRATION_SAMPLES:
+            break
+
+        d = measure_distance(timeout=CALIBRATION_SAMPLE_TIMEOUT)
+        elapsed = time.monotonic() - started_at
         if _is_valid_distance(d):
             readings.append(d)
-            message = f"Reading {len(readings)}/{CALIBRATION_SAMPLES}: {d} cm"
-            print(message)
-            if progress_callback:
-                progress_callback(message)
+            message = (
+                f"Valid readings {len(readings)}/{CALIBRATION_SAMPLES} "
+                f"(attempt {attempt}/{MAX_CALIBRATION_ATTEMPTS}, {elapsed:.1f}s): {d} cm"
+            )
         else:
-            message = f"Ignored invalid reading: {d} cm"
-            print(message)
-            if progress_callback:
-                progress_callback(message)
+            message = (
+                f"Waiting for a valid sensor reading "
+                f"(attempt {attempt}/{MAX_CALIBRATION_ATTEMPTS}, {elapsed:.1f}s)"
+            )
+        print(message)
+        if progress_callback:
+            progress_callback(message)
         if stop_event:
-            if stop_event.wait(0.2):
+            if stop_event.wait(0.1):
                 return None
         else:
-            time.sleep(0.2)
+            time.sleep(0.1)
 
     if len(readings) < MIN_CALIBRATION_READINGS:
         message = (
-            f"Calibration failed: only {len(readings)} valid readings; "
+            f"Calibration failed: only {len(readings)} valid readings after "
+            f"{MAX_CALIBRATION_ATTEMPTS} attempts; "
             f"at least {MIN_CALIBRATION_READINGS} are required"
         )
         print(message)

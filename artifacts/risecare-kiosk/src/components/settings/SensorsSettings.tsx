@@ -31,6 +31,7 @@ type Feedback = {
 
 const TEST_TIMEOUT = 12000;
 const CAL_TIMEOUT = 20000;
+const HEIGHT_CAL_TIMEOUT = 45000;
 const RATE_LIMIT_MS = 2000;
 
 export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
@@ -268,7 +269,8 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
               calibrationProgressRef.current?.height?._receivedAt > started &&
               calibrationProgressRef.current?.height?.message?.startsWith("Height measured");
             if (heightReady) continue;
-            if (now - started > CAL_TIMEOUT) {
+            const timeout = sensorId === "height" ? HEIGHT_CAL_TIMEOUT : CAL_TIMEOUT;
+            if (now - started > timeout) {
               next[sensorId] = { type: "calibrate", status: "fail", message: "Calibration timed out" };
               changed = true;
             }
@@ -673,7 +675,9 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                               <span className="text-sm text-muted-foreground">timeout 12s</span>
                             )}
                             {fb.status === "pending" && fb.type === "calibrate" && (
-                              <span className="text-sm text-muted-foreground">timeout 20s</span>
+                              <span className="text-sm text-muted-foreground">
+                                timeout {sensor.id === "height" ? "45s" : "20s"}
+                              </span>
                             )}
                           </div>
                         </div>

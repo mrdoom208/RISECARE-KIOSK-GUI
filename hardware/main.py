@@ -42,6 +42,7 @@ height_last_read = 0.0
 weight_last_read = 0.0
 temp_last_read = 0.0
 measure_busy = False
+_sensor_probe_lock = threading.Lock()
 _bp_stop_event = threading.Event()
 _calibration_stop_events = {}
 _hr_progress_sample_count = 0
@@ -204,8 +205,12 @@ def _probe_i2c():
 def _probe_slow():
     """Printer USB scan plus the blocking I2C probes (VL53L1X, HX711)."""
     global _last_printer_status, _bp_sensor_available
-    _last_printer_status = printer.printer_status()
-    if not measure_busy:
+    # Serialize the slow GPIO/I2C probes with the start and completion of a
+    # BP run, so setup and ADC reads cannot overlap a background probe.
+    with _sensor_probe_lock:
+        if measure_busy:
+            return
+        _last_printer_status = printer.printer_status()
         vl53l1x.sensor_available = vl53l1x.probe()
         loadcell.sensor_available = loadcell.probe()
         try:
@@ -339,7 +344,13 @@ def handle_command(sensor, session_id, value, payload):
         if sensor in ("heartrate", "spo2"):
             _reset_hr_sample_progress()
         if sensor == "bp":
-            if measure_busy:
+            with _sensor_probe_lock:
+                already_busy = measure_busy
+                if not already_busy:
+                    # Reserve the sensor before starting the worker so the
+                    # availability probe cannot touch GPIO during BP setup.
+                    measure_busy = True
+            if already_busy:
                 mqtt_client.publish("risecare/sensors/bp", {
                     "status": "failed", "error": "Another sensor operation is in progress",
                     "sessionId": current_session_id, "timestamp": time.time()
@@ -349,12 +360,12 @@ def handle_command(sensor, session_id, value, payload):
 
             def _measure_bp(bp_session_id):
                 global measure_busy
-                measure_busy = True
                 result = None
                 error = None
                 try:
                     from bptest import BloodPressureTest
-                    result = BloodPressureTest().run(
+                    bp_test = BloodPressureTest()
+                    result = bp_test.run(
                         stop_event=_bp_stop_event,
                         progress_callback=lambda stage, percent, pressure: mqtt_client.publish(
                             "risecare/sensors/bp", {
@@ -365,12 +376,13 @@ def handle_command(sensor, session_id, value, payload):
                         )
                     )
                     if result is None:
-                        error = "No valid pressure result was produced"
+                        error = bp_test.failure_reason or "No valid pressure result was produced"
                 except Exception as exc:
                     error = f"{type(exc).__name__}: {exc}"
                     print(f"BP measurement failed: {error}")
                 finally:
-                    measure_busy = False
+                    with _sensor_probe_lock:
+                        measure_busy = False
                 message = {
                     "status": "success" if result else "failed",
                     "sessionId": bp_session_id,

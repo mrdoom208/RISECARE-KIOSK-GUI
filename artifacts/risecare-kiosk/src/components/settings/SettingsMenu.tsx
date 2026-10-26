@@ -60,6 +60,21 @@ export function SettingsMenu({
   onOpenSensors,
   onOpenPower,
 }: SettingsMenuProps) {
+  const {
+    data: networkSetting,
+    isLoading: networkSettingLoading,
+  } = useQuery<{ enabled: boolean }>({
+    queryKey: ["network-enabled"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/network-enabled");
+      if (!res.ok) throw new Error("Failed to fetch network setting");
+      return res.json();
+    },
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+  });
+  const networkEnabled = networkSetting?.enabled ?? true;
+
   const { data: networkStatus, isLoading: networkStatusLoading } = useQuery<{
     online?: boolean;
   }>({
@@ -74,6 +89,7 @@ export function SettingsMenu({
     // re-rendered the settings subtree (and any focused field under it) every 5s
     // with no visible effect.
     refetchIntervalInBackground: false,
+    enabled: networkEnabled,
   });
 
   return (
@@ -107,9 +123,9 @@ export function SettingsMenu({
           ariaLabel="Open Network Settings"
           trailing={
             <span className="flex items-center gap-2" aria-live="polite">
-              {networkStatusLoading ? (
+              {networkSettingLoading || (networkEnabled && networkStatusLoading) ? (
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              ) : networkStatus?.online ? (
+              ) : networkEnabled && networkStatus?.online ? (
                 <span className="flex items-center gap-1.5 text-sm font-bold text-green-600">
                   <Wifi className="w-4 h-4" /> Online
                 </span>

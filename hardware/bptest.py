@@ -714,6 +714,33 @@ class OscillometricAnalyzer:
         below_map = sum(1 for p in self.peak_pressures if p < self.map_pressure)
         return above_map, below_map
 
+    def filtered_envelope_points(self):
+        """Return the same ordered, smoothed envelope used for BP crossings."""
+        ordered_points = sorted(
+            zip(self.peak_pressures, self.peak_amplitudes),
+            key=lambda point: point[0],
+            reverse=True,
+        )
+        pressures = [pressure for pressure, _ in ordered_points]
+        raw_amplitudes = [amplitude for _, amplitude in ordered_points]
+        filtered_amplitudes = []
+
+        for i, amplitude in enumerate(raw_amplitudes):
+            neighbors = (raw_amplitudes[max(0, i - 2):i]
+                         + raw_amplitudes[i + 1:i + 3])
+            if neighbors:
+                reference = statistics.median(neighbors)
+                if (reference > 0.0
+                        and amplitude > reference * AMP_OUTLIER_HIGH):
+                    amplitude = reference
+            filtered_amplitudes.append(amplitude)
+
+        amplitudes = [
+            statistics.median(filtered_amplitudes[max(0, i - 2):i + 3])
+            for i in range(len(filtered_amplitudes))
+        ]
+        return pressures, amplitudes
+
     def envelope_has_enough_points(self):
         above_map, below_map = self.envelope_point_counts()
 
@@ -728,18 +755,38 @@ class OscillometricAnalyzer:
         if self.peak_count < 5 or self.max_amplitude <= 0.0:
             return False
 
-        # Fallback: once we are well below MAP, the diastolic side has been
-        # sampled even if the pulse tail is too small/noisy to detect.
-        if (self.map_pressure > 0.0 and self.current_pressure > 0.0
-                and self.current_pressure
-                <= self.map_pressure - DEFLATION_FALLBACK_MARGIN):
-            self.deflation_end_reason = "MAP margin"
-            return True
-
-        above_map, below_map = self.envelope_point_counts()
-
+        envelope_pressures, envelope_amplitudes = self.filtered_envelope_points()
+        map_index = max(range(len(envelope_amplitudes)),
+                        key=envelope_amplitudes.__getitem__)
+        envelope_map_pressure = envelope_pressures[map_index]
+        envelope_max_amplitude = envelope_amplitudes[map_index]
+        above_map = sum(1 for p in envelope_pressures if p > envelope_map_pressure)
+        below_map = sum(1 for p in envelope_pressures if p < envelope_map_pressure)
         if above_map < 3 or below_map < 3:
             return False
+
+        # Stop once the measured envelope has bracketed the same diastolic
+        # ratio used by calculate_bp(). This can finish before the pulse tail
+        # becomes too small for confirm_beat() to accept another beat.
+        dia_target = envelope_max_amplitude * DIA_RATIO
+        for (higher_pressure, higher_amplitude), (lower_pressure, lower_amplitude) in zip(
+            zip(envelope_pressures, envelope_amplitudes),
+            zip(envelope_pressures[1:], envelope_amplitudes[1:]),
+        ):
+            if (lower_pressure < envelope_map_pressure
+                    and higher_pressure > lower_pressure
+                    and higher_amplitude >= dia_target
+                    and lower_amplitude <= dia_target):
+                self.deflation_end_reason = "diastolic envelope crossing"
+                return True
+
+        # Fallback: once we are well below MAP, the diastolic side has been
+        # sampled even if the pulse tail is too small/noisy to detect.
+        if (envelope_map_pressure > 0.0 and self.current_pressure > 0.0
+                and self.current_pressure
+                <= envelope_map_pressure - DEFLATION_FALLBACK_MARGIN):
+            self.deflation_end_reason = "MAP margin"
+            return True
 
         if self.low_amplitude_streak >= DEFLATION_END_BEATS:
             self.deflation_end_reason = "oscillation tail"
@@ -782,36 +829,9 @@ class OscillometricAnalyzer:
             self.print_envelope()
             return
 
-        # A pulse's pressure coordinate can jitter slightly with cuff motion
-        # and the pulse itself. Crossing search expects a monotonic deflation
-        # envelope, so order records by pressure before examining neighbors.
-        ordered_points = sorted(
-            zip(self.peak_pressures, self.peak_amplitudes),
-            key=lambda point: point[0],
-            reverse=True,
-        )
-        self.peak_pressures = [pressure for pressure, _ in ordered_points]
-        raw_amplitudes = [amplitude for _, amplitude in ordered_points]
-        filtered_amplitudes = []
-
-        for i, amplitude in enumerate(raw_amplitudes):
-            neighbors = (raw_amplitudes[max(0, i - 2):i]
-                         + raw_amplitudes[i + 1:i + 3])
-
-            if neighbors:
-                reference = statistics.median(neighbors)
-
-                if (reference > 0.0
-                        and amplitude > reference * AMP_OUTLIER_HIGH):
-                    amplitude = reference
-
-            filtered_amplitudes.append(amplitude)
-
-        # A single oversized beat should not define MAP or shift both crossings.
-        self.peak_amplitudes = [
-            statistics.median(filtered_amplitudes[max(0, i - 2):i + 3])
-            for i in range(len(filtered_amplitudes))
-        ]
+        # Use the same pressure-ordered, smoothed envelope as the early-stop
+        # check so stopping and final SYS/DIA crossings agree.
+        self.peak_pressures, self.peak_amplitudes = self.filtered_envelope_points()
         map_index = max(range(len(self.peak_amplitudes)),
                         key=self.peak_amplitudes.__getitem__)
         self.max_amplitude = self.peak_amplitudes[map_index]
@@ -903,6 +923,7 @@ class BloodPressureTest:
         self.inflation_peak_pressure = 0.0
         self.inflation_beat_count = 0
         self.inflation_low_amplitude_seen = False
+        self.failure_reason = None
 
     def setup(self):
         GPIO.setmode(GPIO.BCM)
@@ -975,6 +996,7 @@ class BloodPressureTest:
         print("RiseCare pressure test (experimental; not for diagnosis)")
         print(f"Calibration: {RAW_PER_MMHG} raw/mmHg, offset {RAW_OFFSET}")
         result = None
+        self.failure_reason = None
         last_progress_at = 0.0
 
         def report_progress(stage, percent, pressure):
@@ -1003,11 +1025,13 @@ class BloodPressureTest:
             while True:
                 if stop_event is not None and stop_event.is_set():
                     print("BP measurement stopped by operator")
+                    self.failure_reason = "Measurement stopped by operator"
                     break
 
                 raw_reading = self.adc.read_raw()
                 if stop_event is not None and stop_event.is_set():
                     print("BP measurement stopped by operator")
+                    self.failure_reason = "Measurement stopped by operator"
                     break
 
                 if raw_reading is None:
@@ -1019,6 +1043,7 @@ class BloodPressureTest:
                     )
                     if consecutive_read_timeouts >= MAX_CONSECUTIVE_READ_TIMEOUTS:
                         print("ERROR: repeated HX710B timeouts; aborting safely")
+                        self.failure_reason = "Pressure sensor timed out repeatedly"
                         break
                     continue
 
@@ -1032,6 +1057,7 @@ class BloodPressureTest:
                           f"({consecutive_invalid}/3 consecutive)")
                     if consecutive_invalid >= 3:
                         print("ERROR: 3 consecutive invalid readings; aborting")
+                        self.failure_reason = "Pressure sensor returned three invalid readings"
                         break
                     continue
                 consecutive_invalid = 0
@@ -1156,6 +1182,15 @@ class BloodPressureTest:
             # GPIO.cleanup() without channels resets every pin, which breaks
             # the load-cell HX711 configured on BCM 5/6 after a BP run.
             GPIO.cleanup([OUT_PIN, SCK_PIN, PUMP, VALVE])
+
+        if result is None and self.failure_reason is None:
+            self.failure_reason = (
+                "No valid SYS/DIA result; "
+                f"accepted beats={self.analyzer.detected_beat_count}, "
+                f"envelope points={self.analyzer.peak_count}, "
+                f"peak amplitude={self.analyzer.max_amplitude:.3f} mmHg"
+            )
+            print(f"BP measurement failed: {self.failure_reason}")
 
         return result
 
