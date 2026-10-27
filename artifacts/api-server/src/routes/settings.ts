@@ -45,7 +45,17 @@ const dbPath = getDbPath();
 
 const router: IRouter = Router();
 
-const KIOSK_URLS = new Set(["http://localhost:3000", "http://localhost:3000/"]);
+function isLoopbackUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
 
 async function findKioskBrowserPids(): Promise<number[]> {
   if (process.platform !== "linux") return [];
@@ -70,9 +80,10 @@ async function findKioskBrowserPids(): Promise<number[]> {
     const executable = path.basename(args[0] ?? "");
     const isChromium = /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/.test(executable);
     const isBrowserProcess = !args.some((arg) => arg.startsWith("--type="));
-    const hasKioskUrl = args.some((arg) => KIOSK_URLS.has(arg));
+    const hasKioskMode = args.includes("--kiosk");
+    const hasLoopbackUrl = args.some(isLoopbackUrl);
 
-    if (isChromium && isBrowserProcess && hasKioskUrl) {
+    if (isChromium && isBrowserProcess && hasKioskMode && hasLoopbackUrl) {
       pids.push(Number(entry.name));
     }
   }
