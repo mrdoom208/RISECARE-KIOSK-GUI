@@ -77,9 +77,9 @@ DIA_RATIO = 0.85
 # (0.5-4 mmHg) and let the amplitude gate reject isolated noise instead.
 MIN_PULSE_AMPLITUDE = 0.03      # Minimum accepted pulse amplitude in mmHg.
 AMP_FILTER_WINDOW = 3
-AMP_OUTLIER_HIGH = 4          # reject isolated beats above 4x recent median
-AMP_OUTLIER_LOW = 0.2           # reject isolated beats below 2x recent median
-AMP_OUTLIER_CONFIRM_BEATS = 1   # accept a sustained change after two beats
+AMP_OUTLIER_HIGH = 3          # reject isolated beats above 4x recent median
+AMP_OUTLIER_LOW = 0.4           # reject isolated beats below 2x recent median
+AMP_OUTLIER_CONFIRM_BEATS = 2   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
 PRESSURE_SPIKE_LIMIT = 5.0
 # A real trend change (pump off, cuff bump) looks like a spike but repeats at
@@ -92,10 +92,10 @@ MAX_CONSECUTIVE_PRESSURE_SPIKES = 4
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.06
+PEAK_DROP_THRESHOLD = 0.07
 
 # Filtering.
-BASELINE_ALPHA = 0.01
+BASELINE_ALPHA = 0.05
 # Inflation pressure ramps much faster than natural deflation, so use a faster
 # baseline there to keep the pulsatile component from being swamped by the ramp.
 INFLATION_BASELINE_ALPHA = 0.05
@@ -120,7 +120,7 @@ INVALID_PRESSURE_MIN = -5.0
 INVALID_PRESSURE_MAX = 250.0
 BAD_READ_RETRIES = 3
 ADC_WARMUP_SAMPLES = 5
-MEASUREMENT_WARMUP_SAMPLES = 2
+MEASUREMENT_WARMUP_SAMPLES = 15
 
 # Writing to a piped stdout can block and stretch the next ADC read, so keep
 # periodic diagnostic logging infrequent during a measurement.
