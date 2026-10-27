@@ -598,6 +598,9 @@ async function sendPowerCommand(
     if (action === "exit-kiosk") {
       const pids = await findChromiumPids();
       if (pids.length === 0) {
+        console.error(
+          `Exit Program failed: no Chromium processes found on the API server host (platform: ${process.platform}).`,
+        );
         res.status(409).json({
           error: "Kiosk Chromium was not found on the API server host",
         });
@@ -640,6 +643,7 @@ async function sendPowerCommand(
       res.status(503).json({ error: "MQTT not connected" });
     }
   } catch (e) {
+    console.error(`Failed to execute ${action} power command:`, e);
     res.status(500).json({ error: `Failed to send ${action} command` });
   }
 }
