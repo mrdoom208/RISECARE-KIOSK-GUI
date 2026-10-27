@@ -41,7 +41,7 @@ RAW_OFFSET = 472820.0
 # Pressure cycle
 # Inflation stops dynamically once the live oscillation envelope has clearly
 # passed its peak. MAX_INFLATE_PRESSURE is only a hard safety ceiling.
-MAX_INFLATE_PRESSURE = 200.0
+MAX_INFLATE_PRESSURE = 260.0
 INFLATION_STOP_RATIO = 0.50
 # Stop this far above the live peak-amplitude pressure. The ratio is used as
 # a diagnostic; the pulse tail can be too small to detect, so the margin is
@@ -57,7 +57,7 @@ INFLATION_WARMUP_SECONDS = 1.2
 # Deflation ends dynamically once the envelope has faded below the diastolic
 # crossing. MIN_MEASURE_PRESSURE is only a hard safety floor. If the pulse tail
 # becomes too small to detect, fall back to this distance below MAP.
-MIN_MEASURE_PRESSURE = 25.0
+MIN_MEASURE_PRESSURE = 35.0
 DEFLATION_END_RATIO = 0.75
 DEFLATION_END_BEATS = 2
 # Do not start the tail streak until the cuff is clearly below the MAP
@@ -70,7 +70,7 @@ SETTLE_MAX_PRESSURE_DROP = 15.0
 # Experimental oscillometric ratios (from the Arduino prototype).
 # NOTE: Fixed ratios are approximations; calibrate against reference measurements.
 # Commercial devices fit ratios per-cuff/arm; fixed ratios can err by 5-10+ mmHg.
-SYS_RATIO = 0.40
+SYS_RATIO = 0.45
 DIA_RATIO = 0.85
 
 # Run --noise first. Keep the pulse floor below real cuff oscillations
@@ -78,8 +78,8 @@ DIA_RATIO = 0.85
 MIN_PULSE_AMPLITUDE = 0.03      # Minimum accepted pulse amplitude in mmHg.
 AMP_FILTER_WINDOW = 3
 AMP_OUTLIER_HIGH = 3          # reject isolated beats above 4x recent median
-AMP_OUTLIER_LOW = 0.4           # reject isolated beats below 2x recent median
-AMP_OUTLIER_CONFIRM_BEATS = 2   # accept a sustained change after two beats
+AMP_OUTLIER_LOW = 0.1           # reject isolated beats below 2x recent median
+AMP_OUTLIER_CONFIRM_BEATS = 1   # accept a sustained change after two beats
 MIN_PRESSURE_CHANGE = 0.2       # was 0.5; 0.2 keeps more envelope points
 PRESSURE_SPIKE_LIMIT = 5.0
 # A real trend change (pump off, cuff bump) looks like a spike but repeats at
@@ -92,7 +92,7 @@ MAX_CONSECUTIVE_PRESSURE_SPIKES = 4
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
 
-PEAK_DROP_THRESHOLD = 0.07
+PEAK_DROP_THRESHOLD = 0.06
 
 # Filtering.
 BASELINE_ALPHA = 0.05
@@ -120,7 +120,7 @@ INVALID_PRESSURE_MIN = -5.0
 INVALID_PRESSURE_MAX = 250.0
 BAD_READ_RETRIES = 3
 ADC_WARMUP_SAMPLES = 5
-MEASUREMENT_WARMUP_SAMPLES = 15
+MEASUREMENT_WARMUP_SAMPLES = 2
 
 # Writing to a piped stdout can block and stretch the next ADC read, so keep
 # periodic diagnostic logging infrequent during a measurement.
