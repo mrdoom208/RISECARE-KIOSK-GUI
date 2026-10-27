@@ -525,6 +525,7 @@ class OscillometricAnalyzer:
         self.max_amplitude = 0.0
         self.map_pressure = 0.0
         self.map_amplitude = 0.0
+        self.passed_map = False
 
         self.SYS = 0.0
         self.DIA = 0.0
@@ -669,6 +670,11 @@ class OscillometricAnalyzer:
                 flush=True,
             )
             return False
+
+        # Reset amplitude gate once below MAP to adapt to the falling diastolic tail
+        if self.map_pressure > 0.0 and not self.passed_map and cuff_pressure < self.map_pressure - 2.0:
+            self.amplitude_gate.reset()
+            self.passed_map = True
 
         # First peak establishes the timing reference.
         if self.last_confirmed_peak_time == 0:
