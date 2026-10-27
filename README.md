@@ -142,6 +142,18 @@ pnpm dev
 # Or run individually:
 pnpm run dev:api      # API server only (port 5000)
 pnpm run dev:local    # Both with local proxy
+
+# Run the API server with routine console.log output suppressed (warnings/errors remain visible)
+cd artifacts/api-server
+npm run dev:silent
+```
+
+On the Raspberry Pi, install the hardware Python dependencies and run the
+hardware service without routine stdout logs (errors on stderr remain visible):
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 hardware/main.py --silent
 ```
 
 **Access Points:**

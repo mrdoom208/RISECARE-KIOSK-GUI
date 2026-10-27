@@ -1,4 +1,10 @@
 import os
+import sys
+
+if "--silent" in sys.argv[1:]:
+    sys.argv.remove("--silent")
+    sys.stdout = open(os.devnull, "w")
+
 import subprocess
 import threading
 import vl53l1x

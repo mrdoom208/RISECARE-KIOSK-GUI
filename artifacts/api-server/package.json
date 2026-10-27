@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_ENV=development PORT=5000 tsx ./src/index.ts",
+    "dev:silent": "cross-env NODE_ENV=development PORT=5000 API_SILENT=1 tsx ./src/index.ts",
     "start": "cross-env NODE_ENV=production PORT=5000 tsx ./src/index.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -1,0 +1,9 @@
+adafruit-circuitpython-vl53l1x
+hx711
+numpy
+paho-mqtt
+pyusb
+python-escpos
+RPi.GPIO
+scipy
+smbus2

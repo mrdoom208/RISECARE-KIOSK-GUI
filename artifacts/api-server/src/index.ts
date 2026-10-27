@@ -1,3 +1,4 @@
+import "./quiet-logs";
 import "dotenv/config";
 import dotenv from "dotenv";
 import { resolve } from "path";

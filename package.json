@@ -12,6 +12,7 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter @workspace/api-server --filter @workspace/risecare-kiosk run dev",
+    "prod": "cross-env API_SILENT=1 pnpm --parallel --filter @workspace/api-server --filter @workspace/risecare-kiosk run dev",
     "test:api": "echo 'No API tests configured'",
     "dev:local": "pnpm --parallel --filter @workspace/api-server --filter @workspace/risecare-kiosk run dev",
     "dev:api": "pnpm --filter @workspace/api-server run dev",
