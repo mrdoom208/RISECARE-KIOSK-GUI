@@ -80,10 +80,9 @@ async function findKioskBrowserPids(): Promise<number[]> {
     const executable = path.basename(args[0] ?? "");
     const isChromium = /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/.test(executable);
     const isBrowserProcess = !args.some((arg) => arg.startsWith("--type="));
-    const hasKioskMode = args.includes("--kiosk");
     const hasLoopbackUrl = args.some(isLoopbackUrl);
 
-    if (isChromium && isBrowserProcess && hasKioskMode && hasLoopbackUrl) {
+    if (isChromium && isBrowserProcess && hasLoopbackUrl) {
       pids.push(Number(entry.name));
     }
   }
