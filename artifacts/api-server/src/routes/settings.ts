@@ -45,35 +45,85 @@ const dbPath = getDbPath();
 
 const router: IRouter = Router();
 
-async function findChromiumPids(): Promise<number[]> {
-  if (process.platform !== "linux") return [];
+interface ChromiumProcessScan {
+  pids: number[];
+  inspected: number;
+  processNames: string[];
+  readErrors: string[];
+}
+
+async function findChromiumPids(): Promise<ChromiumProcessScan> {
+  if (process.platform !== "linux") {
+    return { pids: [], inspected: 0, processNames: [], readErrors: [] };
+  }
 
   const entries = await fs.promises.readdir("/proc", { withFileTypes: true });
   const pids: number[] = [];
+  const processNames = new Set<string>();
+  const readErrors: string[] = [];
+  let inspected = 0;
 
   for (const entry of entries) {
     if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
 
-    let args: string[];
+    inspected += 1;
+    let processName = "";
     try {
-      args = (await fs.promises.readFile(`/proc/${entry.name}/cmdline`))
+      processName = (await fs.promises.readFile(
+        `/proc/${entry.name}/comm`,
+        "utf8",
+      )).trim();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      if (readErrors.length < 5) {
+        readErrors.push(
+          `PID ${entry.name} comm: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    if (processName) processNames.add(processName);
+    const isChromiumName =
+      /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/i.test(
+        processName,
+      );
+
+    if (isChromiumName) {
+      pids.push(Number(entry.name));
+      continue;
+    }
+
+    try {
+      const args = (await fs.promises.readFile(
+        `/proc/${entry.name}/cmdline`,
+      ))
         .toString("utf8")
         .split("\0")
         .filter(Boolean);
+      const executable = path.basename(args[0] ?? "");
+      if (
+        /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/i.test(
+          executable,
+        )
+      ) {
+        pids.push(Number(entry.name));
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      throw error;
-    }
-
-    const executable = path.basename(args[0] ?? "");
-    const isChromium = /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/.test(executable);
-
-    if (isChromium) {
-      pids.push(Number(entry.name));
+      if (readErrors.length < 5) {
+        readErrors.push(
+          `PID ${entry.name} cmdline: ${(error as Error).message}`,
+        );
+      }
     }
   }
 
-  return pids;
+  return {
+    pids,
+    inspected,
+    processNames: [...processNames].slice(0, 10),
+    readErrors,
+  };
 }
 
 const loginLimiter = rateLimit({
@@ -596,10 +646,20 @@ async function sendPowerCommand(
     const actionLabel = POWER_COMMAND_LABEL[action];
 
     if (action === "exit-kiosk") {
-      const pids = await findChromiumPids();
+      const scan = await findChromiumPids();
+      const { pids } = scan;
       if (pids.length === 0) {
         console.error(
-          `Exit Program failed: no Chromium processes found on the API server host (platform: ${process.platform}).`,
+          "Exit Program failed to find Chromium:",
+          JSON.stringify({
+            platform: process.platform,
+            procPath: "/proc",
+            inspectedPidEntries: scan.inspected,
+            processNames: scan.processNames,
+            readErrors: scan.readErrors,
+            note:
+              "The scan only sees processes visible in the API server's process namespace.",
+          }),
         );
         res.status(409).json({
           error: "Kiosk Chromium was not found on the API server host",
