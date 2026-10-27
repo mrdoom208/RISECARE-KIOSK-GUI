@@ -45,19 +45,7 @@ const dbPath = getDbPath();
 
 const router: IRouter = Router();
 
-function isLoopbackUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === "http:" &&
-      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
-    );
-  } catch {
-    return false;
-  }
-}
-
-async function findKioskBrowserPids(): Promise<number[]> {
+async function findChromiumPids(): Promise<number[]> {
   if (process.platform !== "linux") return [];
 
   const entries = await fs.promises.readdir("/proc", { withFileTypes: true });
@@ -79,10 +67,8 @@ async function findKioskBrowserPids(): Promise<number[]> {
 
     const executable = path.basename(args[0] ?? "");
     const isChromium = /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/.test(executable);
-    const isBrowserProcess = !args.some((arg) => arg.startsWith("--type="));
-    const hasLoopbackUrl = args.some(isLoopbackUrl);
 
-    if (isChromium && isBrowserProcess && hasLoopbackUrl) {
+    if (isChromium) {
       pids.push(Number(entry.name));
     }
   }
@@ -610,7 +596,7 @@ async function sendPowerCommand(
     const actionLabel = POWER_COMMAND_LABEL[action];
 
     if (action === "exit-kiosk") {
-      const pids = await findKioskBrowserPids();
+      const pids = await findChromiumPids();
       if (pids.length === 0) {
         res.status(409).json({
           error: "Kiosk Chromium was not found on the API server host",
