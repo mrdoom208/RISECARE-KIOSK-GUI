@@ -1,7 +1,7 @@
 import { memo, useCallback, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, Loader2, Lock, Power, RotateCw, X } from "lucide-react";
+import { ChevronRight, Loader2, Lock, LogOut, Power, RotateCw, X } from "lucide-react";
 import type { SettingsAccount } from "@/components/LoginDialog";
 import { ModalShell } from "@/components/ModalShell";
 import { ReauthPrompt } from "./ReauthPrompt";
@@ -13,7 +13,14 @@ interface PowerSettingsProps {
   isRateLimited: (key: string) => boolean;
 }
 
-type PowerAction = "shutdown" | "restart" | "lock";
+type PowerAction = "shutdown" | "restart" | "lock" | "exit-kiosk";
+
+const ACTION_LABEL: Record<PowerAction, string> = {
+  shutdown: "Shutdown",
+  restart: "Restart",
+  lock: "Lock",
+  "exit-kiosk": "Exit Program",
+};
 
 const CloseButton = memo(function CloseButton({ onClick }: { onClick: () => void }) {
   return (
@@ -55,6 +62,13 @@ const ActionList = memo(function ActionList({ onSelect }: { onSelect: (action: P
         <Lock className="w-6 h-6" />
         <span className="text-xl font-semibold">Lock</span>
       </button>
+      <button
+        onClick={() => onSelect("exit-kiosk")}
+        className="w-full flex items-center gap-3 p-5 rounded-xl bg-secondary hover:bg-secondary/80 text-left"
+      >
+        <LogOut className="w-6 h-6" />
+        <span className="text-xl font-semibold">Exit Program</span>
+      </button>
     </div>
   );
 });
@@ -88,6 +102,7 @@ const ACTION_PHRASE: Record<PowerAction, string> = {
   shutdown: "shut down the system",
   restart: "restart the system",
   lock: "lock the screen",
+  "exit-kiosk": "close kiosk mode and return to the Linux desktop",
 };
 
 export const PowerSettings = memo(function PowerSettings({ isOpen, onClose, account, isRateLimited }: PowerSettingsProps) {
@@ -105,19 +120,25 @@ export const PowerSettings = memo(function PowerSettings({ isOpen, onClose, acco
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      if (!res.ok) throw new Error("Power command failed");
-      return res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Power command failed");
+      return data;
     },
     onSuccess: (_data, action) => {
-      const label = action.charAt(0).toUpperCase() + action.slice(1);
-      toast({ title: label, description: `${label} command sent to system` });
+      const label = ACTION_LABEL[action];
+      toast({
+        title: label,
+        description: action === "exit-kiosk"
+          ? "Kiosk mode is closing"
+          : `${label} command sent to system`,
+      });
       onClose();
       setPowerAction(null);
     },
-    onError: () => {
+    onError: (error) => {
       toast({
-        title: "Power command failed",
-        description: "Could not send command",
+        title: "Power action failed",
+        description: error instanceof Error ? error.message : "Could not complete the action",
         variant: "destructive",
       });
     },

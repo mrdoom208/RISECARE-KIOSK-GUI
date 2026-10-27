@@ -45,6 +45,41 @@ const dbPath = getDbPath();
 
 const router: IRouter = Router();
 
+const KIOSK_URLS = new Set(["http://localhost:3000", "http://localhost:3000/"]);
+
+async function findKioskBrowserPids(): Promise<number[]> {
+  if (process.platform !== "linux") return [];
+
+  const entries = await fs.promises.readdir("/proc", { withFileTypes: true });
+  const pids: number[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+
+    let args: string[];
+    try {
+      args = (await fs.promises.readFile(`/proc/${entry.name}/cmdline`))
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+
+    const executable = path.basename(args[0] ?? "");
+    const isChromium = /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/.test(executable);
+    const isBrowserProcess = !args.some((arg) => arg.startsWith("--type="));
+    const hasKioskUrl = args.some((arg) => KIOSK_URLS.has(arg));
+
+    if (isChromium && isBrowserProcess && hasKioskUrl) {
+      pids.push(Number(entry.name));
+    }
+  }
+
+  return pids;
+}
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -546,14 +581,51 @@ router.post("/export-server", requireAuth, requireReauth, async (req, res) => {
   }
 });
 
-// Send a power command (shutdown / restart / lock) via MQTT
+type PowerCommand = "shutdown" | "restart" | "lock" | "exit-kiosk";
+
+const POWER_COMMAND_LABEL: Record<PowerCommand, string> = {
+  shutdown: "Shutdown",
+  restart: "Restart",
+  lock: "Lock",
+  "exit-kiosk": "Exit Program",
+};
+
+// Send a power command (shutdown / restart / lock) via MQTT, or exit local kiosk Chromium.
 async function sendPowerCommand(
   req: any,
   res: any,
-  action: string,
+  action: PowerCommand,
 ) {
   try {
-    const actionLabel = action.charAt(0).toUpperCase() + action.slice(1);
+    const actionLabel = POWER_COMMAND_LABEL[action];
+
+    if (action === "exit-kiosk") {
+      const pids = await findKioskBrowserPids();
+      if (pids.length === 0) {
+        res.status(409).json({
+          error: "Kiosk Chromium was not found on the API server host",
+        });
+        return;
+      }
+
+      await logActivity(
+        req.user?.id ?? null,
+        `System ${actionLabel}`,
+        `User ${req.user?.username ?? "Unknown"} exited kiosk mode`,
+      );
+
+      for (const pid of pids) {
+        try {
+          process.kill(pid, "SIGTERM");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+      }
+
+      res.json({ success: true, action, message: "Kiosk program exited" });
+      return;
+    }
+
     await logActivity(
       req.user?.id ?? null,
       `System ${actionLabel}`,
@@ -579,8 +651,11 @@ async function sendPowerCommand(
 // Power commands: shutdown / restart / lock (authenticated, requires recent re-auth)
 router.post("/power", requireAuth, requireReauth, sensitiveLimiter, async (req, res) => {
   const { action } = req.body ?? {};
-  if (action !== "shutdown" && action !== "restart" && action !== "lock") {
-    res.status(400).json({ error: "Action must be 'shutdown', 'restart', or 'lock'" });
+  if (action !== "shutdown" && action !== "restart" && action !== "lock"
+      && action !== "exit-kiosk") {
+    res.status(400).json({
+      error: "Action must be 'shutdown', 'restart', 'lock', or 'exit-kiosk'",
+    });
     return;
   }
   await sendPowerCommand(req, res, action);

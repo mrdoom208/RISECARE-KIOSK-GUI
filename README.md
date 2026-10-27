@@ -20,7 +20,7 @@ A modern, self-service health monitoring kiosk application that enables patients
 - **Orientation-Responsive Layout** - UI adapts smoothly between wide/landscape and portrait kiosk displays, with side-aligned scrollbars
 - **Admin Security** - Username/password-protected history and admin accounts management (create admins & sub admins)
 - **Print Reports** - Generate and print patient health reports
-- **Power Controls** - Admin Power menu with Shutdown, Restart, and Lock options (sent to the Raspberry Pi via MQTT)
+- **Power Controls** - Admin Power menu with Shutdown, Restart, and Lock options (sent to the Raspberry Pi via MQTT), plus Exit Program to close Chromium and return to the Linux desktop when the API runs on the kiosk host
 - **WiFi Management** - Admin network page to check status, scan and connect to WiFi networks on the Raspberry Pi
 
 ---
