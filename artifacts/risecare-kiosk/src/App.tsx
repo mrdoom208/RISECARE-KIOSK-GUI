@@ -5,6 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { VirtualKeyboard } from "@/components/VirtualKeyboard";
 import { VirtualKeyboardProvider } from "@/hooks/use-virtual-keyboard";
 import IdleTimeout from "@/components/IdleTimeout";
+import { LockScreen } from "@/components/LockScreen";
+import { SwipeReload } from "@/components/SwipeReload";
 // Pages
 import Home from "./pages/Home";
 import Register from "./pages/Register";
@@ -56,9 +58,12 @@ function App() {
         <TooltipProvider>
           <WouterRouter>
             <VirtualKeyboardProvider>
-              <Router />
-              <VirtualKeyboard />
-              <IdleTimeout />
+              <SwipeReload>
+                <Router />
+                <VirtualKeyboard />
+                <IdleTimeout />
+                <LockScreen />
+              </SwipeReload>
             </VirtualKeyboardProvider>
           </WouterRouter>
           <Toaster />

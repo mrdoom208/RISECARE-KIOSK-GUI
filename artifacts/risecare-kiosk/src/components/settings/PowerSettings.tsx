@@ -18,7 +18,7 @@ type PowerAction = "shutdown" | "restart" | "lock" | "exit-kiosk";
 const ACTION_LABEL: Record<PowerAction, string> = {
   shutdown: "Shutdown",
   restart: "Restart",
-  lock: "Lock",
+  lock: "Lock Screen",
   "exit-kiosk": "Exit Program",
 };
 
@@ -60,7 +60,7 @@ const ActionList = memo(function ActionList({ onSelect }: { onSelect: (action: P
         className="w-full flex items-center gap-3 p-5 rounded-xl bg-secondary hover:bg-secondary/80 text-left"
       >
         <Lock className="w-6 h-6" />
-        <span className="text-xl font-semibold">Lock</span>
+        <span className="text-xl font-semibold">Lock Screen</span>
       </button>
       <button
         onClick={() => onSelect("exit-kiosk")}
@@ -126,6 +126,27 @@ export const PowerSettings = memo(function PowerSettings({ isOpen, onClose, acco
     },
     onSuccess: (_data, action) => {
       const label = ACTION_LABEL[action];
+      if (action === "lock") {
+        const accounts = JSON.parse(localStorage.getItem("risecare-locked-accounts") || "[]");
+        // if no accounts stored, fetch from API? but we have session
+        fetch("/api/settings/accounts")
+          .then((r) => r.json())
+          .then((accounts) => {
+            if (Array.isArray(accounts)) {
+              localStorage.setItem("risecare-locked-accounts", JSON.stringify(accounts));
+            }
+          })
+          .catch(() => {});
+        localStorage.setItem("risecare-kiosk-locked", "true");
+        window.dispatchEvent(new Event("risecare-lockscreen"));
+        toast({
+          title: "Lock Screen",
+          description: "Kiosk is now locked",
+        });
+        onClose();
+        setPowerAction(null);
+        return;
+      }
       toast({
         title: label,
         description: action === "exit-kiosk"
