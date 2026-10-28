@@ -61,7 +61,12 @@ router.get("/network/status", requireAuth, requireNetworkEnabled, async (_req, r
     const result = await runWifi(["status"]);
     res.json(result);
   } catch (e: any) {
-    res.status(500).json({ error: e.message, online: false });
+    const msg = e?.message || e?.stderr || "Failed to get network status";
+    if (msg.includes("permission") || msg.includes("Password") || msg.includes("sudo")) {
+      res.status(403).json({ error: "Network control requires elevated privileges" });
+      return;
+    }
+    res.status(500).json({ error: msg, online: false });
   }
 });
 
@@ -70,7 +75,12 @@ router.get("/network/wifi/scan", requireAuth, requireNetworkEnabled, async (_req
     const result = await runWifi(["scan"]);
     res.json(result);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    const msg = e?.message || e?.stderr || "Failed to scan networks";
+    if (msg.includes("permission") || msg.includes("Password") || msg.includes("sudo")) {
+      res.status(403).json({ error: "Network control requires elevated privileges" });
+      return;
+    }
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -79,7 +89,12 @@ router.get("/network/lan", requireAuth, requireNetworkEnabled, async (_req, res)
     const result = await runWifi(["lan"]);
     res.json(result);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    const msg = e?.message || e?.stderr || "Failed to get LAN status";
+    if (msg.includes("permission") || msg.includes("Password") || msg.includes("sudo")) {
+      res.status(403).json({ error: "Network control requires elevated privileges" });
+      return;
+    }
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -95,12 +110,21 @@ router.post("/network/wifi/connect", requireAuth, requireNetworkEnabled, async (
     if (typeof password === "string" && password) args.push(password);
     const result = await runWifi(args);
     if (result.error) {
+      if (result.error.includes("permission") || result.error.includes("Password") || result.error.includes("sudo")) {
+        res.status(403).json({ error: "Network control requires elevated privileges" });
+        return;
+      }
       res.status(400).json(result);
       return;
     }
     res.json(result);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    const msg = e?.message || e?.stderr || "Failed to connect";
+    if (msg.includes("permission") || msg.includes("Password") || msg.includes("sudo")) {
+      res.status(403).json({ error: "Network control requires elevated privileges" });
+      return;
+    }
+    res.status(500).json({ error: msg });
   }
 });
 

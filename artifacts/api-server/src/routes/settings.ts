@@ -567,7 +567,16 @@ router.post("/network-enabled", requireAuth, async (req, res) => {
       return;
     }
     const wifiScript = path.resolve(findWorkspaceRoot(), "hardware", "wifi.py");
-    await execFileAsync("python3", [wifiScript, "radio", enabled ? "on" : "off"], { timeout: 20000 });
+    try {
+      await execFileAsync("python3", [wifiScript, "radio", enabled ? "on" : "off"], { timeout: 20000 });
+    } catch (err: any) {
+      const msg = err?.message || err?.stderr || "Failed to toggle network";
+      if (msg.includes("permission") || msg.includes("Password") || msg.includes("sudo")) {
+        res.status(403).json({ error: "Network control requires elevated privileges on this system" });
+        return;
+      }
+      throw err;
+    }
     const val = enabled ? "true" : "false";
     await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('network_enabled', ?)", [val]);
     await logActivity(
@@ -576,8 +585,8 @@ router.post("/network-enabled", requireAuth, async (req, res) => {
       `Network connection ${enabled ? "enabled" : "disabled"} by ${req.user?.username ?? "Unknown"}`,
     );
     res.json({ success: true, enabled: !!enabled });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to set network connection setting" });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || "Failed to set network connection setting" });
   }
 });
 
@@ -730,15 +739,32 @@ router.post("/shutdown", requireAuth, requireReauth, sensitiveLimiter, async (re
 router.get("/update/check", requireAuth, requireSuperadmin, async (_req, res) => {
   try {
     const root = findWorkspaceRoot();
-    await execFileAsync("git", ["-C", root, "fetch", "origin", "main"], { timeout: 30000 });
-    const { stdout: local } = await execFileAsync("git", ["-C", root, "rev-parse", "HEAD"], { timeout: 10000 });
-    const { stdout: remote } = await execFileAsync("git", ["-C", root, "rev-parse", "origin/main"], { timeout: 10000 });
-    const localHash = local.trim();
-    const remoteHash = remote.trim();
-    if (localHash === remoteHash) {
+    try {
+      await execFileAsync("git", ["-C", root, "fetch", "--all", "--prune"], { timeout: 30000 });
+    } catch {
+      await execFileAsync("git", ["-C", root, "fetch", "origin", "main"], { timeout: 30000 });
+    }
+    let localHash = "";
+    let remoteHash = "";
+    try {
+      const { stdout: local } = await execFileAsync("git", ["-C", root, "rev-parse", "HEAD"], { timeout: 10000 });
+      localHash = local.trim();
+    } catch {}
+    try {
+      const { stdout: remote } = await execFileAsync("git", ["-C", root, "rev-parse", "origin/main"], { timeout: 10000 });
+      remoteHash = remote.trim();
+    } catch {
+      try {
+        const { stdout: remote } = await execFileAsync("git", ["-C", root, "rev-parse", "@{u}"], { timeout: 10000 });
+        remoteHash = remote.trim();
+      } catch {}
+    }
+    if (localHash && remoteHash && localHash === remoteHash) {
       res.json({ hasUpdate: false, localHash, remoteHash });
-    } else {
+    } else if (remoteHash && localHash && localHash !== remoteHash) {
       res.json({ hasUpdate: true, localHash, remoteHash });
+    } else {
+      res.json({ hasUpdate: false, localHash, remoteHash });
     }
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed to check for updates" });
@@ -749,12 +775,21 @@ router.get("/update/check", requireAuth, requireSuperadmin, async (_req, res) =>
 router.post("/update/apply", requireAuth, requireSuperadmin, requireReauth, sensitiveLimiter, async (req, res) => {
   try {
     const root = findWorkspaceRoot();
-    await execFileAsync("git", ["-C", root, "pull", "origin", "main"], { timeout: 60000 });
+    try {
+      await execFileAsync("git", ["-C", root, "fetch", "--all", "--prune"], { timeout: 30000 });
+    } catch {
+      await execFileAsync("git", ["-C", root, "fetch", "origin", "main"], { timeout: 30000 });
+    }
+    try {
+      await execFileAsync("git", ["-C", root, "reset", "--hard", "origin/main"], { timeout: 60000 });
+    } catch {
+      await execFileAsync("git", ["-C", root, "pull", "--rebase", "origin", "main"], { timeout: 60000 });
+    }
     await logActivity(req.user?.id ?? null, "System Update", "Applied update from origin/main and restarting");
     res.json({ success: true });
     setTimeout(() => {
       process.exit(0);
-    }, 1000);
+    }, 1500);
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed to apply update" });
   }
