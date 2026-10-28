@@ -1,18 +1,23 @@
-import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import {
   Activity,
   CircleUserRound,
+  DownloadCloud,
   FileText,
   Loader2,
   MonitorSmartphone,
   Power,
+  RotateCw,
   Shield,
   Timer,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import { SettingsMenuItem } from "./SettingsMenuItem";
+import { ReauthPrompt } from "./ReauthPrompt";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export type SettingsSubmenu =
   | "profile"
@@ -60,6 +65,12 @@ export function SettingsMenu({
   onOpenSensors,
   onOpenPower,
 }: SettingsMenuProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [showUpdateReauth, setShowUpdateReauth] = useState(false);
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
   const {
     data: networkSetting,
     isLoading: networkSettingLoading,
@@ -91,6 +102,90 @@ export function SettingsMenu({
     refetchIntervalInBackground: false,
     enabled: networkEnabled,
   });
+
+  const checkUpdateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/settings/update/check");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(apiErrorMessage(data, "Failed to check for updates", res.status));
+      }
+      return res.json() as Promise<{ hasUpdate: boolean; localHash: string; remoteHash: string }>;
+    },
+    onSuccess: (data) => {
+      setHasUpdate(!!data.hasUpdate);
+      if (data.hasUpdate) {
+        toast({
+          title: "Update available",
+          description: "A new update is available. Click Update to apply.",
+        });
+      } else {
+        toast({
+          title: "Up to date",
+          description: "No updates available",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Update check failed",
+        description: err?.message || "Could not check for updates",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const applyUpdateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/settings/update/apply", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(apiErrorMessage(data, "Failed to apply update", res.status));
+      }
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Updating",
+        description: "Pulling updates and restarting...",
+      });
+      setUpdating(true);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Update failed",
+        description: err?.message || "Could not apply update",
+        variant: "destructive",
+      });
+      setUpdating(false);
+    },
+  });
+
+  const handleCheckUpdate = () => {
+    if (isRateLimited("update-check")) return;
+    if (!networkEnabled) {
+      toast({
+        title: "Network disabled",
+        description: "Enable network to check for updates",
+        variant: "destructive",
+      });
+      return;
+    }
+    checkUpdateMutation.mutate();
+  };
+
+  const handleUpdateClick = () => {
+    if (isRateLimited("update-apply")) return;
+    if (!hasUpdate) {
+      handleCheckUpdate();
+      return;
+    }
+    setShowUpdateReauth(true);
+  };
+
+  const handleUpdateConfirmed = () => {
+    applyUpdateMutation.mutate();
+  };
 
   return (
     <div className="space-y-5">
@@ -183,6 +278,24 @@ export function SettingsMenu({
         </SettingsSection>
       )}
 
+      {isSuperadmin && (
+        <SettingsSection label="Updates">
+          <SettingsMenuItem
+            icon={hasUpdate ? DownloadCloud : RotateCw}
+            label={hasUpdate ? "Update Available" : "Check for Updates"}
+            onClick={handleUpdateClick}
+            ariaLabel={hasUpdate ? "Apply update" : "Check for updates"}
+            trailing={
+              checkUpdateMutation.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              ) : hasUpdate ? (
+                <span className="text-sm font-bold text-primary">New</span>
+              ) : undefined
+            }
+          />
+        </SettingsSection>
+      )}
+
       <SettingsSection label="System Power">
         <SettingsMenuItem
           icon={Power}
@@ -195,6 +308,15 @@ export function SettingsMenu({
           destructive
         />
       </SettingsSection>
+
+      <ReauthPrompt
+        open={showUpdateReauth}
+        title="Apply Update"
+        description="Re-enter your password to pull updates from main branch and restart the system."
+        confirmLabel="Update & Restart"
+        onClose={() => setShowUpdateReauth(false)}
+        onConfirmed={handleUpdateConfirmed}
+      />
     </div>
   );
 }

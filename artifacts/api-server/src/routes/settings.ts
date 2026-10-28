@@ -726,4 +726,38 @@ router.post("/shutdown", requireAuth, requireReauth, sensitiveLimiter, async (re
   await sendPowerCommand(req, res, "shutdown");
 });
 
+// Check for updates (git fetch + compare with origin/main)
+router.get("/update/check", requireAuth, requireSuperadmin, async (_req, res) => {
+  try {
+    const root = findWorkspaceRoot();
+    await execFileAsync("git", ["-C", root, "fetch", "origin", "main"], { timeout: 30000 });
+    const { stdout: local } = await execFileAsync("git", ["-C", root, "rev-parse", "HEAD"], { timeout: 10000 });
+    const { stdout: remote } = await execFileAsync("git", ["-C", root, "rev-parse", "origin/main"], { timeout: 10000 });
+    const localHash = local.trim();
+    const remoteHash = remote.trim();
+    if (localHash === remoteHash) {
+      res.json({ hasUpdate: false, localHash, remoteHash });
+    } else {
+      res.json({ hasUpdate: true, localHash, remoteHash });
+    }
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || "Failed to check for updates" });
+  }
+});
+
+// Apply updates and restart
+router.post("/update/apply", requireAuth, requireSuperadmin, requireReauth, sensitiveLimiter, async (req, res) => {
+  try {
+    const root = findWorkspaceRoot();
+    await execFileAsync("git", ["-C", root, "pull", "origin", "main"], { timeout: 60000 });
+    await logActivity(req.user?.id ?? null, "System Update", "Applied update from origin/main and restarting");
+    res.json({ success: true });
+    setTimeout(() => {
+      process.exit(0);
+    }, 1000);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || "Failed to apply update" });
+  }
+});
+
 export default router;
