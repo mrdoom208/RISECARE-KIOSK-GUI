@@ -105,14 +105,10 @@ class MLX90614:
 
     def get_temperature(self):
         try:
-            skin_temp = self.read_object()
-            if skin_temp is None:
+            forehead_temp = self.read_object()
+            if forehead_temp is None:
                 return None
-            room_temp = self.read_ambient()
-            if room_temp is None:
-                return skin_temp
-            estimated = skin_temp + (0.15 * (37.0 - room_temp)) + 2.5
-            return round(estimated, 2)
+            return round(forehead_temp, 2)
         except Exception:
             return None
 
