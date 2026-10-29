@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { Z_INDEX } from "@/lib/z-index";
 
@@ -329,7 +330,7 @@ export function VirtualKeyboard() {
     );
   };
 
-  return (
+  return createPortal(
     <div
       ref={containerRef}
       onPointerDown={(e) => {
@@ -388,6 +389,7 @@ export function VirtualKeyboard() {
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

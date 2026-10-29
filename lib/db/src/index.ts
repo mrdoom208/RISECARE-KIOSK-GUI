@@ -30,10 +30,21 @@ function randomSurname(): string {
 
 async function initDb() {
   SQL = await initSqlJs();
-  
+
   if (fs.existsSync(dbPath)) {
     const buffer = fs.readFileSync(dbPath);
-    db = new SQL.Database(buffer);
+    try {
+      db = new SQL.Database(buffer);
+      const integrity = db.exec("PRAGMA integrity_check");
+      if (integrity[0]?.values?.some((row: any[]) => row[0] !== "ok")) {
+        throw new Error("SQLite integrity check failed");
+      }
+    } catch (error) {
+      const backupPath = `${dbPath}.corrupt-${Date.now()}.bak`;
+      fs.copyFileSync(dbPath, backupPath);
+      console.error(`Database is malformed; backed it up to ${backupPath}:`, error);
+      db = new SQL.Database();
+    }
   } else {
     db = new SQL.Database();
     const dir = path.dirname(dbPath);
@@ -41,7 +52,7 @@ async function initDb() {
       fs.mkdirSync(dir, { recursive: true });
     }
   }
-  
+
   createTables();
   saveDb();
   return db;
@@ -214,7 +225,9 @@ function saveDb() {
   if (db) {
     const data = db.export();
     const buffer = Buffer.from(data);
-    fs.writeFileSync(dbPath, buffer);
+    const tempPath = `${dbPath}.tmp-${process.pid}`;
+    fs.writeFileSync(tempPath, buffer);
+    fs.renameSync(tempPath, dbPath);
   }
 }
 
