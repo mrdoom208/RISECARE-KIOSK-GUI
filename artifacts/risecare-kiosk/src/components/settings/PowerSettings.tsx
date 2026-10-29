@@ -139,6 +139,7 @@ export const PowerSettings = memo(function PowerSettings({ isOpen, onClose, acco
           })
           .catch(() => {});
         localStorage.setItem("risecare-kiosk-locked", "true");
+        window.dispatchEvent(new Event("risecare-close-modals"));
         window.dispatchEvent(new Event("risecare-lockscreen"));
         toast({
           title: "Lock Screen",

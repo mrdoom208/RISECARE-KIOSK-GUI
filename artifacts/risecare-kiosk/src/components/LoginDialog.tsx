@@ -33,6 +33,12 @@ export default function LoginDialog({
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
+    const closeOnLock = () => onOpenChange(false);
+    window.addEventListener("risecare-close-modals", closeOnLock);
+    return () => window.removeEventListener("risecare-close-modals", closeOnLock);
+  }, [onOpenChange]);
+
+  useEffect(() => {
     if (open) {
       setUsername("");
       setPassword("");

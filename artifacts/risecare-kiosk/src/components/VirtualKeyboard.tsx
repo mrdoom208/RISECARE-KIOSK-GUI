@@ -131,6 +131,18 @@ export function VirtualKeyboard() {
   }, [stopBackspaceRepeat]);
 
   useEffect(() => {
+    const closeKeyboard = () => {
+      if (elRef.current) elRef.current.blur();
+      elRef.current = null;
+      setVisibleInternal(false);
+      setVisible(false);
+      document.documentElement.style.setProperty("--vk-height", "0px");
+    };
+    window.addEventListener("risecare-close-modals", closeKeyboard);
+    return () => window.removeEventListener("risecare-close-modals", closeKeyboard);
+  }, [setVisible]);
+
+  useEffect(() => {
     const update = () => {
       const el = containerRef.current;
       document.documentElement.style.setProperty("--vk-height", el ? `${el.offsetHeight}px` : "0px");

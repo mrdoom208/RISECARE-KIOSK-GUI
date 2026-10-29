@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Z_INDEX } from "@/lib/z-index";
 
@@ -34,7 +34,32 @@ export function ModalShell({
   panelClassName,
   children,
 }: ModalShellProps) {
-  if (!open) return null;
+  const [lockActive, setLockActive] = useState(
+    () => localStorage.getItem("risecare-kiosk-locked") === "true",
+  );
+  const [suppressedByLock, setSuppressedByLock] = useState(false);
+
+  useEffect(() => {
+    if (!open) setSuppressedByLock(false);
+  }, [open]);
+
+  useEffect(() => {
+    const closeModals = () => {
+      setLockActive(true);
+      setSuppressedByLock(true);
+    };
+    const syncLockState = () => {
+      setLockActive(localStorage.getItem("risecare-kiosk-locked") === "true");
+    };
+    window.addEventListener("risecare-close-modals", closeModals);
+    window.addEventListener("risecare-lockscreen", syncLockState);
+    return () => {
+      window.removeEventListener("risecare-close-modals", closeModals);
+      window.removeEventListener("risecare-lockscreen", syncLockState);
+    };
+  }, []);
+
+  if (!open || lockActive || suppressedByLock) return null;
 
   return createPortal(
     <div

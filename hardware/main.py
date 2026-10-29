@@ -378,7 +378,7 @@ def handle_command(sensor, session_id, value, payload):
     if sensor == "restart":
         print("Restart command received.")
         mqtt_client.disconnect()
-        subprocess.run(["sudo", "shutdown", "-r", "now"])
+        subprocess.run(["sudo", "reboot"])
         return
 
     if sensor == "lock":

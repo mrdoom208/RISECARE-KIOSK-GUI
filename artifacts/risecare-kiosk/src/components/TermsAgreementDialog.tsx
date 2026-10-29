@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, FileText, X } from "lucide-react";
 import {
   Dialog,
@@ -22,6 +22,12 @@ export default function TermsAgreementDialog({
   onAgree,
 }: TermsAgreementDialogProps) {
   const [agreed, setAgreed] = useState(false);
+
+  useEffect(() => {
+    const closeOnLock = () => handleOpenChange(false);
+    window.addEventListener("risecare-close-modals", closeOnLock);
+    return () => window.removeEventListener("risecare-close-modals", closeOnLock);
+  }, [onOpenChange]);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) setAgreed(false);

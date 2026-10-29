@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { ChevronRight, Eye, EyeOff, Loader2, LogOut, X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +40,22 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
   const [showSensors, setShowSensors] = useState(false);
   const [showPowerModal, setShowPowerModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  useEffect(() => {
+    const closeSettingsOnLock = () => {
+      setActiveSubmenu(null);
+      setStep("menu");
+      setShowSensors(false);
+      setShowPowerModal(false);
+      setShowLogoutConfirm(false);
+      setCreatingRole("admin");
+      setEditingAccount(null);
+      setAdminError("");
+      onClose();
+    };
+    window.addEventListener("risecare-close-modals", closeSettingsOnLock);
+    return () => window.removeEventListener("risecare-close-modals", closeSettingsOnLock);
+  }, [onClose]);
 
   const [creatingRole, setCreatingRole] = useState<"superadmin" | "admin">("admin");
   const [editingAccount, setEditingAccount] = useState<SettingsAccount | null>(null);

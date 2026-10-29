@@ -147,8 +147,8 @@ export function SettingsMenu({
     },
     onSuccess: () => {
       toast({
-        title: "Updating",
-        description: "Pulling updates and restarting...",
+        title: "Updating System",
+        description: "Applying updates and rebooting the Raspberry Pi...",
       });
       setUpdating(true);
     },
@@ -313,8 +313,8 @@ export function SettingsMenu({
       <ReauthPrompt
         open={showUpdateReauth}
         title="Apply Update"
-        description="Re-enter your password to pull updates from main branch and restart the system."
-        confirmLabel="Update & Restart"
+        description="Re-enter your password to pull updates from main branch and reboot the Raspberry Pi."
+        confirmLabel="Update & Reboot"
         onClose={() => setShowUpdateReauth(false)}
         onConfirmed={handleUpdateConfirmed}
       />

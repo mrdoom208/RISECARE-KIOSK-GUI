@@ -19,7 +19,7 @@ def on_command(sensor, session_id, value, payload):
         run(["sudo", "shutdown", "-h", "now"])
     elif sensor == "restart":
         print("Restart command received. Restarting system...")
-        run(["sudo", "shutdown", "-r", "now"])
+        run(["sudo", "reboot"])
     elif sensor == "lock":
         print("Lock command received. Locking screen...")
         run(["loginctl", "lock-session"])
