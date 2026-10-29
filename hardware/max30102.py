@@ -33,6 +33,8 @@ class MAX30102:
         self.handle = None
         self.bus = None
         self._owns_bus = i2c_bus is None
+        self._shared_bus = i2c_bus
+        self._bus_number = bus
         self._red_buffer = []
         self._ir_buffer = []
         self._smoothed_hr = 0
@@ -94,6 +96,24 @@ class MAX30102:
             ir = (data[3] << 16 | data[4] << 8 | data[5]) & 0x3FFFF
             return red, ir
         return 0, 0
+
+    def probe(self):
+        """Return True when the MAX30102 answers, and repair the shared bus link."""
+        if not smbus_available:
+            self.handle = None
+            return False
+        if self.bus is None and self._shared_bus is not None:
+            self.bus = self._shared_bus
+        if self.bus is None:
+            self.handle = None
+            return False
+        try:
+            self._read(self.REG_INTR_STATUS_1, 1)
+        except Exception:
+            self.handle = None
+            return False
+        self.handle = self._bus_number
+        return True
 
     def read_sequential(self, samples=100, delay=0.005):
         red_samples = []
