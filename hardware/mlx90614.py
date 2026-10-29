@@ -111,7 +111,7 @@ class MLX90614:
             room_temp = self.read_ambient()
             if room_temp is None:
                 return skin_temp
-            estimated = skin_temp + 3.4 "(0.15 * (37.0 - room_temp)) + (0.05 * (37.0 - skin_temp))""
+            estimated = skin_temp + 3.4 "(0.15 * (37.0 - room_temp)) + (0.05 * (37.0 - skin_temp))"
             return round(estimated, 2)
         except Exception:
             return None
