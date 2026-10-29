@@ -91,8 +91,9 @@ MAX_CONSECUTIVE_PRESSURE_SPIKES = 4
 # Beat detection timing.
 MIN_BEAT_INTERVAL = 300
 MAX_BEAT_INTERVAL = 2000
+PULSE_INTERVAL_WINDOW = 8
 
-PEAK_DROP_THRESHOLD = 0.071
+PEAK_DROP_THRESHOLD = 0.065
 
 # Filtering.
 BASELINE_ALPHA = 0.05
@@ -509,6 +510,7 @@ class OscillometricAnalyzer:
 
         self.last_confirmed_peak_time = 0
         self.last_beat_interval = 0
+        self.pulse_intervals = deque(maxlen=PULSE_INTERVAL_WINDOW)
         self.heart_rate_bpm = 0.0
 
         self.detected_beat_count = 0
@@ -722,7 +724,13 @@ class OscillometricAnalyzer:
         # Only timing-validated, amplitude-stable beats enter the envelope.
         self.save_oscillation(amplitude, self.pulse_amplitude, cuff_pressure)
         self.last_beat_interval = interval
-        self.heart_rate_bpm = 60000.0 / interval
+        self.pulse_intervals.append(interval)
+
+        # Use the median of recent accepted intervals instead of a single
+        # noisy peak-to-peak interval for the reported cuff pulse.
+        stable_interval = statistics.median(self.pulse_intervals)
+        if stable_interval > 0.0:
+            self.heart_rate_bpm = 60000.0 / stable_interval
         self.detected_beat_count += 1
         return True
 
