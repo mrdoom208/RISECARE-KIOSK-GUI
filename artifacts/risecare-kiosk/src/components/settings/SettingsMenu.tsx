@@ -114,6 +114,7 @@ export function SettingsMenu({
     },
     onSuccess: (data) => {
       setHasUpdate(!!data.hasUpdate);
+      queryClient.invalidateQueries({ queryKey: ["network-status"] });
       if (data.hasUpdate) {
         toast({
           title: "Update available",

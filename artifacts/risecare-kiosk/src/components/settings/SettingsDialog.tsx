@@ -294,7 +294,7 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
     <>
       <ModalShell
         open={isOpen}
-        zIndex={50}
+        zIndex={9000}
         backdrop="blur"
         panelClassName="bg-card rounded-3xl shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
       >
@@ -526,7 +526,7 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
 
       <ModalShell
         open={showLogoutConfirm}
-        zIndex={70}
+        zIndex={9500}
         backdrop="scrim"
         panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
       >

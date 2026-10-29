@@ -18,6 +18,7 @@ interface VitalCardProps {
   isDouble?: boolean;
   disabled?: boolean;
   disabledLabel?: string;
+  showAsideBesideTitle?: boolean;
 }
 
 export function VitalCard({
@@ -36,6 +37,7 @@ export function VitalCard({
   isDouble,
   disabled = false,
   disabledLabel = "Disabled",
+  showAsideBesideTitle = false,
 }: VitalCardProps) {
   const hasValue = value !== undefined && value !== null && value !== "";
 
@@ -102,6 +104,19 @@ export function VitalCard({
                 <span className="text-2xl font-medium text-muted-foreground ml-1">
                   {unit}
                 </span>
+                {asideLabel && (
+                  <>
+                    <span aria-hidden="true" className="mx-1 self-stretch border-l border-border/60" />
+                    <span className="text-3xl font-display font-bold text-foreground tracking-tight">
+                      {asideValue ?? "--"}
+                    </span>
+                    {asideUnit ? (
+                      <span className="text-lg font-medium text-muted-foreground">{asideUnit}</span>
+                    ) : (
+                      <span className="text-lg font-medium text-muted-foreground">{asideLabel}</span>
+                    )}
+                  </>
+                )}
               </div>
               {isDouble && doubleValueLabels && secondaryValue != null && (
                 <div className="mt-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -111,24 +126,6 @@ export function VitalCard({
                 </div>
               )}
             </div>
-            {asideLabel && (
-              <>
-                <span aria-hidden="true" className="mx-1 self-stretch border-l border-border" />
-                <div className="flex flex-col justify-center">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-display font-bold text-foreground tracking-tight">
-                      {asideValue ?? "—"}
-                    </span>
-                    {asideUnit && (
-                      <span className="text-lg font-medium text-muted-foreground">{asideUnit}</span>
-                    )}
-                  </div>
-                  <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {asideLabel}
-                  </span>
-                </div>
-              </>
-            )}
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-2xl font-medium text-muted-foreground/60 py-1">

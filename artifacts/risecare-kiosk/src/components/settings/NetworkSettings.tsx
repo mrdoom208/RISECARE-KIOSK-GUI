@@ -107,6 +107,9 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["network-enabled"], data);
+      queryClient.invalidateQueries({ queryKey: ["network-status"] });
+      queryClient.invalidateQueries({ queryKey: ["wifi-scan"] });
+      queryClient.invalidateQueries({ queryKey: ["lan-status"] });
       toast({
         title: data.enabled ? "Network enabled" : "Network disabled",
         description: data.enabled
@@ -114,8 +117,8 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
           : "Wi-Fi management is turned off",
       });
     },
-    onError: () => {
-      toast({ title: "Failed to update", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Failed to update", description: err?.message, variant: "destructive" });
     },
   });
 

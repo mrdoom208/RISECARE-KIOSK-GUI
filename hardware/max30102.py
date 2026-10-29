@@ -1,3 +1,4 @@
+import logging
 import time
 import math
 from collections import deque
@@ -16,6 +17,11 @@ try:
     from scipy.signal import butter, filtfilt, find_peaks
 except ImportError:
     butter = filtfilt = find_peaks = None
+
+
+logger = logging.getLogger(__name__)
+
+_SPO2_WARNING_EMITTED = False
 
 
 class MAX30102:
@@ -79,7 +85,64 @@ class MAX30102:
     FINGER_RELEASE_RED = 40000
     FINGER_RELEASE_IR = 60000
 
+    # FIFO capacity is 32 samples on the MAX30102.
+    FIFO_CAPACITY = 32
+
+    # ------------------------------------------------------------
+    # Signal-processing thresholds.
+    #
+    # These are provisional engineering values. They must be validated
+    # against recorded good- and poor-quality signals before being
+    # treated as tuned limits; see the notes next to each value.
+    # ------------------------------------------------------------
+
+    # A full window contains ~8 s of data at 100 SPS. Shorter windows
+    # cannot contain enough cardiac cycles for a stable estimate.
+    MIN_WINDOW_SAMPLES = 150
+
+    MIN_DC_LEVEL = 1000
+    ADC_SATURATION = 262000
+
+    # Absolute noise floor, kept only to reject a dead/noisy channel.
+    # The relative perfusion check below is the primary amplitude test.
+    MIN_AC_AMPLITUDE = 20
+
+    # Perfusion index (AC / DC). Normal fingers are roughly 0.5-5 %;
+    # values outside this range indicate poor contact or motion. The
+    # lower bound is deliberately loose until it can be tuned from
+    # recorded signals; periodicity below rejects most low-level noise.
+    MIN_PERFUSION = 0.001
+    MAX_PERFUSION = 0.20
+
+    # Amplitude consistency across the four quarters of the window.
+    # A real pulse is present throughout; a settling/moving finger is not.
+    MAX_CHUNK_CV = 0.75
+
+    # Autocorrelation peak in the 30-200 BPM lag range. Noise has a low
+    # peak because it is not periodic at a cardiac frequency.
+    MIN_PERIODICITY = 0.30
+
+    # Provisional quality gate; tune with recorded data.
     MIN_SIGNAL_QUALITY = 0.10
+
+    # Fraction of samples in a FIFO batch that must show a finger before
+    # the batch is treated as "finger present". This avoids a batch
+    # average hiding a partially-covered / settling finger.
+    FINGER_MIN_SAMPLE_FRACTION = 0.80
+
+    # Maximum per-batch DC coefficient of variation accepted as stable
+    # contact (pulse AC is ~1 %, motion is much larger).
+    CONTACT_STABILITY_CV = 0.10
+    MIN_CONTACT_SAMPLES = 3
+
+    # Interval acceptance. A high rejection rate means the peak detector
+    # is seeing noise rather than rhythm variation.
+    MIN_BEAT_ACCEPTANCE = 0.60
+
+    # SpO2 is produced by an unvalidated empirical curve. Keep this
+    # False until the complete sensor/mechanical/calibration stack has
+    # been validated, and surface it to callers as "experimental".
+    SPO2_CALIBRATION_VALIDATED = False
 
     def __init__(
         self,
@@ -117,6 +180,15 @@ class MAX30102:
         self._smoothed_spo2 = None
         self._finger_present = False
         self._settle_remaining = 0
+
+        # FIFO overflow bookkeeping. The pointer difference cannot tell
+        # us how many samples were lost, so the overflow counter is
+        # tracked separately and the FIFO is recovered explicitly.
+        self._fifo_overflow_pending = False
+        self._fifo_overflow_total = 0
+
+        # Diagnostics from the most recent pulse-rate attempt.
+        self._last_pulse_metrics = {}
 
         try:
             self._check_device()
@@ -215,6 +287,8 @@ class MAX30102:
         self._smoothed_spo2 = None
         self._finger_present = False
         self._settle_remaining = 0
+        self._fifo_overflow_pending = False
+        self._fifo_overflow_total = 0
         self.clear_fifo()
 
     def setup(self, led_current=0x1F):
@@ -279,15 +353,39 @@ class MAX30102:
     def fifo_sample_count(self):
         """
         Number of unread samples currently in the FIFO.
+
+        The write/read pointer difference is only valid when no overflow
+        has occurred. On overflow the pointers can wrap onto each other
+        and the difference under-reports (or reports zero) even though
+        samples were dropped, so the overflow counter is checked first
+        and the FIFO is drained/recovered when it is non-zero.
         """
 
         wr = self.read_reg(self.REG_FIFO_WR_PTR)
         rd = self.read_reg(self.REG_FIFO_RD_PTR)
+        ovf = self.read_reg(self.REG_FIFO_OVF)
 
-        return (wr - rd) & 0x1F
+        if wr is None or rd is None:
+            return 0
+
+        if ovf:
+            # Samples were lost. Record the event, clear the sticky
+            # overflow flag and reset the pointers so later reads do not
+            # mix pre-gap and post-gap data.
+            self._fifo_overflow_total += int(ovf)
+            self._fifo_overflow_pending = True
+            logger.warning(
+                "MAX30102 FIFO overflow (%d); dropped samples, recovering FIFO",
+                ovf,
+            )
+            self.clear_fifo()
+            return 0
+
+        return (wr - rd) & (self.FIFO_CAPACITY - 1)
 
     def fifo_overflow_count(self):
-        return self.read_reg(self.REG_FIFO_OVF)
+        """Cumulative overflows since the last buffer reset (diagnostic)."""
+        return self._fifo_overflow_total
 
     @staticmethod
     def _parse_sample(data):
@@ -329,7 +427,7 @@ class MAX30102:
 
         return self._parse_sample(data)
 
-    def read_fifo(self, max_samples=32):
+    def read_fifo(self, max_samples=None):
         """
         Read all currently available samples.
 
@@ -338,6 +436,9 @@ class MAX30102:
         """
 
         samples = []
+
+        if max_samples is None:
+            max_samples = self.FIFO_CAPACITY
 
         available = self.fifo_sample_count()
 
@@ -350,6 +451,57 @@ class MAX30102:
             samples.append(self.read_one_sample())
 
         return samples
+
+    def _batch_finger_state(self, samples):
+        """
+        Decide finger/contact state from a FIFO batch.
+
+        Each sample is compared against the thresholds instead of using
+        the batch average: an average can sit above the limit while half
+        the batch is still uncovered or settling. Contact stability is
+        also required so motion/settling is not mistaken for a reading.
+        """
+
+        if not samples:
+            return False
+
+        red = np.fromiter((red for red, _ in samples), dtype=float)
+        ir = np.fromiter((ir for _, ir in samples), dtype=float)
+
+        saturated = (red >= self.ADC_SATURATION) | (ir >= self.ADC_SATURATION)
+        if float(np.mean(saturated)) > (1.0 - self.FINGER_MIN_SAMPLE_FRACTION):
+            return False
+
+        if self._finger_present:
+            # Hysteresis: stay in the "finger present" state until the
+            # signal clearly drops again.
+            min_red = self.FINGER_RELEASE_RED
+            min_ir = self.FINGER_RELEASE_IR
+        else:
+            min_red = self.FINGER_MIN_RED
+            min_ir = self.FINGER_MIN_IR
+
+        above = (red >= min_red) & (ir >= min_ir)
+        if float(np.mean(above)) < self.FINGER_MIN_SAMPLE_FRACTION:
+            return False
+
+        contact_red = red[above]
+        contact_ir = ir[above]
+
+        if len(contact_red) >= self.MIN_CONTACT_SAMPLES:
+            red_median = max(float(np.median(contact_red)), 1.0)
+            ir_median = max(float(np.median(contact_ir)), 1.0)
+
+            red_cv = float(np.std(contact_red)) / red_median
+            ir_cv = float(np.std(contact_ir)) / ir_median
+
+            if (
+                red_cv > self.CONTACT_STABILITY_CV
+                or ir_cv > self.CONTACT_STABILITY_CV
+            ):
+                return False
+
+        return True
 
     def update_buffer(self):
         """
@@ -366,29 +518,29 @@ class MAX30102:
 
         samples = self.read_fifo()
 
+        if self._fifo_overflow_pending:
+            # Samples before and after a FIFO gap are not contiguous,
+            # so the window cannot be used for timing-based measurements.
+            self._fifo_overflow_pending = False
+            self.red_buffer.clear()
+            self.ir_buffer.clear()
+            self._smoothed_pr = None
+            self._smoothed_spo2 = None
+            if self._finger_present:
+                self._settle_remaining = self.SETTLE_SAMPLES
+            return 0
+
         if not samples:
             return 0
 
-        red_dc = sum(red for red, _ in samples) / len(samples)
-        ir_dc = sum(ir for _, ir in samples) / len(samples)
-
-        if self._finger_present:
-            # Hysteresis: stay in the "finger present" state until the
-            # signal clearly drops again.
-            finger_present = (
-                red_dc >= self.FINGER_RELEASE_RED
-                and ir_dc >= self.FINGER_RELEASE_IR
-            )
-        else:
-            finger_present = (
-                red_dc >= self.FINGER_MIN_RED
-                and ir_dc >= self.FINGER_MIN_IR
-            )
+        finger_present = self._batch_finger_state(samples)
 
         if not finger_present:
             # No finger: drop the batch and any stale window/smoothing.
             if self._finger_present or self.ir_buffer:
                 self.clear_buffer()
+                self._smoothed_pr = None
+                self._smoothed_spo2 = None
             return 0
 
         if not self._finger_present:
@@ -396,6 +548,8 @@ class MAX30102:
             self.clear_buffer()
             self._finger_present = True
             self._settle_remaining = self.SETTLE_SAMPLES
+            self._smoothed_pr = None
+            self._smoothed_spo2 = None
 
         appended = 0
 
@@ -520,52 +674,121 @@ class MAX30102:
 
         return rms, dc
 
+    def _periodicity_score(self, signal):
+        """
+        Peak normalised autocorrelation within the 30-200 BPM lag range.
+
+        A pulse is periodic at a cardiac frequency; noise and motion are
+        not. This is a stronger usability test than AC amplitude alone.
+        """
+        signal = np.asarray(signal, dtype=float)
+        signal = signal - float(np.mean(signal))
+
+        raw = np.correlate(signal, signal, mode="full")[len(signal) - 1:]
+
+        if raw[0] <= 0:
+            return 0.0
+
+        lags = np.arange(len(raw), dtype=float)
+        overlap = (len(signal) - lags) / len(signal)
+        corr = raw / (raw[0] * overlap)
+
+        min_lag = int(self.SAMPLE_RATE * 0.30)
+        max_lag = min(int(self.SAMPLE_RATE * 2.00), len(corr) - 1)
+
+        if max_lag <= min_lag:
+            return 0.0
+
+        peak = float(np.max(corr[min_lag:max_lag + 1]))
+        return float(np.clip(peak, 0.0, 1.0))
+
     def _signal_quality(self, ir, red):
         """
-        Basic quality checks.
+        Quality checks based on relative amplitude, window consistency and
+        cardiac periodicity.
+
+        The thresholds are provisional engineering values; validate them
+        against recorded good- and poor-quality signals before relying on
+        the absolute quality score.
 
         Returns:
             quality_score, valid
         """
-        if len(ir) < 150:
-            return 0.0, False
-
         ir = np.asarray(ir, dtype=float)
         red = np.asarray(red, dtype=float)
 
-        ir_mean = np.mean(ir)
-        red_mean = np.mean(red)
+        if len(ir) < self.MIN_WINDOW_SAMPLES or len(ir) != len(red):
+            return 0.0, False
 
-        if ir_mean < 1000 or red_mean < 1000:
+        ir_mean = float(np.mean(ir))
+        red_mean = float(np.mean(red))
+
+        if ir_mean < self.MIN_DC_LEVEL or red_mean < self.MIN_DC_LEVEL:
             return 0.0, False
 
         # Detect ADC saturation / clipping.
-        if np.max(ir) >= 262000 or np.max(red) >= 262000:
+        if (
+            np.max(ir) >= self.ADC_SATURATION
+            or np.max(red) >= self.ADC_SATURATION
+        ):
             return 0.0, False
 
         ir_ac = self._bandpass(ir, self.SAMPLE_RATE)
 
-        amplitude = np.std(ir_ac)
+        amplitude = float(np.std(ir_ac))
 
-        if amplitude < 20:
+        if amplitude < self.MIN_AC_AMPLITUDE:
             return 0.0, False
 
-        # Signal amplitude relative to DC.
+        # Signal amplitude relative to DC. This is the primary amplitude
+        # test; the absolute floor above only rejects a dead channel.
         perfusion = amplitude / max(abs(ir_mean), 1.0)
 
-        # Very rough quality score.
-        quality = min(
-            1.0,
-            perfusion / 0.01
+        if not self.MIN_PERFUSION <= perfusion <= self.MAX_PERFUSION:
+            return 0.0, False
+
+        # The pulse must be present throughout the window, not just in
+        # one burst caused by contact or motion.
+        chunks = np.array_split(ir_ac, 4)
+        chunk_rms = np.array(
+            [float(np.sqrt(np.mean(chunk ** 2))) for chunk in chunks]
         )
 
-        return quality, quality >= self.MIN_SIGNAL_QUALITY
+        chunk_mean = float(np.mean(chunk_rms))
+        if chunk_mean <= 0:
+            return 0.0, False
+
+        chunk_cv = float(np.std(chunk_rms)) / chunk_mean
+        if chunk_cv > self.MAX_CHUNK_CV:
+            return 0.0, False
+
+        periodicity = self._periodicity_score(ir_ac)
+
+        perfusion_score = min(1.0, perfusion / 0.01)
+        stability_score = max(0.0, 1.0 - chunk_cv)
+        periodicity_score = min(1.0, periodicity / 0.60)
+
+        quality = (
+            0.40 * perfusion_score
+            + 0.30 * stability_score
+            + 0.30 * periodicity_score
+        )
+        quality = float(np.clip(quality, 0.0, 1.0))
+
+        valid = (
+            quality >= self.MIN_SIGNAL_QUALITY
+            and periodicity >= self.MIN_PERIODICITY
+        )
+
+        return quality, valid
 
     # ------------------------------------------------------------
     # PULSE RATE
     # ------------------------------------------------------------
 
     def _calculate_pulse_rate(self, ir):
+        self._last_pulse_metrics = {}
+
         ir = np.asarray(ir, dtype=float)
 
         filtered = self._bandpass(
@@ -578,7 +801,7 @@ class MAX30102:
 
         amplitude = np.std(filtered)
 
-        if amplitude < 20:
+        if amplitude < self.MIN_AC_AMPLITUDE:
             return 0, False
 
         # Minimum distance:
@@ -595,7 +818,7 @@ class MAX30102:
             10
         )
 
-        peaks, properties = find_peaks(
+        peaks, _ = find_peaks(
             filtered,
             distance=min_distance,
             prominence=prominence
@@ -604,34 +827,54 @@ class MAX30102:
         if len(peaks) < 3:
             return 0, False
 
-        intervals = np.diff(peaks)
-
         # Convert to seconds.
-        intervals_sec = (
-            intervals / self.SAMPLE_RATE
-        )
+        intervals_sec = np.diff(peaks) / self.SAMPLE_RATE
 
         # Remove physiologically implausible beats.
-        valid = intervals_sec[
+        plausible = intervals_sec[
             (intervals_sec >= 0.30) &
             (intervals_sec <= 2.00)
         ]
 
-        if len(valid) < 2:
+        if len(plausible) < 2:
             return 0, False
 
-        median_interval = np.median(valid)
+        median_interval = float(np.median(plausible))
 
-        # Reject intervals far from the dominant rhythm.
-        valid = valid[
-            (valid >= median_interval * 0.70) &
-            (valid <= median_interval * 1.30)
+        # Robust outlier rejection (MAD) instead of a fixed +/-30 %
+        # window. Noise produces a few extreme intervals; genuine rhythm
+        # variation stays inside a few robust standard deviations.
+        mad = float(np.median(np.abs(plausible - median_interval)))
+        robust_sigma = max(1.4826 * mad, median_interval * 0.08)
+
+        valid = plausible[
+            np.abs(plausible - median_interval) <= 3.0 * robust_sigma
         ]
 
         if len(valid) < 2:
+            self._last_pulse_metrics = {
+                "beats_detected": int(len(peaks)),
+                "intervals_plausible": int(len(plausible)),
+                "intervals_accepted": int(len(valid)),
+                "accepted_fraction": 0.0,
+            }
             return 0, False
 
-        median_period = np.median(valid)
+        accepted_fraction = len(valid) / len(plausible)
+
+        if accepted_fraction < self.MIN_BEAT_ACCEPTANCE:
+            # Most detected beats disagree with the dominant rhythm, so
+            # the failure is noise rather than normal beat-to-beat
+            # variation.
+            self._last_pulse_metrics = {
+                "beats_detected": int(len(peaks)),
+                "intervals_plausible": int(len(plausible)),
+                "intervals_accepted": int(len(valid)),
+                "accepted_fraction": round(accepted_fraction, 3),
+            }
+            return 0, False
+
+        median_period = float(np.median(valid))
 
         pulse_rate = 60.0 / median_period
 
@@ -639,7 +882,15 @@ class MAX30102:
             return 0, False
 
         # Beat-to-beat consistency.
-        cv = np.std(valid) / np.mean(valid)
+        cv = float(np.std(valid) / np.mean(valid))
+
+        self._last_pulse_metrics = {
+            "beats_detected": int(len(peaks)),
+            "intervals_plausible": int(len(plausible)),
+            "intervals_accepted": int(len(valid)),
+            "accepted_fraction": round(accepted_fraction, 3),
+            "interval_cv": round(cv, 3),
+        }
 
         if cv > 0.20:
             return int(round(pulse_rate)), False
@@ -659,7 +910,10 @@ class MAX30102:
         window. This makes the result independent of when the finger was
         placed on the sensor.
 
-        This is NOT medically calibrated.
+        This is NOT medically calibrated. The empirical curve is
+        experimental until the complete sensor, mechanical and
+        calibration stack has been validated; callers are told this via
+        the ``spo2_experimental`` result flag.
         """
 
         red = np.asarray(red, dtype=float)
@@ -705,13 +959,23 @@ class MAX30102:
         if not 70 <= spo2 <= 100:
             return int(round(np.clip(spo2, 0, 100))), False
 
-        print(
-            f"Red AC={red_rms:.2f}, "
-            f"Red DC={red_dc:.2f}, "
-            f"IR AC={ir_rms:.2f}, "
-            f"IR DC={ir_dc:.2f}, "
-            f"R={r:.4f}"
+        logger.debug(
+            "Red AC=%.2f, Red DC=%.2f, IR AC=%.2f, IR DC=%.2f, R=%.4f",
+            red_rms,
+            red_dc,
+            ir_rms,
+            ir_dc,
+            r,
         )
+
+        if not self.SPO2_CALIBRATION_VALIDATED:
+            global _SPO2_WARNING_EMITTED
+            if not _SPO2_WARNING_EMITTED:
+                logger.warning(
+                    "SpO2 output is experimental: the empirical calibration "
+                    "has not been validated for this device."
+                )
+                _SPO2_WARNING_EMITTED = True
 
         return int(round(spo2)), True
 
@@ -734,19 +998,31 @@ class MAX30102:
                 "pulse_rate_valid": bool,
                 "spo2": int,
                 "spo2_valid": bool,
+                "spo2_experimental": bool,
                 "quality": float,
-                "samples": int
+                "samples": int,
+                "pulse_rate_metrics": dict
             }
         """
 
+        experimental = not self.SPO2_CALIBRATION_VALIDATED
+
         if len(self.ir_buffer) < self.WINDOW_SIZE or not self._finger_present:
+            # No current reading: clear any previous smoothing so a stale
+            # value can never be presented as if it were current.
+            self._smoothed_pr = None
+            self._smoothed_spo2 = None
+            self._last_pulse_metrics = {}
+
             return {
                 "pulse_rate": 0,
                 "pulse_rate_valid": False,
                 "spo2": 0,
                 "spo2_valid": False,
+                "spo2_experimental": experimental,
                 "quality": 0.0,
                 "samples": len(self.ir_buffer),
+                "pulse_rate_metrics": {},
             }
 
         ir = np.asarray(self.ir_buffer, dtype=float)
@@ -758,13 +1034,19 @@ class MAX30102:
         )
 
         if not signal_ok:
+            self._smoothed_pr = None
+            self._smoothed_spo2 = None
+            self._last_pulse_metrics = {}
+
             return {
                 "pulse_rate": 0,
                 "pulse_rate_valid": False,
                 "spo2": 0,
                 "spo2_valid": False,
+                "spo2_experimental": experimental,
                 "quality": quality,
                 "samples": len(ir),
+                "pulse_rate_metrics": {},
             }
 
         pulse_rate, pulse_rate_valid = self._calculate_pulse_rate(ir)
@@ -774,7 +1056,9 @@ class MAX30102:
             ir
         )
 
-        # Temporal smoothing.
+        # Temporal smoothing is only allowed across consecutive valid
+        # readings. A failed quality/validity check resets the state so
+        # old values cannot leak into the next displayed result.
         if pulse_rate_valid:
 
             if self._smoothed_pr is None:
@@ -786,6 +1070,8 @@ class MAX30102:
                 )
 
             pulse_rate = int(round(self._smoothed_pr))
+        else:
+            self._smoothed_pr = None
 
         if spo2_valid:
 
@@ -798,23 +1084,52 @@ class MAX30102:
                 )
 
             spo2 = int(round(self._smoothed_spo2))
+        else:
+            self._smoothed_spo2 = None
 
         return {
             "pulse_rate": pulse_rate,
             "pulse_rate_valid": pulse_rate_valid,
             "spo2": spo2,
             "spo2_valid": spo2_valid,
+            "spo2_experimental": experimental,
             "quality": round(quality, 3),
             "samples": len(ir),
+            "pulse_rate_metrics": dict(self._last_pulse_metrics),
         }
 
     # ------------------------------------------------------------
     # PUBLIC READING API
     # ------------------------------------------------------------
 
+    def _error_reading(self, exc, expected):
+        return {
+            "pulse_rate": 0,
+            "pulse_rate_valid": False,
+            "spo2": 0,
+            "spo2_valid": False,
+            "spo2_experimental": not self.SPO2_CALIBRATION_VALIDATED,
+            "quality": 0.0,
+            "samples": len(self.ir_buffer),
+            "pulse_rate_metrics": {},
+            "hand_present": self._finger_present,
+            "finger_present": self._finger_present,
+            "new_samples": 0,
+            "fifo_available": 0,
+            "fifo_overflow": self._fifo_overflow_total,
+            "error": str(exc),
+            "error_type": type(exc).__name__,
+            "expected_error": expected,
+        }
+
     def get_reading(self):
         """
         Pull new FIFO data and calculate a reading.
+
+        Expected I2C failures are reported as an error result. Any other
+        exception is logged with a traceback before being converted to
+        the same result shape, so the application boundary never hides an
+        unexpected failure.
         """
 
         try:
@@ -831,17 +1146,11 @@ class MAX30102:
             return result
 
         except OSError as e:
-            return {
-                "pulse_rate": 0,
-                "pulse_rate_valid": False,
-                "spo2": 0,
-                "spo2_valid": False,
-                "quality": 0.0,
-                "samples": len(self.ir_buffer),
-                "hand_present": self._finger_present,
-                "finger_present": self._finger_present,
-                "error": str(e),
-            }
+            logger.warning("MAX30102 I2C failure: %s", e)
+            return self._error_reading(e, expected=True)
+        except Exception as e:
+            logger.exception("Unexpected MAX30102 failure")
+            return self._error_reading(e, expected=False)
 
     # ------------------------------------------------------------
     # SHUTDOWN

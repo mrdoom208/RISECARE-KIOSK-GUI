@@ -29,10 +29,20 @@ export function LockScreen() {
 
   useEffect(() => {
     if (locked) {
-      const accounts = JSON.parse(localStorage.getItem("risecare-locked-accounts") || "[]");
-      if (Array.isArray(accounts) && accounts.length > 0) {
-        setUsername(accounts[0].username);
-      }
+      fetch("/api/settings/accounts")
+        .then((r) => r.json())
+        .then((accounts) => {
+          if (Array.isArray(accounts) && accounts.length > 0) {
+            localStorage.setItem("risecare-locked-accounts", JSON.stringify(accounts));
+            setUsername(accounts[0].username);
+          }
+        })
+        .catch(() => {
+          const accounts = JSON.parse(localStorage.getItem("risecare-locked-accounts") || "[]");
+          if (Array.isArray(accounts) && accounts.length > 0) {
+            setUsername(accounts[0].username);
+          }
+        });
     }
   }, [locked]);
 
@@ -52,6 +62,7 @@ export function LockScreen() {
       window.dispatchEvent(new Event("risecare-admin-session"));
     } else {
       setLocalError(error || "Invalid password");
+      setPassword("");
     }
   };
 
@@ -83,7 +94,7 @@ export function LockScreen() {
               <input
                 type="text"
                 value={username || ""}
-                disabled
+                readOnly
                 className="w-full h-14 px-5 text-xl rounded-md bg-muted border-2 border-border"
               />
             </div>

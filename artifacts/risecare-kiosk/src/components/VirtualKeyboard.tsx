@@ -346,7 +346,7 @@ export function VirtualKeyboard() {
       }}
       onMouseUp={handleMouseUp}
       data-virtual-keyboard
-      className="pointer-events-auto fixed bottom-0 left-0 right-0 z-[9999] bg-card border-t border-border p-2 portrait:p-3.5 portrait:pb-8 shadow-2xl">
+      className="pointer-events-auto fixed bottom-0 left-0 right-0 z-[100000] bg-card border-t border-border p-2 portrait:p-3.5 portrait:pb-8 shadow-2xl">
       {layout === "qwerty" ? (
         <div className="max-w-3xl mx-auto space-y-1.5 portrait:space-y-2.5">
           {QWERTY_ROWS.map((row, ri) => (

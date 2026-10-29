@@ -163,9 +163,17 @@ export default function Results() {
           status,
           currentVitals.bloodPressureSystolic,
           currentVitals.bloodPressureDiastolic,
-        ) + (currentVitals.bloodPressurePulse != null
-          ? ` Pulse: ${currentVitals.bloodPressurePulse} bpm.`
-          : ""),
+        ),
+      };
+    })(),
+    (() => {
+      const status = currentVitals.bloodPressurePulse != null ? getHRStatus(currentVitals.bloodPressurePulse) : "unknown" as VitalStatus;
+      return {
+        name: "Pulse",
+        val: currentVitals.bloodPressurePulse,
+        unit: "bpm",
+        status,
+        msg: currentVitals.bloodPressurePulse != null ? getHRMessage(status, currentVitals.bloodPressurePulse) : "No pulse recorded from blood pressure measurement.",
       };
     })(),
     (() => {
