@@ -223,65 +223,48 @@ def _latest_height():
         return _height_value
 
 
-def hr_device_probe():
-    """Probe/reconnect the MAX30102 without creating overlapping probe calls."""
-    global hr_device, hr_sensor, hr_enabled, spo2_enabled
+def _probe_i2c():
+    """Re-check the two I2C chips. Cheap (sub-ms), safe to run inline."""
+    global hr_device, hr_sensor, temp_sensor, hr_enabled, spo2_enabled, temp_enabled
 
     if hr_device is None:
         try:
             hr_device = MAX30102(i2c_bus=i2c_bus.get_bus())
         except Exception as e:
             print(f"⚠️ MAX30102 reconnect failed: {e}")
-            return False
+        else:
+            hr_sensor = hr_device
+            print("✅ Heart rate sensor reconnected")
 
-    was = hr_sensor is not None
-    try:
+    if hr_device is not None:
+        was = hr_sensor is not None
         now = hr_device.probe()
-    except Exception as e:
-        print(f"⚠️ MAX30102 probe failed: {e}")
-        now = False
+        if now and not was:
+            hr_sensor = hr_device
+            print("✅ Heart rate sensor reconnected")
+            if hr_enabled or spo2_enabled:
+                try:
+                    hr_sensor.reset()
+                    hr_sensor.setup()
+                    hr_sensor.clear_buffer()
+                except Exception as e:
+                    print(f"⚠️ MAX30102 re-init failed: {e}")
+        elif was and not now:
+            hr_sensor = None
+            hr_enabled = False
+            spo2_enabled = False
+            print("⚠️ Heart rate sensor disconnected")
 
-    if now and not was:
-        hr_sensor = hr_device
-        print("✅ Heart rate sensor reconnected")
-        if hr_enabled or spo2_enabled:
-            try:
-                hr_sensor.reset()
-                hr_sensor.setup()
-                hr_sensor.clear_buffer()
-            except Exception as e:
-                print(f"⚠️ MAX30102 re-init failed: {e}")
-    elif was and not now:
-        hr_sensor = None
-        hr_enabled = False
-        spo2_enabled = False
-        print("⚠️ Heart rate sensor disconnected")
-    return bool(now)
-
-
-def _probe_i2c(force=False):
-    """Re-check the two I2C chips safely and without overlapping another probe."""
-    global temp_sensor, temp_enabled
-
-    with _sensor_probe_lock:
-        if measure_busy and not force:
-            return
-        hr_device_probe()
-
-        if temp_device is not None:
-            was = temp_sensor is not None
-            try:
-                now = temp_device.probe()
-            except Exception as e:
-                print(f"⚠️ Temperature probe failed: {e}")
-                now = False
-            if now and not was:
-                temp_sensor = temp_device
-                print("✅ Temperature sensor reconnected")
-            elif was and not now:
-                temp_sensor = None
-                temp_enabled = False
-                print("⚠️ Temperature sensor disconnected")
+    if temp_device is not None:
+        was = temp_sensor is not None
+        now = temp_device.probe()
+        if now and not was:
+            temp_sensor = temp_device
+            print("✅ Temperature sensor reconnected")
+        elif was and not now:
+            temp_sensor = None
+            temp_enabled = False
+            print("⚠️ Temperature sensor disconnected")
 
 
 def _probe_slow():
@@ -408,7 +391,7 @@ def handle_command(sensor, session_id, value, payload):
             print("Status probe skipped while a sensor operation is active")
             return
         print("Status requested — re-probing sensors...")
-        _probe_i2c(force=True)
+        _probe_i2c()
         _release_sensor_operation()
         advertise_sensors()
         return
@@ -850,16 +833,12 @@ def main():
 
     try:
         hr_device = MAX30102(i2c_bus=shared_bus)
-        hr_sensor = hr_device if hr_device.handle is not None else None
+        hr_sensor = hr_device
         try:
-            if hr_sensor is not None:
-                hr_sensor.shutdown()
+            hr_sensor.shutdown()
         except Exception:
             pass
-        if hr_sensor is not None:
-            print("✅ Heart rate sensor ready")
-        else:
-            print("⚠️ Heart rate sensor not available — will keep re-probing")
+        print("✅ Heart rate sensor ready")
     except Exception as e:
         hr_device = None
         hr_sensor = None
