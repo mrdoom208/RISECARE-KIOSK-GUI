@@ -81,7 +81,7 @@ class MAX30102:
 
     # Readings below this quality are rejected outright.
     # Raise to ~0.3-0.5 for steadier (but more often blank) output.
-    MIN_SIGNAL_QUALITY = 0.10
+    MIN_SIGNAL_QUALITY = 0.30
 
     # Base smoothing speeds (0..1). The effective speed is scaled by the
     # signal quality, so clean signals move the displayed value faster and
@@ -749,99 +749,104 @@ class MAX30102:
     # ------------------------------------------------------------
 
     def calculate(self):
+        """Calculate from one 800-sample window, rejecting weak chunks.
+
+        The 800 samples are split into four 200-sample (2-second) chunks.
+        Low-quality chunks are discarded. Pulse rate is averaged only from
+        valid chunk estimates. SpO2 uses pooled AC/DC values from accepted
+        chunks and is withheld unless at least 600 samples (three chunks)
+        pass quality checks. This is an engineering estimate, not a medical
+        validation method.
         """
-        Calculate pulse rate + SpO2 from the current rolling buffer.
-
-        A reading is only produced once the buffer holds a full, settled
-        window (see ``update_buffer``); before that the result is empty.
-        This makes the output independent of how long the finger had
-        been placed when reading started.
-
-        Smoothing speed is weighted by signal quality: clean signals
-        update the displayed value faster, noisy ones barely move it.
-
-        Returns:
-            {
-                "pulse_rate": int,
-                "pulse_rate_valid": bool,
-                "spo2": int,
-                "spo2_valid": bool,
-                "quality": float,
-                "samples": int
-            }
-        """
-
         if len(self.ir_buffer) < self.WINDOW_SIZE or not self._finger_present:
             return {
-                "pulse_rate": 0,
-                "pulse_rate_valid": False,
-                "spo2": 0,
-                "spo2_valid": False,
-                "quality": 0.0,
-                "samples": len(self.ir_buffer),
+                "pulse_rate": 0, "pulse_rate_valid": False,
+                "spo2": 0, "spo2_valid": False,
+                "quality": 0.0, "samples": len(self.ir_buffer),
+                "good_samples": 0, "good_chunks": 0,
             }
 
         ir = np.asarray(self.ir_buffer, dtype=float)
         red = np.asarray(self.red_buffer, dtype=float)
+        chunk_size = 200
+        good_chunks = []
+        chunk_hr = []
+        qualities = []
 
-        quality, signal_ok = self._signal_quality(
-            ir,
-            red
-        )
+        for start in range(0, self.WINDOW_SIZE, chunk_size):
+            ir_chunk = ir[start:start + chunk_size]
+            red_chunk = red[start:start + chunk_size]
+            quality, valid = self._signal_quality(ir_chunk, red_chunk)
+            qualities.append(quality)
+            if not valid:
+                continue
 
-        if not signal_ok:
-            return {
-                "pulse_rate": 0,
-                "pulse_rate_valid": False,
-                "spo2": 0,
-                "spo2_valid": False,
-                "quality": quality,
-                "samples": len(ir),
-            }
+            hr, hr_valid = self._calculate_pulse_rate(ir_chunk)
+            good_chunks.append((red_chunk, ir_chunk))
+            if hr_valid:
+                chunk_hr.append(hr)
 
-        pulse_rate, pulse_rate_valid = self._calculate_pulse_rate(ir)
+        good_samples = len(good_chunks) * chunk_size
+        overall_quality = float(np.mean(qualities)) if qualities else 0.0
+        pulse_rate = int(round(float(np.mean(chunk_hr)))) if chunk_hr else 0
+        pulse_rate_valid = len(chunk_hr) >= 2
 
-        spo2, spo2_valid = self._calculate_spo2(
-            red,
-            ir
-        )
+        # SpO2 needs enough clean waveform data. Do not output a value when
+        # most of the window is weak/noisy or clipped.
+        spo2 = 0
+        spo2_valid = False
+        if good_samples >= 600:
+            red_rms_values, red_dc_values = [], []
+            ir_rms_values, ir_dc_values = [], []
+            for red_chunk, ir_chunk in good_chunks:
+                red_rms, red_dc = self._ac_dc(red_chunk)
+                ir_rms, ir_dc = self._ac_dc(ir_chunk)
+                if red_dc > 0 and ir_dc > 0 and red_rms > 0 and ir_rms > 0:
+                    red_rms_values.append(red_rms)
+                    red_dc_values.append(red_dc)
+                    ir_rms_values.append(ir_rms)
+                    ir_dc_values.append(ir_dc)
 
-        # Quality-weighted temporal smoothing.
+            if len(red_rms_values) >= 3:
+                r = ((float(np.mean(red_rms_values)) / float(np.mean(red_dc_values))) /
+                     (float(np.mean(ir_rms_values)) / float(np.mean(ir_dc_values))))
+                if np.isfinite(r) and 0.2 <= r <= 2.0:
+                    estimate = -45.060 * r * r + 30.354 * r + 94.845
+                    if np.isfinite(estimate) and 70 <= estimate <= 100:
+                        spo2 = int(round(estimate))
+                        spo2_valid = True
+
+        # Smooth only valid current-window estimates. If the current window
+        # fails, clear smoothing so an old reading cannot masquerade as new.
         if pulse_rate_valid:
-
             if self._smoothed_pr is None:
                 self._smoothed_pr = float(pulse_rate)
             else:
-                alpha = self._quality_alpha(
-                    self.PR_SMOOTHING_ALPHA, quality
-                )
-                self._smoothed_pr += alpha * (
-                    pulse_rate - self._smoothed_pr
-                )
-
+                alpha = self._quality_alpha(self.PR_SMOOTHING_ALPHA, overall_quality)
+                self._smoothed_pr += alpha * (pulse_rate - self._smoothed_pr)
             pulse_rate = int(round(self._smoothed_pr))
+        else:
+            self._smoothed_pr = None
 
         if spo2_valid:
-
             if self._smoothed_spo2 is None:
                 self._smoothed_spo2 = float(spo2)
             else:
-                alpha = self._quality_alpha(
-                    self.SPO2_SMOOTHING_ALPHA, quality
-                )
-                self._smoothed_spo2 += alpha * (
-                    spo2 - self._smoothed_spo2
-                )
-
+                alpha = self._quality_alpha(self.SPO2_SMOOTHING_ALPHA, overall_quality)
+                self._smoothed_spo2 += alpha * (spo2 - self._smoothed_spo2)
             spo2 = int(round(self._smoothed_spo2))
+        else:
+            self._smoothed_spo2 = None
 
         return {
             "pulse_rate": pulse_rate,
             "pulse_rate_valid": pulse_rate_valid,
             "spo2": spo2,
             "spo2_valid": spo2_valid,
-            "quality": round(quality, 3),
+            "quality": round(overall_quality, 3),
             "samples": len(ir),
+            "good_samples": good_samples,
+            "good_chunks": len(good_chunks),
         }
 
     # ------------------------------------------------------------
@@ -863,6 +868,15 @@ class MAX30102:
             result["new_samples"] = new_samples
             result["fifo_available"] = self.fifo_sample_count()
             result["fifo_overflow"] = self.fifo_overflow_count()
+
+            # Treat each 800-sample buffer as one finite measurement window.
+            # After calculating it once, discard the entire window and start
+            # collecting a fresh batch; do not keep sliding over old samples.
+            if len(self.ir_buffer) >= self.WINDOW_SIZE:
+                self.red_buffer.clear()
+                self.ir_buffer.clear()
+                self._smoothed_pr = None
+                self._smoothed_spo2 = None
 
             return result
 
