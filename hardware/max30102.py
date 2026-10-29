@@ -79,19 +79,7 @@ class MAX30102:
     FINGER_RELEASE_RED = 40000
     FINGER_RELEASE_IR = 60000
 
-    # Readings below this quality are rejected outright.
-    # Raise to ~0.3-0.5 for steadier (but more often blank) output.
-    MIN_SIGNAL_QUALITY = 0.10
-
-    # Base smoothing speeds (0..1). The effective speed is scaled by the
-    # signal quality, so clean signals move the displayed value faster and
-    # noisy ones barely move it.
-    PR_SMOOTHING_ALPHA = 0.25
-    SPO2_SMOOTHING_ALPHA = 0.15
-
-    # Quality never scales the smoothing speed below this fraction, so the
-    # displayed value can still follow real changes on a weak-but-valid signal.
-    MIN_ALPHA_SCALE = 0.20
+    MIN_SIGNAL_QUALITY = 0.07
 
     def __init__(
         self,
@@ -101,7 +89,6 @@ class MAX30102:
         led_current=0x1F,
         finger_min_red=None,
         finger_min_ir=None,
-        min_signal_quality=None,
     ):
         if SMBus is None:
             raise RuntimeError(
@@ -119,8 +106,6 @@ class MAX30102:
         if finger_min_ir is not None:
             self.FINGER_MIN_IR = finger_min_ir
             self.FINGER_RELEASE_IR = int(finger_min_ir * 0.66)
-        if min_signal_quality is not None:
-            self.MIN_SIGNAL_QUALITY = min_signal_quality
 
         self.bus = i2c_bus if i2c_bus is not None else SMBus(bus)
         self.handle = self.bus
@@ -577,20 +562,6 @@ class MAX30102:
         return quality, quality >= self.MIN_SIGNAL_QUALITY
 
     # ------------------------------------------------------------
-    # SMOOTHING
-    # ------------------------------------------------------------
-
-    def _quality_alpha(self, base_alpha, quality):
-        """
-        Scale a smoothing factor by signal quality.
-
-        High quality -> value follows new readings faster.
-        Low quality  -> value barely moves.
-        """
-        scale = min(1.0, max(self.MIN_ALPHA_SCALE, float(quality)))
-        return base_alpha * scale
-
-    # ------------------------------------------------------------
     # PULSE RATE
     # ------------------------------------------------------------
 
@@ -757,9 +728,6 @@ class MAX30102:
         This makes the output independent of how long the finger had
         been placed when reading started.
 
-        Smoothing speed is weighted by signal quality: clean signals
-        update the displayed value faster, noisy ones barely move it.
-
         Returns:
             {
                 "pulse_rate": int,
@@ -806,17 +774,15 @@ class MAX30102:
             ir
         )
 
-        # Quality-weighted temporal smoothing.
+        # Temporal smoothing.
         if pulse_rate_valid:
 
             if self._smoothed_pr is None:
                 self._smoothed_pr = float(pulse_rate)
             else:
-                alpha = self._quality_alpha(
-                    self.PR_SMOOTHING_ALPHA, quality
-                )
-                self._smoothed_pr += alpha * (
-                    pulse_rate - self._smoothed_pr
+                self._smoothed_pr = (
+                    0.75 * self._smoothed_pr
+                    + 0.25 * pulse_rate
                 )
 
             pulse_rate = int(round(self._smoothed_pr))
@@ -826,11 +792,9 @@ class MAX30102:
             if self._smoothed_spo2 is None:
                 self._smoothed_spo2 = float(spo2)
             else:
-                alpha = self._quality_alpha(
-                    self.SPO2_SMOOTHING_ALPHA, quality
-                )
-                self._smoothed_spo2 += alpha * (
-                    spo2 - self._smoothed_spo2
+                self._smoothed_spo2 = (
+                    0.85 * self._smoothed_spo2
+                    + 0.15 * spo2
                 )
 
             spo2 = int(round(self._smoothed_spo2))
@@ -923,8 +887,7 @@ if __name__ == "__main__":
     with MAX30102(
         bus=1,
         address=0x57,
-        led_current=0x1F,
-        # min_signal_quality=0.3,   # uncomment for steadier output
+        led_current=0x1F
     ) as sensor:
 
         print("MAX30102 running...")
