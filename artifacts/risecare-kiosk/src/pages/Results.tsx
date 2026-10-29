@@ -2,6 +2,7 @@ import { useLocation, useSearch } from "wouter";
 import { useHistoryState } from "wouter/use-browser-location";
 import { KioskHeader } from "@/components/KioskHeader";
 import { ModalShell } from "@/components/ModalShell";
+import { Z_INDEX } from "@/lib/z-index";
 import { format } from "date-fns";
 import {
   Printer,
@@ -492,7 +493,7 @@ export default function Results() {
 
       <ModalShell
         open={showDoneConfirm}
-        zIndex={70}
+        zIndex={Z_INDEX.MODAL_NESTED}
         backdrop="blur"
         panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
       >

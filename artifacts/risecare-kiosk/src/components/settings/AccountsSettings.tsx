@@ -15,6 +15,7 @@ import {
 import type { SettingsAccount } from "@/components/LoginDialog";
 import { ModalShell } from "@/components/ModalShell";
 import { apiErrorMessage } from "@/lib/api-error";
+import { Z_INDEX } from "@/lib/z-index";
 
 interface AccountsSettingsProps {
   account: SettingsAccount | null;
@@ -320,7 +321,7 @@ export function AccountsSettings({
 
       <ModalShell
         open={confirmRemove !== null}
-        zIndex={70}
+        zIndex={Z_INDEX.SETTINGS_CONFIRM}
         backdrop="scrim"
         panelClassName="rounded-md bg-card shadow-2xl p-8 w-full max-w-md border border-border/50"
       >

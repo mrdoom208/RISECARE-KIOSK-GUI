@@ -1,6 +1,7 @@
 import { SensorGuide } from "@/types/sensorGuide";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { ModalShell } from "@/components/ModalShell";
+import { Z_INDEX } from "@/lib/z-index";
 
 interface InstructionModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ export default function InstructionModal({
   return (
     <ModalShell
       open={isOpen}
-      zIndex={50}
+      zIndex={Z_INDEX.MODAL}
       backdrop="blur"
       panelClassName="bg-white rounded-lg shadow-lg p-4 sm:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
     >

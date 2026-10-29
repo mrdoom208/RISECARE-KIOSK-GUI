@@ -5,6 +5,7 @@ import { ChevronRight, Loader2, Lock, LogOut, Power, RotateCw, X } from "lucide-
 import type { SettingsAccount } from "@/components/LoginDialog";
 import { ModalShell } from "@/components/ModalShell";
 import { ReauthPrompt } from "./ReauthPrompt";
+import { Z_INDEX } from "@/lib/z-index";
 
 interface PowerSettingsProps {
   isOpen: boolean;
@@ -205,7 +206,7 @@ export const PowerSettings = memo(function PowerSettings({ isOpen, onClose, acco
     <>
       <ModalShell
         open={isOpen}
-        zIndex={60}
+        zIndex={Z_INDEX.SETTINGS_NESTED}
         backdrop="scrim"
         panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
       >

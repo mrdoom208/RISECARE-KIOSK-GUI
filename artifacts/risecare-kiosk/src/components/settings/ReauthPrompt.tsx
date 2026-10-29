@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { ModalShell } from "@/components/ModalShell";
 import { apiErrorMessage } from "@/lib/api-error";
+import { Z_INDEX } from "@/lib/z-index";
 
 interface ReauthPromptProps {
   open: boolean;
@@ -195,7 +196,7 @@ export const ReauthPrompt = memo(function ReauthPrompt({
   return (
     <ModalShell
       open={open}
-      zIndex={70}
+      zIndex={Z_INDEX.SETTINGS_CONFIRM}
       backdrop="scrim"
       panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
     >

@@ -13,6 +13,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ModalShell } from "@/components/ModalShell";
 import { apiErrorMessage } from "@/lib/api-error";
+import { Z_INDEX } from "@/lib/z-index";
 
 interface NetworkSettingsProps {
   isRateLimited: (key: string) => boolean;
@@ -525,7 +526,7 @@ export function NetworkSettings({ isRateLimited }: NetworkSettingsProps) {
 
       <ModalShell
         open={connectTarget !== null}
-        zIndex={60}
+        zIndex={Z_INDEX.SETTINGS_NESTED}
         backdrop="scrim"
         panelClassName="relative bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
       >

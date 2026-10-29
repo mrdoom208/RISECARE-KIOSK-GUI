@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, Delete, Check } from "lucide-react";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { ModalShell } from "@/components/ModalShell";
+import { Z_INDEX } from "@/lib/z-index";
 
 interface KeypadDialogProps {
   isOpen: boolean;
@@ -59,7 +60,7 @@ export function KeypadDialog({ isOpen, onClose, onSave, title, unit, isDouble, s
   return (
     <ModalShell
       open={isOpen}
-      zIndex={50}
+      zIndex={Z_INDEX.MODAL}
       backdrop="blur"
       panelClassName="bg-card w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-border/50 max-h-[90vh] flex flex-col"
     >

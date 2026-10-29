@@ -36,6 +36,7 @@ import { VitalCard } from "@/components/VitalCard";
 import InstructionModal from "@/components/InstructionModal";
 import { KeypadDialog } from "@/components/KeypadDialog";
 import { ModalShell } from "@/components/ModalShell";
+import { Z_INDEX } from "@/lib/z-index";
 import { Progress } from "@/components/ui/progress";
 import type { Vitals } from "@/types/vitals";
 import {
@@ -919,7 +920,7 @@ const handleCancelReading = async () => {
       {/* Reading Display - shows real-time MQTT value */}
         <ModalShell
           open={readingVital !== null}
-          zIndex={50}
+          zIndex={Z_INDEX.MODAL}
           backdrop="blur"
           panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
         >

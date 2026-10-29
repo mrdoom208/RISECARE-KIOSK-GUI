@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { Z_INDEX } from "@/lib/z-index";
 
 export type ModalBackdrop = "blur" | "scrim";
 
 interface ModalShellProps {
   open: boolean;
-  /** Explicit stacking order. Must stay below the virtual keyboard (9999). */
+  /** Explicit stacking order. Keep it below the lock screen and virtual keyboard. */
   zIndex?: number;
   /** "blur" is retained as a legacy option; both options use GPU-cheap scrims. */
   backdrop?: ModalBackdrop;
@@ -27,7 +28,7 @@ const BACKDROP_CLASS: Record<ModalBackdrop, string> = {
 
 export function ModalShell({
   open,
-  zIndex = 50,
+  zIndex = Z_INDEX.MODAL,
   backdrop = "blur",
   avoidKeyboard = true,
   panelClassName,

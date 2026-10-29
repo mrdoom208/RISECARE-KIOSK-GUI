@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { ModalShell } from "@/components/ModalShell";
 import { fetchSensorSettings, normalizeSensorSettings, persistSensorSettings } from "@/lib/sensor-settings";
+import { Z_INDEX } from "@/lib/z-index";
 
 interface SensorsSettingsProps {
   isOpen: boolean;
@@ -515,7 +516,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     <>
       <ModalShell
         open={isOpen}
-        zIndex={50}
+        zIndex={Z_INDEX.SETTINGS_NESTED}
         backdrop="scrim"
         panelClassName="bg-card rounded-3xl shadow-2xl p-5 sm:p-6 md:p-10 w-full max-w-5xl border border-border/50 max-h-[90vh] overflow-y-auto"
       >

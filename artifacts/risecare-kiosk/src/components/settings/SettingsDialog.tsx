@@ -15,6 +15,7 @@ import { SensorsSettings } from "./SensorsSettings";
 import { DeviceInformationSettings } from "./DeviceInformationSettings";
 import { ModalShell } from "@/components/ModalShell";
 import { apiErrorMessage } from "@/lib/api-error";
+import { Z_INDEX } from "@/lib/z-index";
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -294,7 +295,7 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
     <>
       <ModalShell
         open={isOpen}
-        zIndex={9000}
+        zIndex={Z_INDEX.SETTINGS}
         backdrop="blur"
         panelClassName="bg-card rounded-3xl shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
       >
@@ -526,7 +527,7 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
 
       <ModalShell
         open={showLogoutConfirm}
-        zIndex={9500}
+        zIndex={Z_INDEX.SETTINGS_CONFIRM}
         backdrop="scrim"
         panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
       >

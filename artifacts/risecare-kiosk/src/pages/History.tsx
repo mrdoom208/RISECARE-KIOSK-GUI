@@ -17,6 +17,7 @@ import { ModalShell } from "@/components/ModalShell";
 import { apiErrorMessage } from "@/lib/api-error";
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Z_INDEX } from "@/lib/z-index";
 
 const readingFields = [
   "bloodPressureSystolic",
@@ -344,7 +345,7 @@ export default function History() {
 
       <ModalShell
         open={showLogoutConfirm}
-        zIndex={70}
+        zIndex={Z_INDEX.MODAL_NESTED}
         backdrop="blur"
         panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
       >

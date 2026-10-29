@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { apiErrorMessage } from "@/lib/api-error";
+import { Z_INDEX } from "@/lib/z-index";
 
 export function LockScreen() {
   const [, setLocation] = useLocation();
@@ -69,7 +70,10 @@ export function LockScreen() {
   if (!locked) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-background flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 bg-background flex items-center justify-center p-4"
+      style={{ zIndex: Z_INDEX.LOCK_SCREEN }}
+    >
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <div className="h-20 w-20 rounded-3xl bg-primary/10 flex items-center justify-center mb-4">
