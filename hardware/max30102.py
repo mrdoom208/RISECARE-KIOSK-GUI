@@ -79,7 +79,7 @@ class MAX30102:
     FINGER_RELEASE_RED = 40000
     FINGER_RELEASE_IR = 60000
 
-    MIN_SIGNAL_QUALITY = 0.07
+    MIN_SIGNAL_QUALITY = 0.01
 
     def __init__(
         self,

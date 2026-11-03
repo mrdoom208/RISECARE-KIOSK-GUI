@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -14,6 +14,13 @@ import {
 } from "lucide-react";
 import type { SettingsAccount } from "@/components/LoginDialog";
 import { ModalShell } from "@/components/ModalShell";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { apiErrorMessage } from "@/lib/api-error";
 import { Z_INDEX } from "@/lib/z-index";
 
@@ -38,22 +45,6 @@ export function AccountsSettings({
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (menuOpenId === null) return;
-    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpenId(null);
-      }
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("touchstart", handlePointerDown);
-    };
-  }, [menuOpenId]);
 
   const { data: adminAccounts, isLoading: accountsLoading } = useQuery({
     queryKey: ["accounts"],
@@ -104,11 +95,6 @@ export function AccountsSettings({
       return matchesSearch && matchesRole;
     });
   }, [adminAccounts, search, roleFilter]);
-
-  const openActions = (acc: SettingsAccount) => {
-    if (isRateLimited("edit-account-" + acc.id)) return;
-    setMenuOpenId((cur) => (cur === acc.id ? null : acc.id));
-  };
 
   const requestRemove = (acc: SettingsAccount) => {
     if (isRateLimited("remove-account-" + acc.id)) return;
@@ -227,7 +213,7 @@ export function AccountsSettings({
           </div>
         )
       ) : (
-        <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+        <div className="space-y-3">
           {filteredAccounts.map((acc) => {
             const isSelf = account?.id === acc.id;
             const isProtected = !isSelf && acc.role === "superadmin";
@@ -264,53 +250,66 @@ export function AccountsSettings({
                       Protected
                     </span>
                   ) : (
-                    <div className="relative" ref={menuOpenId === acc.id ? menuRef : null}>
+                    <DropdownMenu
+                      open={menuOpenId === acc.id}
+                      onOpenChange={(nextOpen) => {
+                        if (nextOpen && isRateLimited("edit-account-" + acc.id)) {
+                          return;
+                        }
+                        setMenuOpenId(nextOpen ? acc.id : null);
+                      }}
+                    >
+                      <DropdownMenuTrigger asChild>
                         <button
-                          onClick={() => openActions(acc)}
                           className="p-1.5 rounded-md hover:bg-muted"
-                          aria-label="Account actions"
+                          aria-label={`Account actions for ${acc.username}`}
                         >
                           <MoreVertical className="w-5 h-5" />
                         </button>
-                        {menuOpenId === acc.id && (
-                          <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-border bg-popover shadow-lg p-1.5">
-                              <button
-                                onClick={() => {
-                                  if (isRateLimited("edit-account-" + acc.id)) return;
-                                  setMenuOpenId(null);
-                                  onEditAccount(acc);
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
-                              >
-                                <Pencil className="w-4 h-4" />
-                                Edit account
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (isRateLimited("edit-account-" + acc.id)) return;
-                                  setMenuOpenId(null);
-                                  onEditAccount(acc);
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
-                              >
-                                <KeyRound className="w-4 h-4" />
-                                Reset password
-                              </button>
-                              {!isSelf && (
-                                <>
-                                  <div className="my-1 h-px bg-border" />
-                                  <button
-                                    onClick={() => requestRemove(acc)}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-destructive hover:bg-destructive/10"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                    Remove account
-                                  </button>
-                                </>
-                              )}
-                            </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        sideOffset={6}
+                        style={{ zIndex: Z_INDEX.SETTINGS_NESTED }}
+                        onCloseAutoFocus={(event) => event.preventDefault()}
+                        className="w-60 rounded-md border border-border bg-popover p-1.5 shadow-lg"
+                      >
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            if (isRateLimited("edit-account-" + acc.id)) return;
+                            setMenuOpenId(null);
+                            onEditAccount(acc);
+                          }}
+                          className="gap-2 rounded-md px-3 py-2.5 text-base font-medium"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Edit account
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            if (isRateLimited("edit-account-" + acc.id)) return;
+                            setMenuOpenId(null);
+                            onEditAccount(acc);
+                          }}
+                          className="gap-2 rounded-md px-3 py-2.5 text-base font-medium"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                          Reset password
+                        </DropdownMenuItem>
+                        {!isSelf && (
+                          <>
+                            <DropdownMenuSeparator className="my-1 h-px bg-border" />
+                            <DropdownMenuItem
+                              onSelect={() => requestRemove(acc)}
+                              className="gap-2 rounded-md px-3 py-2.5 text-base font-medium text-destructive focus:bg-destructive/10 focus:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Remove account
+                            </DropdownMenuItem>
+                          </>
                         )}
-                      </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
               </div>

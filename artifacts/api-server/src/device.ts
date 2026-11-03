@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { query, run } from "@workspace/db";
 import { postJsonWithBackoff } from "./retry";
+import { logSystem } from "./system-log";
 
 // Debug hook for the kiosk's outbound sync. Set SYNC_DEBUG=1 to dump the exact
 // payload sent to the portal and the raw response. Includes patient-identifiable
@@ -9,6 +10,30 @@ function syncDebug(...args: unknown[]): void {
   if (process.env.SYNC_DEBUG === "1") {
     console.log("[sync-debug]", ...args);
   }
+}
+
+// The background loop retries every 30s, so an unreachable portal would
+// otherwise write the same log entry thousands of times per day. Repeat errors
+// are written at most once every 10 minutes.
+let lastSyncErrorSignature = "";
+let lastSyncErrorLoggedAt = 0;
+
+function logSyncError(
+  level: "ERROR" | "WARNING",
+  message: string,
+  details: Record<string, unknown>,
+): void {
+  const signature = `${message}:${JSON.stringify(details)}`;
+  const now = Date.now();
+  if (
+    signature === lastSyncErrorSignature &&
+    now - lastSyncErrorLoggedAt < 10 * 60 * 1000
+  ) {
+    return;
+  }
+  lastSyncErrorSignature = signature;
+  lastSyncErrorLoggedAt = now;
+  void logSystem(level, "Sync", message, details);
 }
 
 export interface SyncState {
@@ -236,6 +261,12 @@ export async function syncPending(): Promise<{ exported: number }> {
     return { exported: 0 };
   }
 
+  void logSystem("INFO", "Sync", "Preparing records for server sync", {
+    sessions: sessions.length,
+    vitals: vitals.length,
+    records: total,
+  });
+
   // Resume an interrupted batch (same payloadId => server returns the original
   // result) or start a new one.
   const keyRows = await query("SELECT value FROM settings WHERE key = 'sync_payload_id'");
@@ -288,10 +319,17 @@ export async function syncPending(): Promise<{ exported: number }> {
       payloadId,
     ]);
     await run("DELETE FROM settings WHERE key = 'sync_payload_id'");
+    void logSystem("INFO", "Sync", "Records synced to server successfully", {
+      records: total,
+    });
+    lastSyncErrorSignature = "";
     return { exported: total };
   }
 
   if (status === 401) {
+    logSyncError("ERROR", "Server rejected the kiosk API key", {
+      status,
+    });
     throw new SyncError(
       "The kiosk API key was rejected by the server. Re-activate this kiosk with a fresh code.",
       "invalid_key",
@@ -300,12 +338,25 @@ export async function syncPending(): Promise<{ exported: number }> {
   }
   if (status === 422) {
     const reason = typeof data?.error === "string" ? data.error : "invalid_payload";
+    // Server error strings are normally reason codes, but never trust a remote
+    // value to be PHI-free. Only persist short, code-like reasons.
+    const safeReason = /^[a-z0-9_.:-]{1,80}$/i.test(reason)
+      ? reason
+      : "unknown";
+    logSyncError("ERROR", "Server rejected the sync payload", {
+      status,
+      reason: safeReason,
+    });
     throw new SyncError(
       `The server rejected the payload (${reason}). Records will stay pending.`,
       reason,
       true,
     );
   }
+  logSyncError("WARNING", "Sync failed; records remain pending", {
+    status,
+    records: total,
+  });
   throw new SyncError(`Sync failed (HTTP ${status}). Will retry later.`, "http_error");
 }
 
@@ -326,8 +377,14 @@ export function startSyncLoop(): void {
       if (device.activated) {
         await syncPending();
       }
-    } catch {
-      // Background sync errors are retried on the next tick.
+    } catch (error) {
+      // Background sync errors are retried on the next tick. Unexpected
+      // failures are logged (throttled) so they are visible in Settings.
+      if (!(error instanceof SyncError)) {
+        logSyncError("WARNING", "Background sync failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     } finally {
       syncing = false;
     }

@@ -1,8 +1,16 @@
 import mqtt from "mqtt";
 import crypto from "crypto";
+import { logSystem } from "./system-log";
 
 const MQTT_BROKER = process.env.MQTT_BROKER || "mqtt://localhost:1883";
 const MQTT_TOPIC = process.env.MQTT_TOPIC || "risecare/#";
+const MQTT_DEBUG = process.env.MQTT_DEBUG === "1";
+
+// Sensor topics publish continuously. Printing every payload is noisy and can
+// expose measurement data in the console, so raw traffic is opt-in.
+function mqttDebug(...args: unknown[]): void {
+  if (MQTT_DEBUG) console.log(...args);
+}
 
 type MessageHandler = (payload: any, topic?: string) => void;
 
@@ -10,10 +18,49 @@ let client: mqtt.MqttClient | null = null;
 let messageHandlers: Map<string, MessageHandler[]> = new Map();
 const connectedHandlers = new Set<() => void>();
 
+// While the broker is down the client retries forever. Logging every retry
+// would rotate useful entries out of the 2,000-row system log in under an hour,
+// so failures are summarized at most once per interval.
+const MQTT_LOG_THROTTLE_MS = 10 * 60 * 1000;
+
+let reconnectAttempts = 0;
+let disconnectedSince = 0;
+let lastFailureLoggedAt = 0;
+let lastError = "";
+let connectedOnce = false;
+let intentionalDisconnect = false;
+
+function markDisconnected(): void {
+  if (!disconnectedSince) disconnectedSince = Date.now();
+}
+
+function reportMqttFailure(consoleMessage: string): void {
+  markDisconnected();
+  const now = Date.now();
+  if (now - lastFailureLoggedAt < MQTT_LOG_THROTTLE_MS) return;
+  lastFailureLoggedAt = now;
+  console.error(consoleMessage);
+  void logSystem(
+    "WARNING",
+    "Network",
+    "MQTT broker unavailable; retrying in background",
+    {
+      broker: MQTT_BROKER,
+      attempts: reconnectAttempts,
+      downtimeSeconds: Math.round((now - disconnectedSince) / 1000),
+      lastError: lastError || undefined,
+    },
+  );
+}
+
 export function connectMQTT() {
   if (client?.connected) return client;
 
+  intentionalDisconnect = false;
   console.log("Connecting to MQTT broker:", MQTT_BROKER);
+  void logSystem("INFO", "Network", "Connecting to MQTT broker", {
+    broker: MQTT_BROKER,
+  });
 
   client = mqtt.connect(MQTT_BROKER, {
     clientId: `risecare-api-${Math.random().toString(16).slice(2, 8)}`,
@@ -23,10 +70,41 @@ export function connectMQTT() {
   });
 
   client.on("connect", () => {
-    console.log("✅ MQTT connected");
+    const attempts = reconnectAttempts;
+    const downtimeSeconds = disconnectedSince
+      ? Math.round((Date.now() - disconnectedSince) / 1000)
+      : 0;
+    console.log(
+      attempts > 0
+        ? `✅ MQTT connected after ${attempts} attempt${attempts === 1 ? "" : "s"}`
+        : "✅ MQTT connected",
+    );
+    void logSystem(
+      "INFO",
+      "Network",
+      connectedOnce
+        ? "MQTT reconnected"
+        : attempts > 0
+          ? "MQTT broker connected after retries"
+          : "MQTT broker connected",
+      {
+        broker: MQTT_BROKER,
+        ...(attempts > 0 ? { attempts, downtimeSeconds } : {}),
+      },
+    );
+    reconnectAttempts = 0;
+    disconnectedSince = 0;
+    lastFailureLoggedAt = 0;
+    lastError = "";
+    connectedOnce = true;
+
     client?.subscribe(MQTT_TOPIC, { qos: 1 }, (err) => {
       if (err) {
         console.error("MQTT subscribe error:", err);
+        void logSystem("ERROR", "Network", "MQTT subscription failed", {
+          topic: MQTT_TOPIC,
+          error: err.message,
+        });
       } else {
         console.log(`📡 Subscribed to: ${MQTT_TOPIC}`);
       }
@@ -45,7 +123,7 @@ export function connectMQTT() {
         raw.receivedAt = Date.now();
       }
       const data = raw;
-      console.log(`📥 MQTT received [${topic}]:`, data);
+      mqttDebug(`📥 MQTT received [${topic}]:`, data);
 
       // Call registered handlers
       const handlers = messageHandlers.get(topic);
@@ -66,19 +144,33 @@ export function connectMQTT() {
       });
     } catch (e) {
       console.error("Failed to parse MQTT message:", e);
+      void logSystem("WARNING", "Network", "Failed to parse MQTT message", {
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   });
 
   client.on("error", (err) => {
-    console.error("❌ MQTT error:", err.message);
+    lastError = err.message;
+    reportMqttFailure(`❌ MQTT error: ${err.message}`);
   });
 
   client.on("close", () => {
-    console.log("🔌 MQTT disconnected");
+    if (intentionalDisconnect) {
+      intentionalDisconnect = false;
+      return;
+    }
+    reportMqttFailure("🔌 MQTT disconnected");
   });
 
   client.on("reconnect", () => {
-    console.log("🔄 MQTT reconnecting...");
+    reconnectAttempts += 1;
+    void logSystem("DEBUG", "Network", "MQTT reconnect attempt", {
+      broker: MQTT_BROKER,
+      attempt: reconnectAttempts,
+      lastError: lastError || undefined,
+    });
+    reportMqttFailure(`🔄 MQTT reconnecting (attempt ${reconnectAttempts})`);
   });
 
   return client;
@@ -92,15 +184,25 @@ export function onMQTTConnected(handler: () => void) {
 
 export function disconnectMQTT() {
   if (client) {
+    intentionalDisconnect = true;
     client.end();
     client = null;
+    reconnectAttempts = 0;
+    disconnectedSince = 0;
+    lastFailureLoggedAt = 0;
+    lastError = "";
+    connectedOnce = false;
     console.log("MQTT disconnected");
+    void logSystem("INFO", "Network", "MQTT disconnected");
   }
 }
 
 export function publish(topic: string, payload: any, options: { retain?: boolean } = {}): boolean {
   if (!client?.connected) {
     console.warn("⚠️ MQTT not connected, cannot publish");
+    void logSystem("WARNING", "Network", "MQTT publish skipped: broker not connected", {
+      topic,
+    });
     return false;
   }
 
@@ -110,10 +212,14 @@ export function publish(topic: string, payload: any, options: { retain?: boolean
   client.publish(topic, message, { qos: 1, retain: options.retain ?? false }, (err) => {
     if (err) {
       console.error("MQTT publish error:", err);
+      void logSystem("ERROR", "Network", "MQTT publish failed", {
+        topic,
+        error: err.message,
+      });
     }
   });
   
-  console.log(`📤 MQTT published [${topic}]:`, payload);
+  mqttDebug(`📤 MQTT published [${topic}]:`, payload);
   return true;
 }
 

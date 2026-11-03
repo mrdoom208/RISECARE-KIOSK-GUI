@@ -70,6 +70,14 @@ function createTables() {
     db.run("CREATE TABLE IF NOT EXISTS activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, action TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (account_id) REFERENCES accounts(id))");
     db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
 
+    // Operational logs for administrators. This is deliberately separate from
+    // assessment history and must never contain patient data (names, vitals,
+    // contact details, etc.). Retention and rotation are enforced by the API.
+    db.run("CREATE TABLE IF NOT EXISTS system_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, level TEXT NOT NULL, component TEXT NOT NULL, message TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
+    db.run("CREATE INDEX IF NOT EXISTS idx_system_logs_created_at ON system_logs (created_at DESC)");
+    db.run("CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs (level)");
+    db.run("CREATE INDEX IF NOT EXISTS idx_system_logs_component ON system_logs (component)");
+
     // Permanent identity of the physical kiosk (single row). Generated locally on
     // first boot so it works offline and never changes. The kioskId and apiKey are
     // assigned by the server during activation.

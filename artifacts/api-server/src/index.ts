@@ -7,6 +7,7 @@ import app from "./app";
 import { connectMQTT, disconnectMQTT } from "./mqtt";
 import { startSyncLoop } from "./device";
 import { setupWebSocket } from "./ws";
+import { logSystem, pruneSystemLogs } from "./system-log";
 
 const rawPort = process.env["PORT"];
 
@@ -30,6 +31,15 @@ const host = process.env["HOST"] ?? "127.0.0.1";
 const server = app.listen(port, host, async () => {
   console.log(`Server listening on http://${host}:${port}`);
 
+  void pruneSystemLogs();
+  void logSystem("INFO", "Backend", "Backend started successfully", {
+    port,
+    host,
+    environment: process.env.NODE_ENV ?? "development",
+    version: process.env.APP_VERSION ?? "0.0.0",
+  });
+  void logSystem("INFO", "Database", "Database connection verified");
+
   // Attach WebSocket server
   setupWebSocket(server);
 
@@ -41,6 +51,7 @@ const server = app.listen(port, host, async () => {
     connectMQTT();
   } else {
     console.log("⚠️ MQTT disabled (NO_MQTT=1)");
+    void logSystem("WARNING", "Backend", "MQTT disabled (NO_MQTT=1)");
   }
 });
 

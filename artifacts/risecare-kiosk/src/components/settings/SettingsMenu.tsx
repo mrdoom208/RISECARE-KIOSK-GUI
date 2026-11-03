@@ -1,23 +1,24 @@
-import { useState, type ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   CircleUserRound,
   DownloadCloud,
   FileText,
+  Info,
   Loader2,
   MonitorSmartphone,
   Power,
   RotateCw,
+  ScrollText,
+  Server,
   Shield,
   Timer,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import { SettingsMenuItem } from "./SettingsMenuItem";
-import { ReauthPrompt } from "./ReauthPrompt";
-import { apiErrorMessage } from "@/lib/api-error";
+import { UpdateSettingsDialog } from "./UpdateSettingsDialog";
 
 export type SettingsSubmenu =
   | "profile"
@@ -25,9 +26,13 @@ export type SettingsSubmenu =
   | "logs"
   | "accounts"
   | "idle-timeout"
-  | "network";
+  | "network"
+  | "server-status"
+  | "system-info"
+  | "system-logs";
 
 interface SettingsMenuProps {
+  isOpen: boolean;
   isSuperadmin: boolean;
   isRateLimited: (key: string) => boolean;
   onNavigate: (submenu: SettingsSubmenu) => void;
@@ -59,17 +64,19 @@ function SettingsSection({
 }
 
 export function SettingsMenu({
+  isOpen,
   isSuperadmin,
   isRateLimited,
   onNavigate,
   onOpenSensors,
   onOpenPower,
 }: SettingsMenuProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [showUpdateReauth, setShowUpdateReauth] = useState(false);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
-  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) setShowUpdateDialog(false);
+  }, [isOpen]);
 
   const {
     data: networkSetting,
@@ -103,89 +110,23 @@ export function SettingsMenu({
     enabled: networkEnabled,
   });
 
-  const checkUpdateMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/settings/update/check");
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(apiErrorMessage(data, "Failed to check for updates", res.status));
-      }
-      return res.json() as Promise<{ hasUpdate: boolean; localHash: string; remoteHash: string }>;
+  const { data: systemStatus, isLoading: systemStatusLoading } = useQuery<{
+    online?: boolean;
+    status?: "online" | "degraded";
+  }>({
+    queryKey: ["system-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/system/status");
+      if (!res.ok) throw new Error("Failed to fetch server status");
+      return res.json();
     },
-    onSuccess: (data) => {
-      setHasUpdate(!!data.hasUpdate);
-      queryClient.invalidateQueries({ queryKey: ["network-status"] });
-      if (data.hasUpdate) {
-        toast({
-          title: "Update available",
-          description: "A new update is available. Click Update to apply.",
-        });
-      } else {
-        toast({
-          title: "Up to date",
-          description: "No updates available",
-        });
-      }
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Update check failed",
-        description: err?.message || "Could not check for updates",
-        variant: "destructive",
-      });
-    },
+    refetchInterval: 10000,
+    refetchIntervalInBackground: false,
   });
 
-  const applyUpdateMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/settings/update/apply", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(apiErrorMessage(data, "Failed to apply update", res.status));
-      }
-      return data;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Updating System",
-        description: "Applying updates and rebooting the Raspberry Pi...",
-      });
-      setUpdating(true);
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Update failed",
-        description: err?.message || "Could not apply update",
-        variant: "destructive",
-      });
-      setUpdating(false);
-    },
-  });
-
-  const handleCheckUpdate = () => {
-    if (isRateLimited("update-check")) return;
-    if (!networkEnabled) {
-      toast({
-        title: "Network disabled",
-        description: "Enable network to check for updates",
-        variant: "destructive",
-      });
-      return;
-    }
-    checkUpdateMutation.mutate();
-  };
-
-  const handleUpdateClick = () => {
-    if (isRateLimited("update-apply")) return;
-    if (!hasUpdate) {
-      handleCheckUpdate();
-      return;
-    }
-    setShowUpdateReauth(true);
-  };
-
-  const handleUpdateConfirmed = () => {
-    applyUpdateMutation.mutate();
+  const openUpdateDialog = () => {
+    if (isRateLimited("updates-menu")) return;
+    setShowUpdateDialog(true);
   };
 
   return (
@@ -246,6 +187,46 @@ export function SettingsMenu({
 
       <SettingsSection label="System">
         <SettingsMenuItem
+          icon={Server}
+          label="Server Status"
+          onClick={() => {
+            if (isRateLimited("server-status")) return;
+            onNavigate("server-status");
+          }}
+          ariaLabel="Open Server Status"
+          trailing={
+            <span className="flex items-center gap-2" aria-live="polite">
+              {systemStatusLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              ) : systemStatus?.status === "degraded" ? (
+                <span className="flex items-center gap-1.5 text-sm font-bold text-amber-600">
+                  <span className="h-2 w-2 rounded-full bg-current" />
+                  Degraded
+                </span>
+              ) : systemStatus?.online ? (
+                <span className="flex items-center gap-1.5 text-sm font-bold text-green-600">
+                  <span className="h-2 w-2 rounded-full bg-current" />
+                  Online
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-sm font-bold text-red-500">
+                  <span className="h-2 w-2 rounded-full bg-current" />
+                  Offline
+                </span>
+              )}
+            </span>
+          }
+        />
+        <SettingsMenuItem
+          icon={Info}
+          label="System Information"
+          onClick={() => {
+            if (isRateLimited("system-info")) return;
+            onNavigate("system-info");
+          }}
+          ariaLabel="Open System Information"
+        />
+        <SettingsMenuItem
           icon={Activity}
           label="Sensors/Print Test"
           onClick={() => {
@@ -258,6 +239,15 @@ export function SettingsMenu({
 
       {isSuperadmin && (
         <SettingsSection label="Administration">
+          <SettingsMenuItem
+            icon={ScrollText}
+            label="System Logs"
+            onClick={() => {
+              if (isRateLimited("system-logs")) return;
+              onNavigate("system-logs");
+            }}
+            ariaLabel="Open System Logs"
+          />
           <SettingsMenuItem
             icon={FileText}
             label="Activity Log"
@@ -284,12 +274,10 @@ export function SettingsMenu({
           <SettingsMenuItem
             icon={hasUpdate ? DownloadCloud : RotateCw}
             label={hasUpdate ? "Update Available" : "Check for Updates"}
-            onClick={handleUpdateClick}
-            ariaLabel={hasUpdate ? "Apply update" : "Check for updates"}
+            onClick={openUpdateDialog}
+            ariaLabel={hasUpdate ? "Open update details" : "Check for updates"}
             trailing={
-              checkUpdateMutation.isPending ? (
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              ) : hasUpdate ? (
+              hasUpdate ? (
                 <span className="text-sm font-bold text-primary">New</span>
               ) : undefined
             }
@@ -310,14 +298,16 @@ export function SettingsMenu({
         />
       </SettingsSection>
 
-      <ReauthPrompt
-        open={showUpdateReauth}
-        title="Apply Update"
-        description="Re-enter your password to pull updates from main branch and reboot the Raspberry Pi."
-        confirmLabel="Update & Reboot"
-        onClose={() => setShowUpdateReauth(false)}
-        onConfirmed={handleUpdateConfirmed}
-      />
+      {isSuperadmin && (
+        <UpdateSettingsDialog
+          open={isOpen && showUpdateDialog}
+          networkEnabled={networkEnabled}
+          networkLoading={networkSettingLoading}
+          isRateLimited={isRateLimited}
+          onClose={() => setShowUpdateDialog(false)}
+          onUpdateStatusChange={setHasUpdate}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,27 @@ import { Z_INDEX } from "@/lib/z-index";
 
 const INPUT_TAGS = new Set(["input", "textarea"]);
 
+// Inputs that have their own native picker or that do not support a text
+// cursor. The on-screen keyboard must not attach to these: focusing one should
+// open the platform control instead, and `setSelectionRange` throws on them.
+const NON_TEXT_INPUT_TYPES = new Set([
+  "hidden",
+  "checkbox",
+  "radio",
+  "submit",
+  "button",
+  "reset",
+  "file",
+  "image",
+  "range",
+  "color",
+  "date",
+  "time",
+  "datetime-local",
+  "month",
+  "week",
+]);
+
 function isInputElement(el: unknown): el is HTMLInputElement | HTMLTextAreaElement {
   if (!el || !(el instanceof HTMLElement)) return false;
   return INPUT_TAGS.has(el.tagName.toLowerCase());
@@ -13,7 +34,7 @@ function isInputElement(el: unknown): el is HTMLInputElement | HTMLTextAreaEleme
 function shouldShowKeyboard(el: HTMLElement): boolean {
   if (!isInputElement(el)) return false;
   const type = (el as HTMLInputElement).type || "text";
-  if (["hidden", "checkbox", "radio", "submit", "button", "file", "image"].includes(type)) return false;
+  if (NON_TEXT_INPUT_TYPES.has(type.toLowerCase())) return false;
   if (el.isContentEditable) return true;
   return !el.readOnly && !el.disabled;
 }
@@ -56,6 +77,21 @@ const NUMERIC_ROWS = [
   ["Clear", "0", "Backspace"],
 ];
 
+// `setSelectionRange` throws on input types that do not support a text cursor
+// (number, email, date, ...). Treat the cursor update as best-effort so typing
+// never crashes the keyboard.
+function setCursor(
+  el: HTMLInputElement | HTMLTextAreaElement,
+  start: number,
+  end = start,
+) {
+  try {
+    el.setSelectionRange(start, end);
+  } catch {
+    // Selection is unsupported for this input type.
+  }
+}
+
 function insertTextAtCursor(el: HTMLInputElement | HTMLTextAreaElement, text: string) {
   const start = el.selectionStart ?? el.value.length;
   const end = el.selectionEnd ?? start;
@@ -68,7 +104,7 @@ function insertTextAtCursor(el: HTMLInputElement | HTMLTextAreaElement, text: st
     "value",
   );
   proto?.set?.call(el, newValue);
-  el.setSelectionRange(start + text.length, start + text.length);
+  setCursor(el, start + text.length);
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
@@ -87,7 +123,7 @@ function backspaceAtCursor(el: HTMLInputElement | HTMLTextAreaElement) {
     "value",
   );
   proto?.set?.call(el, newValue);
-  el.setSelectionRange(newCursor, newCursor);
+  setCursor(el, newCursor);
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
@@ -97,7 +133,7 @@ function clearValue(el: HTMLInputElement | HTMLTextAreaElement) {
     "value",
   );
   proto?.set?.call(el, "");
-  el.setSelectionRange(0, 0);
+  setCursor(el, 0, 0);
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 

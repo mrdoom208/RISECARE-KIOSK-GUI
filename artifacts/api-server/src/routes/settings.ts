@@ -5,6 +5,7 @@ import { run, query } from "@workspace/db";
 import { publish } from "../mqtt";
 import { requireAuth, requireReauth, requireSuperadmin, REAUTH_TTL_MS } from "../auth";
 import { logActivity } from "../activity-log";
+import { logSystem } from "../system-log";
 import { SyncError, getPortalBaseUrl, syncPending } from "../device";
 import path from "path";
 import fs from "fs";
@@ -475,6 +476,9 @@ router.get("/export", requireAuth, requireSuperadmin, requireReauth, async (req,
       "Database Exported",
       `User ${req.user?.username ?? "Unknown"} exported the database`,
     );
+    void logSystem("INFO", "System", "Database exported", {
+      by: req.user?.username ?? "Unknown",
+    });
 
     res.download(dbPath, `risecare-backup-${Date.now()}.db`);
   } catch (e) {
@@ -508,6 +512,9 @@ router.post("/delete", requireAuth, requireSuperadmin, requireReauth, async (req
       "Data Deleted",
       `User ${req.user?.username ?? "Unknown"} deleted all session data`,
     );
+    void logSystem("WARNING", "System", "All session data deleted", {
+      by: req.user?.username ?? "Unknown",
+    });
 
     res.json({ status: "deleted" });
   } catch (e) {
@@ -584,6 +591,12 @@ router.post("/network-enabled", requireAuth, async (req, res) => {
       "Network Connection Toggled",
       `Network connection ${enabled ? "enabled" : "disabled"} by ${req.user?.username ?? "Unknown"}`,
     );
+    void logSystem(
+      enabled ? "INFO" : "WARNING",
+      "Network",
+      `Network connection ${enabled ? "enabled" : "disabled"}`,
+      { by: req.user?.username ?? "Unknown" },
+    );
     res.json({ success: true, enabled: !!enabled });
   } catch (e: any) {
     res.status(500).json({ error: e?.message || "Failed to set network connection setting" });
@@ -626,6 +639,10 @@ router.post("/export-server", requireAuth, requireReauth, async (req, res) => {
       "Reports Exported",
       `${result.exported} record(s) synced to server by ${req.user?.username ?? "Unknown"}`,
     );
+    void logSystem("INFO", "Sync", "Manual report export completed", {
+      exported: result.exported,
+      by: req.user?.username ?? "Unknown",
+    });
     res.json({ success: true, ...result });
   } catch (e) {
     if (e instanceof SyncError) {
@@ -681,6 +698,9 @@ async function sendPowerCommand(
         `System ${actionLabel}`,
         `User ${req.user?.username ?? "Unknown"} exited kiosk mode`,
       );
+      void logSystem("INFO", "System", "Kiosk program exited", {
+        by: req.user?.username ?? "Unknown",
+      });
 
       for (const pid of pids) {
         try {
@@ -699,6 +719,9 @@ async function sendPowerCommand(
       `System ${actionLabel}`,
       `User ${req.user?.username ?? "Unknown"} initiated system ${action}`,
     );
+    void logSystem("INFO", "System", `System ${action} requested`, {
+      by: req.user?.username ?? "Unknown",
+    });
 
     const sent = publish(`risecare/command/${action}`, {
       sensor: action,
@@ -736,6 +759,45 @@ router.post("/shutdown", requireAuth, requireReauth, sensitiveLimiter, async (re
 });
 
 // Check for updates (git fetch + compare with origin/main)
+interface CommitInfo {
+  hash: string;
+  shortHash: string;
+  subject: string;
+  date: string;
+  author: string;
+}
+
+async function readCommit(root: string, ref: string): Promise<CommitInfo | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["-C", root, "log", "-1", "--format=%H%n%h%n%s%n%cI%n%an", ref],
+      { timeout: 10000 },
+    );
+    const [hash, shortHash, subject, date, author] = stdout.trim().split("\n");
+    if (!hash) return null;
+    return {
+      hash,
+      shortHash: shortHash || hash.slice(0, 7),
+      subject: subject || "(no commit message)",
+      date: date || "",
+      author: author || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Current build details for the update dialog (no network access).
+router.get("/update/info", requireAuth, requireSuperadmin, async (_req, res) => {
+  try {
+    const local = await readCommit(findWorkspaceRoot(), "HEAD");
+    res.json({ local });
+  } catch {
+    res.json({ local: null });
+  }
+});
+
 router.get("/update/check", requireAuth, requireSuperadmin, async (_req, res) => {
   try {
     const root = findWorkspaceRoot();
@@ -744,27 +806,16 @@ router.get("/update/check", requireAuth, requireSuperadmin, async (_req, res) =>
     } catch {
       await execFileAsync("git", ["-C", root, "fetch", "origin", "main"], { timeout: 30000 });
     }
-    let localHash = "";
-    let remoteHash = "";
-    try {
-      const { stdout: local } = await execFileAsync("git", ["-C", root, "rev-parse", "HEAD"], { timeout: 10000 });
-      localHash = local.trim();
-    } catch {}
-    try {
-      const { stdout: remote } = await execFileAsync("git", ["-C", root, "rev-parse", "origin/main"], { timeout: 10000 });
-      remoteHash = remote.trim();
-    } catch {
-      try {
-        const { stdout: remote } = await execFileAsync("git", ["-C", root, "rev-parse", "@{u}"], { timeout: 10000 });
-        remoteHash = remote.trim();
-      } catch {}
-    }
+    const localCommit = await readCommit(root, "HEAD");
+    const remoteCommit = await readCommit(root, "origin/main");
+    const localHash = localCommit?.hash ?? "";
+    const remoteHash = remoteCommit?.hash ?? "";
     if (localHash && remoteHash && localHash === remoteHash) {
-      res.json({ hasUpdate: false, localHash, remoteHash });
+      res.json({ hasUpdate: false, localHash, remoteHash, local: localCommit, remote: remoteCommit });
     } else if (remoteHash && localHash && localHash !== remoteHash) {
-      res.json({ hasUpdate: true, localHash, remoteHash });
+      res.json({ hasUpdate: true, localHash, remoteHash, local: localCommit, remote: remoteCommit });
     } else {
-      res.json({ hasUpdate: false, localHash, remoteHash });
+      res.json({ hasUpdate: false, localHash, remoteHash, local: localCommit, remote: remoteCommit });
     }
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed to check for updates" });
@@ -786,6 +837,7 @@ router.post("/update/apply", requireAuth, requireSuperadmin, requireReauth, sens
       await execFileAsync("git", ["-C", root, "pull", "--rebase", "origin", "main"], { timeout: 60000 });
     }
     await logActivity(req.user?.id ?? null, "System Update", "Applied update from origin/main and rebooting the Raspberry Pi");
+    void logSystem("INFO", "Backend", "System update applied; reboot requested");
     res.json({ success: true, restartTarget: "raspberry-pi" });
     setTimeout(() => {
       const rebootSent = publish("risecare/command/restart", {

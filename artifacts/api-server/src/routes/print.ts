@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { query } from "@workspace/db";
 import { publish } from "../mqtt";
+import { logSystem } from "../system-log";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ router.post("/print/test", async (_req, res) => {
   if (sent) {
     res.json({ status: "sent", message: "Print test sent to printer" });
   } else {
+    void logSystem("WARNING", "Sensor", "Print test failed: MQTT not connected");
     res.status(500).json({ error: "MQTT not connected" });
   }
 });
@@ -64,10 +66,16 @@ router.post("/print/receipt", async (req, res) => {
     if (sent) {
       res.json({ status: "sent", message: "Receipt sent to printer" });
     } else {
+      void logSystem("WARNING", "Sensor", "Receipt print failed: MQTT not connected", {
+        sessionId: String(sessionId),
+      });
       res.status(500).json({ error: "MQTT not connected" });
     }
   } catch (e) {
     console.error("Print error:", e);
+    void logSystem("ERROR", "Sensor", "Receipt print failed", {
+      error: e instanceof Error ? e.message : String(e),
+    });
     res.status(500).json({ error: "Internal server error" });
   }
 });

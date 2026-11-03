@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import router from "./routes";
+import { logSystem } from "./system-log";
 
 const app: Express = express();
 
@@ -57,6 +58,27 @@ app.use(
     },
   }),
 );
+
+// DEBUG-level API diagnostics. Only the method, path, status and duration are
+// recorded: never query strings, request bodies, headers or response bodies.
+// These are written only when SYSTEM_LOG_DEBUG=1.
+app.use("/api", (req, res, next) => {
+  const startedAt = Date.now();
+  res.on("finish", () => {
+    // Mask numeric resource IDs (for example /api/sessions/42) so debug logs
+    // never persist record identifiers that could be linked back to a patient.
+    const safePath = req.path
+      .replace(/\/\d+/g, "/:id")
+      .replace(
+        /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+        "/:id",
+      );
+    void logSystem("DEBUG", "API", `${req.method} ${safePath} ${res.statusCode}`, {
+      durationMs: Date.now() - startedAt,
+    });
+  });
+  next();
+});
 
 app.use("/api", router);
 

@@ -100,20 +100,30 @@ export default function TermsAgreementDialog({
         </ScrollArea>
 
         <div className="p-6 pt-4 border-t border-border/50 shrink-0">
-          <label
-            className="flex items-start gap-3 cursor-pointer select-none mb-4"
-            onClick={(e) => e.preventDefault()}
+          <div
+            className="mb-4 flex cursor-pointer select-none items-start gap-3"
+            onClick={(event) => {
+              // The checkbox handles its own tap; only the text toggles here.
+              if ((event.target as HTMLElement).closest('[role="checkbox"]')) {
+                return;
+              }
+              setAgreed((value) => !value);
+            }}
           >
             <Checkbox
               checked={agreed}
               onCheckedChange={(checked) => setAgreed(checked === true)}
+              aria-labelledby="terms-consent-text"
               className="mt-1 h-6 w-6 rounded-md"
             />
-            <span className="text-lg leading-snug text-foreground">
+            <span
+              id="terms-consent-text"
+              className="text-lg leading-snug text-foreground"
+            >
               I have read and agree to the Terms &amp; Conditions and consent
               to the collection and processing of my information.
             </span>
-          </label>
+          </div>
 
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
             <button

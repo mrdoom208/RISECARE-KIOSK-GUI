@@ -7,6 +7,7 @@ import settingsRouter from "./settings";
 import printRouter from "./print";
 import networkRouter from "./network";
 import deviceRouter from "./device";
+import systemRouter from "./system";
 
 const router: IRouter = Router();
 
@@ -15,6 +16,7 @@ router.use(sessionsRouter);
 router.use(vitalsRouter);
 router.use(sensorsRouter);
 router.use("/settings", settingsRouter);
+router.use("/system", systemRouter);
 router.use(printRouter);
 router.use(networkRouter);
 router.use(deviceRouter);

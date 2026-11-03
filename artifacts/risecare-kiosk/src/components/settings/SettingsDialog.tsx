@@ -13,6 +13,9 @@ import { PowerSettings } from "./PowerSettings";
 import { ProfileSettings } from "./ProfileSettings";
 import { SensorsSettings } from "./SensorsSettings";
 import { DeviceInformationSettings } from "./DeviceInformationSettings";
+import { ServerStatusSettings } from "./ServerStatusSettings";
+import { SystemInformationSettings } from "./SystemInformationSettings";
+import { SystemLogsSettings } from "./SystemLogsSettings";
 import { ModalShell } from "@/components/ModalShell";
 import { apiErrorMessage } from "@/lib/api-error";
 import { Z_INDEX } from "@/lib/z-index";
@@ -305,7 +308,13 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
                   ? "Idle Timeout"
                   : activeSubmenu === "network"
                     ? "Network Settings"
-                    : "Settings";
+                    : activeSubmenu === "server-status"
+                      ? "Server Status"
+                      : activeSubmenu === "system-info"
+                        ? "System Information"
+                        : activeSubmenu === "system-logs"
+                          ? "System Logs"
+                          : "Settings";
 
   return (
     <>
@@ -313,7 +322,11 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
         open={isOpen}
         zIndex={Z_INDEX.SETTINGS}
         backdrop="blur"
-        panelClassName="bg-card rounded-3xl shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-2xl border border-border/50 max-h-[90vh] overflow-y-auto"
+        panelClassName={`bg-card rounded-3xl shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-2xl border border-border/50 overflow-y-auto ${
+          activeSubmenu === "accounts" && step === "menu"
+            ? "min-h-[70vh] max-h-[95vh]"
+            : "max-h-[90vh]"
+        }`}
       >
           <div className="flex justify-between items-center mb-6">
               <button
@@ -517,8 +530,15 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
               <IdleTimeoutSettings account={account} isRateLimited={isRateLimited} />
             ) : activeSubmenu === "network" ? (
               <NetworkSettings isRateLimited={isRateLimited} />
+            ) : activeSubmenu === "server-status" ? (
+              <ServerStatusSettings />
+            ) : activeSubmenu === "system-info" ? (
+              <SystemInformationSettings />
+            ) : activeSubmenu === "system-logs" ? (
+              <SystemLogsSettings />
             ) : (
               <SettingsMenu
+                isOpen={isOpen}
                 isSuperadmin={isSuperadmin}
                 isRateLimited={isRateLimited}
                 onNavigate={setActiveSubmenu}
