@@ -9,10 +9,11 @@ GPIO 4  (Physical 7)  - BP valve relay control (energised = CLOSED)   [bptest.py
 GPIO 5  (Physical 29) - HX711 DT (load cell data pin)                 [loadcell.py]
 GPIO 6  (Physical 31) - HX711 SCK (load cell clock pin)               [loadcell.py]
 GPIO 22 (Physical 15) - BP pump relay control (energised = running)   [bptest.py]
-GPIO 23 (Physical 16) - Ultrasonic TRIG (height sensor trigger)       [ultrasonic.py]
-GPIO 24 (Physical 18) - Ultrasonic ECHO (height sensor echo)          [ultrasonic.py]
-GPIO 17 (Physical 11) - TM7711 DOUT (BP pressure ADC data pin)        [bptest.py, tm7711.py]
-GPIO 27 (Physical 13) - TM7711 SCK (BP pressure ADC clock pin)         [bptest.py, tm7711.py]
+GPIO 17 (Physical 11) - HX710B DOUT (BP pressure ADC data pin)        [bptest.py]
+GPIO 27 (Physical 13) - HX710B SCK (BP pressure ADC clock pin)        [bptest.py]
+
+Height is measured by a VL53L1X time-of-flight sensor on the shared I2C bus
+(no GPIO trigger/echo pins). See the I2C section below.
 
 BP relay polarity is configurable in pump_valve_test.py (RELAYS_ACTIVE_LOW,
 default active-LOW). Verify wiring/polarity with: python pump_valve_test.py
@@ -22,17 +23,14 @@ I2C BUS (bus 1, via GPIO 2/3)
 -----------------------------
 MAX30102 - Heart rate / SpO2 sensor, address 0x57   [max30102.py]
 MLX90614 - Infrared temperature sensor, address 0x5A [mlx90614.py]
-(i2c_bus.py initializes a shared SMBus(1) passed to both sensors.)
+VL53L1X  - Time-of-flight height sensor, default address 0x29 [vl53l1x.py]
+(i2c_bus.py initializes a shared SMBus(1) passed to MAX30102 and MLX90614.)
 
 UART / SERIAL
 -------------
 GPIO 14 (Physical 8)  - UART TXD
 GPIO 15 (Physical 10) - UART RXD
 /dev/serial0 - UART port probe / diagnostics @ 9600 baud [testport.py]
-
-BLE
----
-Indoplas blood pressure monitor - MAC 62:2A:F4:9E:B9:E8 (GATT notification) [indoplas.py]
 
 USB
 ---
@@ -41,4 +39,4 @@ Thermal printer (python-escpos) - USB vendor 0x0416, product 0x5011 [printer.py]
 APP ACCESS PIN
 --------------
 superadmin login: username "admin", password "082405"
-(seeded in lib/db/src/index.ts only if no accounts exist)
+(seeded in lib/db/src/index.ts only if no accounts exist - change it after provisioning)
