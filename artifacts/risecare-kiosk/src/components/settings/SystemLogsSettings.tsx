@@ -75,6 +75,99 @@ function toDateBoundary(value: string, endOfDay: boolean): string {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
+function humanizeDetailKey(key: string): string {
+  const special: Record<string, string> = {
+    api: "API",
+    id: "ID",
+    kb: "(KB)",
+    mb: "(MB)",
+    mqtt: "MQTT",
+    ms: "(ms)",
+    url: "URL",
+  };
+
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => {
+      const replacement = special[part.toLowerCase()];
+      if (replacement) return replacement;
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join(" ");
+}
+
+function formatDetailValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.map(formatDetailValue).join(", ") : "—";
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function LogDetails({ details }: { details: string | null }) {
+  if (!details) {
+    return (
+      <p className="text-[0.8125rem] text-muted-foreground">
+        No additional details were recorded for this entry.
+      </p>
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(details);
+  } catch {
+    return (
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-secondary/60 p-2 font-mono text-[0.7rem] text-muted-foreground">
+        {details}
+      </pre>
+    );
+  }
+
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const entries = Object.entries(parsed as Record<string, unknown>);
+    if (entries.length === 0) {
+      return (
+        <p className="text-[0.8125rem] text-muted-foreground">
+          No additional details were recorded for this entry.
+        </p>
+      );
+    }
+    return (
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+        {entries.map(([key, value]) => (
+          <div key={key} className="min-w-0">
+            <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+              {humanizeDetailKey(key)}
+            </dt>
+            <dd className="mt-0.5 break-words font-mono text-[0.7rem] text-foreground">
+              {formatDetailValue(value)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+
+  return (
+    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-secondary/60 p-2 font-mono text-[0.7rem] text-muted-foreground">
+      {typeof parsed === "string" ? parsed : JSON.stringify(parsed, null, 2)}
+    </pre>
+  );
+}
+
 function levelClasses(level: string): string {
   switch (level) {
     case "ERROR":
@@ -411,23 +504,23 @@ export function SystemLogsSettings() {
           </p>
         </div>
       ) : (
-        <div className="max-h-[70vh] overflow-auto rounded-xl border border-border/60 bg-card">
-          <table aria-label="System logs" className="w-full min-w-[600px] text-left text-sm">
+        <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-xl border border-border/60 bg-card">
+          <table aria-label="System logs" className="w-full table-fixed text-left text-[0.8125rem]">
             <thead className="sticky top-0 z-10 bg-card">
-              <tr className="border-b border-border/60 text-xs uppercase tracking-wide text-muted-foreground">
-                <th scope="col" className="whitespace-nowrap px-3 py-3 font-semibold">
+              <tr className="border-b border-border/60 text-[0.7rem] uppercase tracking-wide text-muted-foreground">
+                <th scope="col" className="w-[18%] px-3 py-3 font-semibold">
                   Time
                 </th>
-                <th scope="col" className="px-3 py-3 font-semibold">
+                <th scope="col" className="w-[15%] px-3 py-3 font-semibold">
                   Level
                 </th>
-                <th scope="col" className="px-3 py-3 font-semibold">
+                <th scope="col" className="w-[17%] px-3 py-3 font-semibold">
                   Component
                 </th>
-                <th scope="col" className="px-3 py-3 font-semibold">
+                <th scope="col" className="w-[42%] px-3 py-3 font-semibold">
                   Message
                 </th>
-                <th scope="col" className="w-12 px-2 py-3 text-right font-semibold">
+                <th scope="col" className="w-[8%] px-2 py-3 text-right font-semibold">
                   <span className="sr-only">Details</span>
                 </th>
               </tr>
@@ -443,7 +536,7 @@ export function SystemLogsSettings() {
                         expanded ? "bg-secondary/50" : "hover:bg-secondary/60"
                       }`}
                     >
-                      <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">
+                      <td className="break-words px-3 py-3 text-[0.7rem] text-muted-foreground">
                         <span className="block font-medium text-foreground">
                           {formatLogDate(log.created_at)}
                         </span>
@@ -453,13 +546,13 @@ export function SystemLogsSettings() {
                       </td>
                       <td className="px-3 py-3">
                         <span
-                          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold tracking-wide ${levelClasses(log.level)}`}
+                          className={`inline-block max-w-full break-words rounded-full px-2.5 py-0.5 text-[0.7rem] font-bold tracking-wide ${levelClasses(log.level)}`}
                         >
                           {log.level}
                         </span>
                       </td>
                       <td className="px-3 py-3">
-                        <span className="inline-block rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                        <span className="inline-block max-w-full break-words rounded-full bg-secondary px-2.5 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
                           {log.component}
                         </span>
                       </td>
@@ -472,8 +565,8 @@ export function SystemLogsSettings() {
                           {log.message}
                         </p>
                         {!expanded && log.details && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            Has more details
+                          <p className="mt-0.5 text-[0.7rem] text-muted-foreground">
+                            Details available
                           </p>
                         )}
                       </td>
@@ -501,24 +594,24 @@ export function SystemLogsSettings() {
                         <td colSpan={5} className="px-3 pb-4 pt-1">
                           <div className="space-y-3 rounded-lg bg-background/60 p-3">
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
                                 Full message
                               </p>
-                              <p className="mt-1 text-sm font-medium break-words whitespace-pre-wrap">
+                              <p className="mt-1 text-[0.8125rem] font-medium break-words whitespace-pre-wrap">
                                 {log.message}
                               </p>
                             </div>
                             {log.details && (
                               <div>
-                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                  Details
+                                <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Additional details
                                 </p>
-                                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-secondary/60 p-2 font-mono text-xs text-muted-foreground">
-                                  {log.details}
-                                </pre>
+                                <div className="mt-1">
+                                  <LogDetails details={log.details} />
+                                </div>
                               </div>
                             )}
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[0.7rem] text-muted-foreground">
                               <span>Log ID: {log.id}</span>
                               <span>Recorded: {formatLogTime(log.created_at)}</span>
                               <span>Level: {log.level}</span>

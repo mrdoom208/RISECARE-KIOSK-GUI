@@ -101,86 +101,55 @@ router.post("/sessions", async (req, res) => {
   );
 
   const sessions = await query(`${SESSION_SELECT} WHERE id = ?`, [result.lastInsertRowid]);
-  console.log("Session created:", JSON.stringify(sessions[0]));
   res.status(201).json({ ...sessions[0], vitals: [] });
 });
 
 router.post("/sessions/find", findSessionLimiter, async (req, res) => {
-  const body = FindSessionsBody.parse(req.body);
+  const body = FindSessionsBody.safeParse(req.body);
 
-  const reference = (body.reference ?? "").trim().toUpperCase();
-  const phone = (body.phone ?? "").trim();
-
-  if (!reference && !phone) {
+  if (!body.success) {
     res.status(400).json({
       error: "invalid_request",
-      message: "Provide either a phone number or a reference",
+      message: "Provide a session reference",
     });
     return;
   }
 
-  if (reference) {
-    if (!/^[A-Z0-9]{4,12}$/.test(reference)) {
-      res.status(400).json({
-        error: "invalid_reference",
-        message: "Invalid Reference",
-      });
-      return;
-    }
+  const reference = body.data.reference.trim().toUpperCase();
 
-    const sessions = await query(
-      `${SESSION_SELECT} WHERE token = ? LIMIT 1`,
-      [reference]
-    );
-    const session = sessions[0];
-
-    if (!session) {
-      res.json([]);
-      return;
-    }
-
-    const vitals = await query(
-      `${VITALS_SELECT} WHERE session_id = ? ORDER BY recorded_at DESC`,
-      [session.id]
-    );
-
-    res.json([{ ...session, vitals }]);
-    return;
-  }
-
-  const phoneDigits = phone.replace(/\D/g, "");
-  let local = phoneDigits;
-  if (local.startsWith("63") && local.length === 12) {
-    local = local.slice(2);
-  } else if (local.startsWith("0")) {
-    local = local.slice(1);
-  }
-
-  if (!/^9\d{9}$/.test(local)) {
+  if (!reference) {
     res.status(400).json({
-      error: "invalid_phone",
-      message: "Invalid Phone number",
+      error: "invalid_request",
+      message: "Provide a session reference",
     });
     return;
   }
-  const normalized = "63" + local;
+
+  if (!/^[A-Z0-9]{4,12}$/.test(reference)) {
+    res.status(400).json({
+      error: "invalid_reference",
+      message: "Invalid Reference",
+    });
+    return;
+  }
 
   const sessions = await query(
-    `${SESSION_SELECT} WHERE patient_phone IS NOT NULL AND REPLACE(patient_phone, '+', '') = ? ORDER BY started_at DESC LIMIT 20`,
-    [normalized]
+    `${SESSION_SELECT} WHERE token = ? LIMIT 1`,
+    [reference]
+  );
+  const session = sessions[0];
+
+  if (!session) {
+    res.json([]);
+    return;
+  }
+
+  const vitals = await query(
+    `${VITALS_SELECT} WHERE session_id = ? ORDER BY recorded_at DESC`,
+    [session.id]
   );
 
-  const result = await Promise.all(
-    sessions.map(async (s) => {
-      const vitals = await query(
-        `${VITALS_SELECT} WHERE session_id = ? ORDER BY recorded_at DESC LIMIT 1`,
-        [s.id]
-      );
-      return { ...s, vitals: vitals[0] || null };
-    })
-  );
-
-  res.json(result);
+  res.json([{ ...session, vitals }]);
 });
 
 router.post("/sessions/token", async (req, res) => {

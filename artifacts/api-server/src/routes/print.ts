@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { query } from "@workspace/db";
+import { logger } from "../logger";
 import { publish } from "../mqtt";
 import { logSystem } from "../system-log";
 
@@ -14,9 +15,14 @@ router.post("/print/test", async (_req, res) => {
   });
 
   if (sent) {
+    void logSystem("INFO", "Sensor", "Printer test command sent to the device");
     res.json({ status: "sent", message: "Print test sent to printer" });
   } else {
-    void logSystem("WARNING", "Sensor", "Print test failed: MQTT not connected");
+    void logSystem(
+      "WARNING",
+      "Sensor",
+      "Printer test could not be sent because the MQTT broker is not connected",
+    );
     res.status(500).json({ error: "MQTT not connected" });
   }
 });
@@ -25,6 +31,11 @@ router.post("/print/receipt", async (req, res) => {
   const { sessionId } = req.body;
 
   if (!sessionId) {
+    void logSystem(
+      "WARNING",
+      "Sensor",
+      "Receipt printing was rejected because no session was provided",
+    );
     res.status(400).json({ error: "sessionId required" });
     return;
   }
@@ -36,6 +47,12 @@ router.post("/print/receipt", async (req, res) => {
     );
 
     if (!sessions[0]) {
+      void logSystem(
+        "WARNING",
+        "Sensor",
+        "Receipt printing was skipped because the session was not found",
+        { sessionId: String(sessionId) },
+      );
       res.status(404).json({ error: "Session not found" });
       return;
     }
@@ -64,16 +81,23 @@ router.post("/print/receipt", async (req, res) => {
     const sent = publish("risecare/command/printer", payload);
 
     if (sent) {
-      res.json({ status: "sent", message: "Receipt sent to printer" });
-    } else {
-      void logSystem("WARNING", "Sensor", "Receipt print failed: MQTT not connected", {
+      void logSystem("INFO", "Sensor", "Receipt print command sent to the printer", {
         sessionId: String(sessionId),
       });
+      res.json({ status: "sent", message: "Receipt sent to printer" });
+    } else {
+      void logSystem(
+        "WARNING",
+        "Sensor",
+        "Receipt printing failed because the MQTT broker is not connected",
+        { sessionId: String(sessionId) },
+      );
       res.status(500).json({ error: "MQTT not connected" });
     }
   } catch (e) {
-    console.error("Print error:", e);
-    void logSystem("ERROR", "Sensor", "Receipt print failed", {
+    logger.error("Printer", "Receipt printing failed due to an unexpected error", e);
+    void logSystem("ERROR", "Sensor", "Receipt printing failed due to an unexpected error", {
+      sessionId: String(sessionId),
       error: e instanceof Error ? e.message : String(e),
     });
     res.status(500).json({ error: "Internal server error" });

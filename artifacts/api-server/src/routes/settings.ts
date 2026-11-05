@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import rateLimit from "express-rate-limit";
 import { run, query } from "@workspace/db";
 import { publish } from "../mqtt";
+import { logger } from "../logger";
 import { requireAuth, requireReauth, requireSuperadmin, REAUTH_TTL_MS } from "../auth";
 import { logActivity } from "../activity-log";
 import { logSystem } from "../system-log";
@@ -675,18 +676,15 @@ async function sendPowerCommand(
       const scan = await findChromiumPids();
       const { pids } = scan;
       if (pids.length === 0) {
-        console.error(
-          "Exit Program failed to find Chromium:",
-          JSON.stringify({
-            platform: process.platform,
-            procPath: "/proc",
-            inspectedPidEntries: scan.inspected,
-            processNames: scan.processNames,
-            readErrors: scan.readErrors,
-            note:
-              "The scan only sees processes visible in the API server's process namespace.",
-          }),
-        );
+        logger.error("System", "Exit Program failed because Chromium was not found", {
+          platform: process.platform,
+          procPath: "/proc",
+          inspectedPidEntries: scan.inspected,
+          processNames: scan.processNames,
+          readErrors: scan.readErrors,
+          note:
+            "The scan only sees processes visible in the API server's process namespace.",
+        });
         res.status(409).json({
           error: "Kiosk Chromium was not found on the API server host",
         });
@@ -735,7 +733,7 @@ async function sendPowerCommand(
       res.status(503).json({ error: "MQTT not connected" });
     }
   } catch (e) {
-    console.error(`Failed to execute ${action} power command:`, e);
+    logger.error("System", `Could not execute the ${action} power command`, e);
     res.status(500).json({ error: `Failed to send ${action} command` });
   }
 }
@@ -847,7 +845,7 @@ router.post("/update/apply", requireAuth, requireSuperadmin, requireReauth, sens
       });
       if (!rebootSent && process.platform === "linux") {
         execFileAsync("sudo", ["reboot"], { timeout: 10000 }).catch((error) => {
-          console.error("Failed to reboot Raspberry Pi:", error);
+          logger.error("Backend", "Could not reboot the Raspberry Pi", error);
         });
       }
     }, 1500);

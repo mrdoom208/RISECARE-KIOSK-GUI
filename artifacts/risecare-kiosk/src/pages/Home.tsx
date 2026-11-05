@@ -115,7 +115,7 @@ export default function Home() {
               Find my Session
             </span>
             <span className="block text-sm text-muted-foreground font-medium">
-              Look up your results using your phone number or reference
+              Look up your results using your session reference
             </span>
           </div>
           <ArrowRight className="w-6 h-6 text-primary shrink-0 ml-auto" />

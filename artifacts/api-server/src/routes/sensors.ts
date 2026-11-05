@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { query, run } from "@workspace/db";
+import { logger } from "../logger";
 import { publish, subscribe, isConnected, onMQTTConnected } from "../mqtt";
 import { logSystem } from "../system-log";
 const SENSOR_SETTING_IDS = ["bp", "heartrate", "spo2", "height", "weight", "temperature", "printer"] as const;
@@ -10,7 +11,7 @@ const SENSOR_DEBUG = process.env.SENSOR_DEBUG === "1";
 // but on a kiosk it prints continuously and can contain patient measurements.
 // Enable it explicitly with SENSOR_DEBUG=1 when it is actually needed.
 function sensorDebug(...args: unknown[]): void {
-  if (SENSOR_DEBUG) console.log(...args);
+  if (SENSOR_DEBUG) logger.debug("Sensor", "Sensor diagnostic", { values: args });
 }
 
 const AVAILABILITY_SENSORS: { id: string; label: string }[] = [
@@ -109,8 +110,12 @@ onMQTTConnected(async () => {
       enabledSensors: JSON.parse(rows[0].value),
     }, { retain: true });
   } catch (error) {
-    console.error("Failed to sync saved sensor settings over MQTT:", error);
-    void logSystem("ERROR", "Sensor", "Failed to sync saved sensor settings over MQTT", {
+    logger.error(
+      "Sensor",
+      "Could not synchronize saved sensor settings over MQTT",
+      error,
+    );
+    void logSystem("ERROR", "Sensor", "Could not synchronize saved sensor settings over MQTT", {
       error: error instanceof Error ? error.message : String(error),
     });
   }
@@ -153,8 +158,8 @@ router.put("/sensors/settings", async (req, res) => {
     });
     res.json({ success: true, enabledSensors: normalized, hardwareSynced });
   } catch (error) {
-    console.error("Failed to save sensor settings:", error);
-    void logSystem("ERROR", "Sensor", "Failed to save sensor settings", {
+    logger.error("Sensor", "Could not save sensor settings", error);
+    void logSystem("ERROR", "Sensor", "Could not save sensor settings", {
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).json({ error: "Failed to save sensor settings" });
@@ -324,7 +329,7 @@ subscribe("risecare/sensors/availability", async (data) => {
   }
 
   logAvailabilityChanges(previous, data);
-  sensorDebug("📡 Sensor availability:", data);
+  sensorDebug("Sensor availability update", data);
 });
 
 subscribe("risecare/calibration/progress/+", async (data, topic) => {

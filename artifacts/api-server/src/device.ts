@@ -1,14 +1,15 @@
 import crypto from "crypto";
 import { query, run } from "@workspace/db";
+import { logger } from "./logger";
 import { postJsonWithBackoff } from "./retry";
 import { logSystem } from "./system-log";
 
 // Debug hook for the kiosk's outbound sync. Set SYNC_DEBUG=1 to dump the exact
 // payload sent to the portal and the raw response. Includes patient-identifiable
 // data, so only enable it while debugging.
-function syncDebug(...args: unknown[]): void {
+function syncDebug(message: string, details?: unknown): void {
   if (process.env.SYNC_DEBUG === "1") {
-    console.log("[sync-debug]", ...args);
+    logger.debug("Sync", message, details);
   }
 }
 
@@ -295,14 +296,14 @@ export async function syncPending(): Promise<{ exported: number }> {
   };
 
   const syncUrl = `${portalBase.replace(/\/$/, "")}/api/v1/sync/kiosk`;
-  syncDebug("POST", syncUrl);
-  syncDebug("headers", {
+  syncDebug("Sending sync request", { method: "POST", url: syncUrl });
+  syncDebug("Request headers", {
     "X-RiseCare-Kiosk-Key": device.api_key
       ? `rk_live… (${device.api_key.length} chars)`
       : "none",
     "Idempotency-Key": payloadId,
   });
-  syncDebug("payload", JSON.stringify(payload, null, 2));
+  syncDebug("Sync payload", payload);
 
   const { status, data } = await postJsonWithBackoff(syncUrl, payload, {
     "X-RiseCare-Kiosk-Key": device.api_key,
@@ -310,7 +311,7 @@ export async function syncPending(): Promise<{ exported: number }> {
   }, { attempts: 5 });
 
   if (status !== 200) {
-    syncDebug("response", status, JSON.stringify(data ?? {}, null, 2));
+    syncDebug("Server response", { status, data });
   }
 
   if (status === 200) {

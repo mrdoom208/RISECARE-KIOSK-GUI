@@ -66,8 +66,8 @@ paths:
     post:
       operationId: findSessions
       tags: [sessions]
-      summary: Find sessions by phone number or reference
-      description: Returns sessions matching a phone number or a session reference token
+      summary: Find a session by reference
+      description: Returns the session matching a session reference token
       requestBody:
         required: true
         content:
@@ -212,14 +212,12 @@ components:
 
     FindSessionsRequest:
       type: object
-      description: Exactly one of phone or reference must be provided
+      description: A session reference must be provided
       properties:
-        phone:
-          type: string
-          nullable: true
         reference:
           type: string
-          nullable: true
+      required:
+        - reference
 
     CreateSessionRequest:
       type: object

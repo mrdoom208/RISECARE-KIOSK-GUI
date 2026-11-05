@@ -14,7 +14,7 @@ A modern, self-service health monitoring kiosk application that enables patients
 - **IoT Sensor Integration** - Optional MQTT-based real-time sensor data communication, with live readings pushed to the kiosk over WebSocket
 - **Health Status Evaluation** - Automated normal/warning/critical status for all vitals
 - **Session Management** - Track and review patient sessions with full history
-- **Find My Session** - Patients can look up past sessions and results by phone number or reference code, with rate limiting
+- **Find My Session** - Patients can look up past sessions and results by reference code, with rate limiting
 - **Kiosk Mode** - Touchscreen-optimized UI with auto-reset after session completion
 - **Configurable Idle Timeout** - Returns to the home screen after a period of inactivity; duration is set by admins in Settings (30s to 1 hour)
 - **Orientation-Responsive Layout** - UI adapts smoothly between wide/landscape and portrait kiosk displays, with side-aligned scrollbars
@@ -237,7 +237,7 @@ All API routes are mounted under `/api`. `Auth` means an admin session is requir
 | `/api/healthz` | GET | Public | Health check |
 | `/api/sessions` | GET | Auth | List all sessions |
 | `/api/sessions` | POST | Public | Create a new patient session |
-| `/api/sessions/find` | POST | Public | Find sessions by phone number or reference code (rate-limited) |
+| `/api/sessions/find` | POST | Public | Find a session by reference code (rate-limited) |
 | `/api/sessions/token` | POST | Public | Validate a session token |
 | `/api/sessions/:id` | GET | Public | Get session details |
 | `/api/sessions/:id/vitals` | POST | Public | Save or update vitals for a session |

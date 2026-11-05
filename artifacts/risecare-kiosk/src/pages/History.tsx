@@ -222,14 +222,14 @@ export default function History() {
                     </p>
                   </div>
                 ) : filteredSessions.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[34rem] text-left border-collapse">
+                  <div className="overflow-hidden">
+                    <table className="w-full table-fixed text-left border-collapse">
                       <thead>
-                        <tr className="bg-secondary/50 text-muted-foreground text-base font-semibold border-b border-border/50">
-                          <th className="p-4 pb-3 font-medium">Date & Time</th>
-                          <th className="p-4 pb-3 font-medium">Patient</th>
-                          <th className="p-4 pb-3 font-medium">Readings</th>
-                          <th className="p-4 pb-3 font-medium text-right">
+                        <tr className="bg-secondary/50 text-muted-foreground text-[0.9375rem] font-semibold border-b border-border/50">
+                          <th className="w-[28%] p-4 pb-3 font-medium">Date & Time</th>
+                          <th className="w-[36%] p-4 pb-3 font-medium">Patient</th>
+                          <th className="w-[22%] p-4 pb-3 font-medium">Readings</th>
+                          <th className="w-[14%] p-4 pb-3 font-medium text-right">
                             Action
                           </th>
                         </tr>
@@ -254,18 +254,18 @@ export default function History() {
                               className="hover:bg-muted/30 active:bg-secondary cursor-pointer group"
                             >
                               <td className="p-4">
-                                <div className="flex items-center gap-2 text-base">
-                                  <Calendar className="w-4 h-4 text-primary" />
+                                <div className="flex items-center gap-2 text-[0.9375rem]">
+                                  <Calendar className="w-4 h-4 shrink-0 text-primary" />
 
-                                  <div>
-                                    <div className="font-bold text-foreground">
+                                  <div className="min-w-0">
+                                    <div className="truncate font-bold text-foreground">
                                       {format(
                                         new Date(session.startedAt),
                                         "MMM d, yyyy",
                                       )}
                                     </div>
 
-                                    <div className="text-sm text-muted-foreground">
+                                    <div className="truncate text-[0.8125rem] text-muted-foreground">
                                       {format(
                                         new Date(session.startedAt),
                                         "h:mm a",
@@ -276,19 +276,19 @@ export default function History() {
                               </td>
 
                               <td className="p-4">
-                                <div className="flex items-center gap-3">
+                                <div className="flex min-w-0 items-center gap-3">
                                   <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
                                     <User className="w-4 h-4" />
                                   </div>
 
-                                  <span className="text-lg font-bold text-foreground truncate">
+                                  <span className="min-w-0 truncate text-[1.0625rem] font-bold text-foreground">
                                     {abbreviateName(session.patientName)}
                                   </span>
                                 </div>
                               </td>
 
                               <td className="p-4">
-                                <span className="text-lg font-medium text-muted-foreground">
+                                <span className="break-words text-[1.0625rem] font-medium text-muted-foreground">
                                   {readings}{" "}
                                   {readings === 1 ? "reading" : "readings"}
                                 </span>

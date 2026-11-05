@@ -1,52 +1,30 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
-import { AlertCircle, ArrowRight, Calendar, Phone, Search } from "lucide-react";
+import { AlertCircle, ArrowRight, Calendar, Search } from "lucide-react";
 import { useFindSessions } from "@workspace/api-client-react";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard";
 import { KioskHeader } from "@/components/KioskHeader";
 import { apiErrorMessage } from "@/lib/api-error";
 
-const PH_PREFIX = "+63";
-
-function formatPhoneDisplay(digits: string): string {
-  const d = digits.replace(/\D/g, "").slice(0, 10);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
-  return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
-}
-
 export default function FindSession() {
   const { isRateLimited } = useRateLimit(1000);
   const [, setLocation] = useLocation();
   const { visible: keyboardVisible } = useVirtualKeyboard();
-  const [mode, setMode] = useState<"phone" | "reference">("phone");
-  const [phoneRaw, setPhoneRaw] = useState("");
   const [reference, setReference] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const findSessions = useFindSessions();
 
-  const phoneDigits = phoneRaw.replace(/\D/g, "");
-  const phoneValid = /^9\d{9}$/.test(phoneDigits);
-  const phoneDisplay = formatPhoneDisplay(phoneRaw);
-  const phoneError =
-    phoneDigits.length > 0 && !phoneValid
-      ? "Invalid Phone number"
-      : "";
-
   const referenceTrimmed = reference.trim().toUpperCase();
   const referenceValid = /^[A-Z0-9]{4,12}$/.test(referenceTrimmed);
   const referenceError =
     referenceTrimmed.length > 0 && !referenceValid
-      ? "Invalid Reference"
+      ? "Enter a valid reference using 4–12 letters or numbers"
       : "";
 
-  const canSearch =
-    mode === "phone"
-      ? phoneValid
-      : referenceValid;
+  const canSearch = referenceValid;
 
   const errorMessage =
     findSessions.isError && !findSessions.isPending
@@ -60,23 +38,9 @@ export default function FindSession() {
   const handleSearch = () => {
     if (!canSearch || findSessions.isPending) return;
     setSubmitted(true);
-    findSessions.mutate(
-      {
-        data:
-          mode === "phone"
-            ? { phone: PH_PREFIX + phoneDigits }
-            : { reference: referenceTrimmed },
-      },
-      {
-        onSuccess: () => {
-          if (mode === "phone") {
-            setReference("");
-          } else {
-            setPhoneRaw("");
-          }
-        },
-      },
-    );
+    findSessions.mutate({
+      data: { reference: referenceTrimmed },
+    });
   };
 
   const results = Array.isArray(findSessions.data) ? findSessions.data : [];
@@ -117,107 +81,42 @@ export default function FindSession() {
                     Look up a Session
                   </h2>
                   <p className={`${keyboardVisible ? "text-sm" : "text-base"} text-muted-foreground mt-1`}>
-                    Enter your phone number or reference to find your results
+                    Enter your session reference to find your results
                   </p>
                 </div>
               </div>
 
-              <div className="flex rounded-xl bg-secondary/50 p-1 mb-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("phone");
-                    setSubmitted(false);
-                    findSessions.reset();
-                  }}
-                  className={`flex-1 h-12 rounded-lg flex items-center justify-center gap-2 text-lg font-semibold transition-colors ${
-                    mode === "phone"
-                      ? "bg-primary text-primary-foreground shadow"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  <Phone className="w-5 h-5" /> Phone Number
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("reference");
-                    setSubmitted(false);
-                    findSessions.reset();
-                  }}
-                  className={`flex-1 h-12 rounded-lg flex items-center justify-center gap-2 text-lg font-semibold transition-colors ${
-                    mode === "reference"
-                      ? "bg-primary text-primary-foreground shadow"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  <Search className="w-5 h-5" /> Reference
-                </button>
-              </div>
-
               <div className={keyboardVisible ? "space-y-4" : "space-y-5"}>
-                {mode === "phone" ? (
-                  <div className="space-y-2.5">
-                    <label className="text-xl font-semibold text-foreground flex items-center gap-2">
-                      <Phone className="w-8 h-8 text-primary" /> Phone No.
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-muted-foreground font-medium z-10">
-                        +63
-                      </span>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={phoneDisplay}
-                        onChange={(e) => {
-                          const value = e.target.value
-                            .replace(/\D/g, "")
-                            .slice(0, 10);
-                          setPhoneRaw(value);
-                          if (value !== phoneDigits) {
-                            setSubmitted(false);
-                            findSessions.reset();
-                          }
-                        }}
-                        placeholder="912 345 6789"
-                        className={`no-spinner w-full h-12 pl-16 pr-4 text-xl rounded-lg bg-background border-2 ${phoneError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground`}
-                      />
-                    </div>
-                    {phoneError && (
-                      <p className="text-destructive text-sm mt-1">
-                        {phoneError}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    <label className="text-xl font-semibold text-foreground flex items-center gap-2">
-                      <Search className="w-8 h-8 text-primary" /> Reference
-                    </label>
-                    <input
-                      type="text"
-                      value={reference}
-                      onChange={(e) => {
-                        const value = e.target.value
-                          .toUpperCase()
-                          .replace(/[^A-Z0-9]/g, "")
-                          .slice(0, 12);
-                        setReference(value);
-                        if (value !== referenceTrimmed) {
-                          setSubmitted(false);
-                          findSessions.reset();
-                        }
-                      }}
-                      placeholder="e.g. AB12CD"
-                      className={`no-spinner w-full h-12 px-4 text-xl tracking-widest uppercase rounded-lg bg-background border-2 ${referenceError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground placeholder:normal-case placeholder:tracking-normal`}
-                    />
-                    {referenceError && (
-                      <p className="text-destructive text-sm mt-1">
-                        {referenceError}
-                      </p>
-                    )}
-                  </div>
-                )}
+                <div className="space-y-2.5">
+                  <label className="text-xl font-semibold text-foreground flex items-center gap-2">
+                    <Search className="w-8 h-8 text-primary" /> Reference
+                  </label>
+                  <input
+                    type="text"
+                    value={reference}
+                    onChange={(e) => {
+                      const value = e.target.value
+                        .toUpperCase()
+                        .replace(/[^A-Z0-9]/g, "")
+                        .slice(0, 12);
+                      setReference(value);
+                      if (value !== referenceTrimmed) {
+                        setSubmitted(false);
+                        findSessions.reset();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSearch();
+                    }}
+                    placeholder="e.g. AB12CD"
+                    className={`no-spinner w-full h-12 px-4 text-xl tracking-widest uppercase rounded-lg bg-background border-2 ${referenceError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground placeholder:normal-case placeholder:tracking-normal`}
+                  />
+                  {referenceError && (
+                    <p className="text-destructive text-sm mt-1">
+                      {referenceError}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -258,8 +157,7 @@ export default function FindSession() {
                 No session found
               </h3>
               <p className="text-base text-muted-foreground">
-                We could not find a session matching your{" "}
-                {mode === "phone" ? "phone number" : "reference"}. Please check
+                We could not find a session matching your reference. Please check
                 your entry and try again.
               </p>
             </div>

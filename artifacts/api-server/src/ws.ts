@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
+import { logger } from "./logger";
 import { subscribe } from "./mqtt";
 
 let wss: WebSocketServer | null = null;
@@ -25,10 +26,10 @@ export function setupWebSocket(server: Server) {
   wss = new WebSocketServer({ server, path: "/ws" });
 
   wss.on("connection", (ws) => {
-    console.log("🔌 WebSocket client connected");
+    logger.debug("WebSocket", "Client connected");
 
     ws.on("close", () => {
-      console.log("🔌 WebSocket client disconnected");
+      logger.debug("WebSocket", "Client disconnected");
     });
   });
 
@@ -61,7 +62,7 @@ export function setupWebSocket(server: Server) {
     broadcast({ type: "calibration_progress", sensor, data, receivedAt: Date.now() });
   });
 
-  console.log("🔌 WebSocket server ready on /ws");
+  logger.info("WebSocket", "WebSocket server ready", { path: "/ws" });
   return wss;
 }
 

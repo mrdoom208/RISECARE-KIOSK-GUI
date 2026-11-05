@@ -7,6 +7,7 @@ import app from "./app";
 import { connectMQTT, disconnectMQTT } from "./mqtt";
 import { startSyncLoop } from "./device";
 import { setupWebSocket } from "./ws";
+import { logger } from "./logger";
 import { logSystem, pruneSystemLogs } from "./system-log";
 
 const rawPort = process.env["PORT"];
@@ -29,7 +30,7 @@ if (Number.isNaN(port) || port <= 0) {
 const host = process.env["HOST"] ?? "127.0.0.1";
 
 const server = app.listen(port, host, async () => {
-  console.log(`Server listening on http://${host}:${port}`);
+  logger.info("Backend", "API server listening", { host, port });
 
   void pruneSystemLogs();
   void logSystem("INFO", "Backend", "Backend started successfully", {
@@ -50,14 +51,14 @@ const server = app.listen(port, host, async () => {
   if (process.env.NO_MQTT !== "1") {
     connectMQTT();
   } else {
-    console.log("⚠️ MQTT disabled (NO_MQTT=1)");
+    logger.warn("Backend", "MQTT integration is disabled", { reason: "NO_MQTT=1" });
     void logSystem("WARNING", "Backend", "MQTT disabled (NO_MQTT=1)");
   }
 });
 
 // Graceful shutdown
 process.on("SIGINT", () => {
-  console.log("\n Shutting down...");
+  logger.info("Backend", "Shutting down gracefully");
   disconnectMQTT();
   process.exit(0);
 });

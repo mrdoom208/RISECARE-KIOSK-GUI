@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import router from "./routes";
+import { logger } from "./logger";
 import { logSystem } from "./system-log";
 
 const app: Express = express();
@@ -37,8 +38,10 @@ function loadSessionSecret(): string {
   }
 
   const secret = crypto.randomBytes(32).toString("hex");
-  console.warn(
-    "⚠️  SESSION_SECRET not set. Using a random secret (sessions invalidate on restart). Set SESSION_SECRET in .env for persistent sessions.",
+  logger.warn(
+    "Session",
+    "SESSION_SECRET is not configured. Using a temporary secret; admin sessions will be invalidated on restart.",
+    { action: "Set SESSION_SECRET in .env to keep sessions across restarts." },
   );
   return secret;
 }

@@ -1,4 +1,5 @@
 import { query, run } from "@workspace/db";
+import { logger } from "./logger";
 
 export type SystemLogLevel = "INFO" | "WARNING" | "ERROR" | "DEBUG";
 
@@ -117,7 +118,7 @@ export function logSystem(
     .then(() => undefined)
     .catch((error) => {
       // Logging must never break the operation that produced the log entry.
-      console.error("Failed to write system log:", error);
+      logger.error("System Log", "Could not write a system log entry", error);
     });
 
   return writeChain;
@@ -134,7 +135,7 @@ export async function pruneSystemLogs(): Promise<void> {
       [systemLogRetention.maxEntries],
     );
   } catch (error) {
-    console.error("Failed to prune system logs:", error);
+    logger.error("System Log", "Could not prune expired system log entries", error);
   }
 }
 
