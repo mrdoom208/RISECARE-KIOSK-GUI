@@ -59,14 +59,20 @@ class MAX30102:
     # Configuration
     SAMPLE_RATE = 100.0
 
-    # 4-8 seconds gives enough cardiac cycles for stable estimation.
-    WINDOW_SIZE = 800
+    # 600 samples at 100 SPS = 6 seconds, enough cardiac cycles for a
+    # stable estimate without making the patient wait 8 seconds.
+    WINDOW_SIZE = 600
 
     # Samples discarded right after a finger is detected while the
     # contact settles. Starting the window only once the signal is
     # steady is what keeps readings independent of when the finger
     # is placed.
     SETTLE_SAMPLES = 100
+
+    # Raw samples are median-filtered before entering the measurement
+    # window. This removes isolated spikes (motion artifacts, dropped I2C
+    # samples) without distorting the pulse waveform.
+    SAMPLE_MEDIAN_SIZE = 5
 
     # Minimum LED DC levels (ADC counts) that count as a hand being present.
     FINGER_MIN_RED = 60000
@@ -127,6 +133,8 @@ class MAX30102:
 
         self.red_buffer = deque(maxlen=self.WINDOW_SIZE)
         self.ir_buffer = deque(maxlen=self.WINDOW_SIZE)
+        self._raw_red = deque(maxlen=self.SAMPLE_MEDIAN_SIZE)
+        self._raw_ir = deque(maxlen=self.SAMPLE_MEDIAN_SIZE)
 
         self._smoothed_pr = None
         self._smoothed_spo2 = None
@@ -226,6 +234,8 @@ class MAX30102:
     def clear_buffer(self):
         self.red_buffer.clear()
         self.ir_buffer.clear()
+        self._raw_red.clear()
+        self._raw_ir.clear()
         self._smoothed_pr = None
         self._smoothed_spo2 = None
         self._finger_present = False
@@ -366,6 +376,20 @@ class MAX30102:
 
         return samples
 
+    @staticmethod
+    def _median_sample(window, fallback):
+        """
+        Median of the most recent raw samples.
+
+        The first samples after a reset fall back to the raw value so the
+        filter never introduces a startup transient.
+        """
+
+        if len(window) < 3:
+            return float(fallback)
+
+        return float(np.median(window))
+
     def update_buffer(self):
         """
         Pull all currently available samples from hardware
@@ -419,8 +443,10 @@ class MAX30102:
                 self._settle_remaining -= 1
                 continue
 
-            self.red_buffer.append(red)
-            self.ir_buffer.append(ir)
+            self._raw_red.append(red)
+            self._raw_ir.append(ir)
+            self.red_buffer.append(self._median_sample(self._raw_red, red))
+            self.ir_buffer.append(self._median_sample(self._raw_ir, ir))
             appended += 1
 
         return appended
@@ -749,13 +775,13 @@ class MAX30102:
     # ------------------------------------------------------------
 
     def calculate(self):
-        """Calculate from one 800-sample window, rejecting weak chunks.
+        """Calculate from one 600-sample window, rejecting weak chunks.
 
-        The 800 samples are split into four 200-sample (2-second) chunks.
+        The 600 samples are split into three 200-sample (2-second) chunks.
         Low-quality chunks are discarded. Pulse rate is averaged only from
         valid chunk estimates. SpO2 uses pooled AC/DC values from accepted
-        chunks and is withheld unless at least 600 samples (three chunks)
-        pass quality checks. This is an engineering estimate, not a medical
+        chunks and is withheld unless all three chunks (600 samples) pass
+        quality checks. This is an engineering estimate, not a medical
         validation method.
         """
         if len(self.ir_buffer) < self.WINDOW_SIZE or not self._finger_present:
@@ -869,7 +895,7 @@ class MAX30102:
             result["fifo_available"] = self.fifo_sample_count()
             result["fifo_overflow"] = self.fifo_overflow_count()
 
-            # Treat each 800-sample buffer as one finite measurement window.
+            # Treat each 600-sample buffer as one finite measurement window.
             # After calculating it once, discard the entire window and start
             # collecting a fresh batch; do not keep sliding over old samples.
             if len(self.ir_buffer) >= self.WINDOW_SIZE:

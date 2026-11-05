@@ -583,6 +583,8 @@ The device publishes on `risecare/sensors/vitals` once per second while a heart 
 | `spo2` | number | SpO₂ in percent — only present when `spo2Valid` is `true` |
 | `quality` | number | Signal quality score (0–1) |
 
+The driver collects a **6-second (600-sample) window** at 100 samples/sec. Raw samples are median-filtered to remove isolated spikes, and the published values are rate-limited (heart rate 5 bpm/sec, SpO₂ 1%/sec) so a noisy window cannot make the display jump.
+
 The kiosk shows **“Please insert your finger”** while `fingerDetected` is `false`, and only accepts a reading once it is flagged valid and has settled (5 consecutive stable measurements). Invalid readings are never stored in the database.
 
 ### VL53L1X (Height) Payload

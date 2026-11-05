@@ -59,14 +59,30 @@ class MAX30102:
     # Configuration
     SAMPLE_RATE = 100.0
 
-    # 4-8 seconds gives enough cardiac cycles for stable estimation.
-    WINDOW_SIZE = 800
+    # 600 samples at 100 SPS = 6 seconds, enough cardiac cycles for a
+    # stable estimate without making the patient wait 8 seconds.
+    WINDOW_SIZE = 600
 
     # Samples discarded right after a finger is detected while the
     # contact settles. Starting the window only once the signal is
     # steady is what keeps readings independent of when the finger
     # is placed.
     SETTLE_SAMPLES = 100
+
+    # Raw samples are median-filtered before entering the measurement
+    # window. This removes isolated spikes (motion artifacts, dropped I2C
+    # samples) without distorting the pulse waveform.
+    SAMPLE_MEDIAN_SIZE = 5
+
+    # The displayed value may not change faster than this, regardless of
+    # how large a single estimate is. A bad window therefore cannot make
+    # the reading jump; genuine changes are followed over a few seconds.
+    PR_MAX_CHANGE_PER_SEC = 5.0
+    SPO2_MAX_CHANGE_PER_SEC = 1.0
+
+    # Cap the slew interval so a long gap between valid readings cannot
+    # allow a large one-shot jump when readings resume.
+    MAX_SLEW_INTERVAL = 1.0
 
     # Minimum LED DC levels (ADC counts) that count as a hand being present.
     FINGER_MIN_RED = 60000
@@ -112,9 +128,12 @@ class MAX30102:
 
         self.red_buffer = deque(maxlen=self.WINDOW_SIZE)
         self.ir_buffer = deque(maxlen=self.WINDOW_SIZE)
+        self._raw_red = deque(maxlen=self.SAMPLE_MEDIAN_SIZE)
+        self._raw_ir = deque(maxlen=self.SAMPLE_MEDIAN_SIZE)
 
         self._smoothed_pr = None
         self._smoothed_spo2 = None
+        self._last_estimate_at = None
         self._finger_present = False
         self._settle_remaining = 0
 
@@ -211,8 +230,11 @@ class MAX30102:
     def clear_buffer(self):
         self.red_buffer.clear()
         self.ir_buffer.clear()
+        self._raw_red.clear()
+        self._raw_ir.clear()
         self._smoothed_pr = None
         self._smoothed_spo2 = None
+        self._last_estimate_at = None
         self._finger_present = False
         self._settle_remaining = 0
         self.clear_fifo()
@@ -351,6 +373,20 @@ class MAX30102:
 
         return samples
 
+    @staticmethod
+    def _median_sample(window, fallback):
+        """
+        Median of the most recent raw samples.
+
+        The first samples after a reset fall back to the raw value so the
+        filter never introduces a startup transient.
+        """
+
+        if len(window) < 3:
+            return float(fallback)
+
+        return float(np.median(window))
+
     def update_buffer(self):
         """
         Pull all currently available samples from hardware
@@ -404,8 +440,10 @@ class MAX30102:
                 self._settle_remaining -= 1
                 continue
 
-            self.red_buffer.append(red)
-            self.ir_buffer.append(ir)
+            self._raw_red.append(red)
+            self._raw_ir.append(ir)
+            self.red_buffer.append(self._median_sample(self._raw_red, red))
+            self.ir_buffer.append(self._median_sample(self._raw_ir, ir))
             appended += 1
 
         return appended
@@ -719,6 +757,27 @@ class MAX30102:
     # COMBINED ESTIMATION
     # ------------------------------------------------------------
 
+    @staticmethod
+    def _limit_change(previous, target, max_change_per_sec, elapsed):
+        """
+        Move ``previous`` towards ``target`` by at most a fixed rate.
+
+        This is the final guard against display jumps: even if one noisy
+        window produces a wild estimate, the value shown to the patient
+        changes gradually instead of leaping.
+        """
+
+        if elapsed is None or elapsed <= 0:
+            return float(previous)
+
+        max_step = max_change_per_sec * elapsed
+        delta = target - previous
+
+        if abs(delta) > max_step:
+            delta = math.copysign(max_step, delta)
+
+        return previous + delta
+
     def calculate(self):
         """
         Calculate pulse rate + SpO2 from the current rolling buffer.
@@ -774,15 +833,32 @@ class MAX30102:
             ir
         )
 
-        # Temporal smoothing.
+        # Temporal smoothing plus slew-rate limiting. Large single-window
+        # swings are absorbed by the change limit, so the displayed value
+        # cannot jump; a sustained change still settles within a few seconds.
+        now = time.monotonic()
+        if self._last_estimate_at is None:
+            elapsed = None
+        else:
+            elapsed = min(
+                max(now - self._last_estimate_at, 0.0),
+                self.MAX_SLEW_INTERVAL,
+            )
+
         if pulse_rate_valid:
 
             if self._smoothed_pr is None:
                 self._smoothed_pr = float(pulse_rate)
             else:
-                self._smoothed_pr = (
+                target = (
                     0.75 * self._smoothed_pr
                     + 0.25 * pulse_rate
+                )
+                self._smoothed_pr = self._limit_change(
+                    self._smoothed_pr,
+                    target,
+                    self.PR_MAX_CHANGE_PER_SEC,
+                    elapsed,
                 )
 
             pulse_rate = int(round(self._smoothed_pr))
@@ -792,12 +868,20 @@ class MAX30102:
             if self._smoothed_spo2 is None:
                 self._smoothed_spo2 = float(spo2)
             else:
-                self._smoothed_spo2 = (
+                target = (
                     0.85 * self._smoothed_spo2
                     + 0.15 * spo2
                 )
+                self._smoothed_spo2 = self._limit_change(
+                    self._smoothed_spo2,
+                    target,
+                    self.SPO2_MAX_CHANGE_PER_SEC,
+                    elapsed,
+                )
 
             spo2 = int(round(self._smoothed_spo2))
+
+        self._last_estimate_at = now
 
         return {
             "pulse_rate": pulse_rate,

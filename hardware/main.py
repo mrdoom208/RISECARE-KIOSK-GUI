@@ -997,7 +997,7 @@ def main():
                     payload["quality"] = round(hr_quality, 3)
                     payload["sampleProgress"] = _hr_sample_progress_percent(
                         finger_detected,
-                        getattr(hr_sensor, "WINDOW_SIZE", 800),
+                        getattr(hr_sensor, "WINDOW_SIZE", 600),
                     )
                     mqtt_client.publish("risecare/sensors/vitals", payload)
                     published = True
