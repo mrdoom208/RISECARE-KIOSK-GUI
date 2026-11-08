@@ -60,7 +60,7 @@ export default function InstructionModal({
                   alt={sensorGuide.name}
                   draggable={false}
                   onDragStart={(event) => event.preventDefault()}
-                  className="w-full lg:w-1/2 lg:flex-1 h-[28vh] lg:h-full min-h-0 max-h-[40vh] lg:max-h-full object-contain bg-white rounded-md border select-none [-webkit-user-drag:none]"
+                  className="w-full lg:w-3/5 lg:flex-[1.5] h-[38vh] lg:h-full min-h-0 max-h-none object-contain bg-white rounded-md border select-none [-webkit-user-drag:none]"
                 />
               )}
             </div>
