@@ -108,16 +108,16 @@ MAX_PEAKS = 80
 # datasheet: T3 high = 1 us (0.2-50 us) and T4 low = 0.2 us (0.2-1 us).
 # DOUT is ready T2 = 0.1 us after the rising edge, so sample while SCK is
 # high; this keeps the low phase short instead of stretching it with the read.
-CLOCK_HIGH_TIME = 0.000002   # 1 us
+CLOCK_HIGH_TIME = 0.000002  
 CLOCK_LOW_TIME = 0.000002   # 0.2 us; interpreter overhead adds the rest
-READY_TIMEOUT = 2.0
-MAX_CONSECUTIVE_READ_TIMEOUTS = 2
+READY_TIMEOUT = 0.250
+MAX_CONSECUTIVE_READ_TIMEOUTS = 3
 EXTRA_CLOCK_PULSES = 1
 PROGRESS_UPDATE_INTERVAL = 0.25
 
 # A conversion can be corrupted when the OS preempts the bit-banged clock.
 # Retry before counting it as a bad sample.
-INVALID_PRESSURE_MIN = -5.0
+INVALID_PRESSURE_MIN = -5.0 
 INVALID_PRESSURE_MAX = 250.0
 BAD_READ_RETRIES = 3
 ADC_WARMUP_SAMPLES = 5
@@ -169,11 +169,14 @@ class HX710B:
     """Read signed 24-bit differential conversions from an HX710B."""
 
     def wait_ready(self):
-        start = time.monotonic()
+        deadline = time.monotonic() + READY_TIMEOUT
+
         while GPIO.input(OUT_PIN) == GPIO.HIGH:
-            if time.monotonic() - start >= READY_TIMEOUT:
+            if time.monotonic() >= deadline:
                 return False
-            time.sleep(0.0001)
+
+            time.sleep(0.001)
+
         return True
 
     def read_raw(self):
@@ -181,24 +184,28 @@ class HX710B:
             return None
 
         value = 0
-        for _ in range(24):
-            GPIO.output(SCK_PIN, GPIO.HIGH)
-            busy_wait(CLOCK_HIGH_TIME)
-            # DOUT is valid 0.1 us after the rising edge; reading here instead
-            # of after the falling edge keeps the SCK low phase within its
-            # 1 us datasheet maximum.
-            value = (value << 1) | GPIO.input(OUT_PIN)
-            GPIO.output(SCK_PIN, GPIO.LOW)
-            busy_wait(CLOCK_LOW_TIME)
+        try:
+            for _ in range(24):
+                GPIO.output(SCK_PIN, GPIO.HIGH)
+                busy_wait(CLOCK_HIGH_TIME)
+               
+                value = (value << 1) | GPIO.input(OUT_PIN)
 
-        for _ in range(EXTRA_CLOCK_PULSES):
-            GPIO.output(SCK_PIN, GPIO.HIGH)
-            busy_wait(CLOCK_HIGH_TIME)
+                GPIO.output(SCK_PIN, GPIO.LOW)
+                busy_wait(CLOCK_LOW_TIME)
+
+            for _ in range(EXTRA_CLOCK_PULSES):
+                GPIO.output(SCK_PIN, GPIO.HIGH)
+                busy_wait(CLOCK_HIGH_TIME)
+
+                GPIO.output(SCK_PIN, GPIO.LOW)
+                busy_wait(CLOCK_LOW_TIME)
+        finally:
             GPIO.output(SCK_PIN, GPIO.LOW)
-            busy_wait(CLOCK_LOW_TIME)
 
         if value & 0x800000:
             value -= 0x1000000
+            
         return value
 
     def probe(self):

@@ -1,8 +1,11 @@
 import time
-import json
-import os
 import threading
 import statistics
+
+try:
+    from . import settings_store
+except ImportError:  # Support running this module directly from hardware/.
+    import settings_store
 
 DT = 5
 SCK = 6
@@ -35,9 +38,6 @@ else:
 # Thread from a reset that outlived its timeout, if any.
 _hung_reset = None
 
-CALIBRATION_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "settings.json"
-)
 # HX711 raw counts per kilogram. Weight calibration only needs to capture the
 # empty platform offset; the scale's per-kg factor is fixed for this hardware.
 CALIBRATION_FACTOR_PER_KG = 28205
@@ -103,19 +103,14 @@ def probe():
 
 def load_calibration():
     global calibration_factor, empty_offset
-    if os.path.exists(CALIBRATION_FILE):
-        with open(CALIBRATION_FILE, "r") as f:
-            data = json.load(f)
-            loadcell_data = data.get("loadcell", {})
-            calibration_factor = loadcell_data.get("calibration_factor")
-            empty_offset = loadcell_data.get("empty_offset")
-        if calibration_factor:
-            calibration_factor = CALIBRATION_FACTOR_PER_KG
-            print(f" Loaded LoadCell Calibration: factor={calibration_factor}, offset={empty_offset}")
-        else:
-            print(" No loadcell calibration found. Please calibrate.")
+    loadcell_data = settings_store.load_settings().get("loadcell", {})
+    calibration_factor = loadcell_data.get("calibration_factor")
+    empty_offset = loadcell_data.get("empty_offset")
+    if calibration_factor:
+        calibration_factor = CALIBRATION_FACTOR_PER_KG
+        print(f" Loaded LoadCell Calibration: factor={calibration_factor}, offset={empty_offset}")
     else:
-        print(" No calibration file found. Please calibrate.")
+        print(" No loadcell calibration found. Please calibrate.")
 
 
 def calibrate_tare(stop_event=None):
@@ -191,19 +186,10 @@ def calibrate_finalize():
 
     calibration_factor = CALIBRATION_FACTOR_PER_KG
 
-    if os.path.exists(CALIBRATION_FILE):
-        with open(CALIBRATION_FILE, "r") as f:
-            data = json.load(f)
-    else:
-        data = {}
-
-    data["loadcell"] = {
+    settings_store.update_section("loadcell", {
         "calibration_factor": calibration_factor,
         "empty_offset": empty_offset
-    }
-
-    with open(CALIBRATION_FILE, "w") as f:
-        json.dump(data, f)
+    })
 
     print(f"Saved weight calibration: factor={calibration_factor}, offset={empty_offset}")
     return calibration_factor
@@ -213,12 +199,7 @@ def reset_calibration():
     global calibration_factor, empty_offset
     calibration_factor = None
     empty_offset = None
-    if os.path.exists(CALIBRATION_FILE):
-        with open(CALIBRATION_FILE, "r") as f:
-            data = json.load(f)
-        data.pop("loadcell", None)
-        with open(CALIBRATION_FILE, "w") as f:
-            json.dump(data, f)
+    if settings_store.remove_section("loadcell"):
         print("LoadCell calibration reset")
 
 

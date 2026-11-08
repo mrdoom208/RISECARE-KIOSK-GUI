@@ -10,11 +10,14 @@ and the standalone diagnostic (vl53l1x_test.py) use the same code:
 
 import argparse
 import collections
-import json
-import os
 import statistics
 import threading
 import time
+
+try:
+    from . import settings_store
+except ImportError:  # Support running this module directly from hardware/.
+    import settings_store
 
 try:
     import board
@@ -72,11 +75,6 @@ hw_lock = threading.Lock()
 # availability probe can both reach for a missing sensor.
 _init_lock = threading.RLock()
 _height_history = collections.deque(maxlen=HEIGHT_HISTORY)
-
-CALIBRATION_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "settings.json"
-)
-
 
 def set_bus_number(bus_num):
     """Select the default Pi I2C bus used by board.I2C (bus 1)."""
@@ -248,16 +246,7 @@ def calibrate_height(progress_callback=None, stop_event=None):
     TOTAL_HEIGHT = _median_readings(readings)
     _height_history.clear()
 
-    if os.path.exists(CALIBRATION_FILE):
-        with open(CALIBRATION_FILE, "r") as f:
-            data = json.load(f)
-    else:
-        data = {}
-
-    data["vl53l1x"] = {"total_height": TOTAL_HEIGHT}
-
-    with open(CALIBRATION_FILE, "w") as f:
-        json.dump(data, f)
+    settings_store.update_section("vl53l1x", {"total_height": TOTAL_HEIGHT})
 
     print(f"\nSaved height calibration: {TOTAL_HEIGHT:.2f} cm\n")
 
@@ -302,33 +291,22 @@ def reset_calibration():
     global TOTAL_HEIGHT
     TOTAL_HEIGHT = None
     _height_history.clear()
-    if os.path.exists(CALIBRATION_FILE):
-        with open(CALIBRATION_FILE, "r") as f:
-            data = json.load(f)
-        data.pop("vl53l1x", None)
-        with open(CALIBRATION_FILE, "w") as f:
-            json.dump(data, f)
+    if settings_store.remove_section("vl53l1x"):
         print("VL53L1X calibration reset")
 
 
 def load_calibration():
     global TOTAL_HEIGHT
 
-    if os.path.exists(CALIBRATION_FILE):
-        with open(CALIBRATION_FILE, "r") as f:
-            data = json.load(f)
-            TOTAL_HEIGHT = data.get("vl53l1x", {}).get("total_height")
-
-        if _is_valid_distance(TOTAL_HEIGHT):
-            print(f"📂 Loaded VL53L1X Calibration: {TOTAL_HEIGHT:.2f} cm")
-        else:
-            TOTAL_HEIGHT = None
-            print("⚠️ No VL53L1X calibration found. Please calibrate.")
+    data = settings_store.load_settings()
+    TOTAL_HEIGHT = data.get("vl53l1x", {}).get("total_height")
+    if _is_valid_distance(TOTAL_HEIGHT):
+        print(f"Loaded VL53L1X calibration: {TOTAL_HEIGHT:.2f} cm")
     else:
-        print("⚠️ No calibration file found. Please calibrate.")
+        TOTAL_HEIGHT = None
+        print("No VL53L1X calibration found. Please calibrate.")
 
     _height_history.clear()
-
 
 def probe():
     """Return True if the VL53L1X sensor is reachable, False otherwise."""
