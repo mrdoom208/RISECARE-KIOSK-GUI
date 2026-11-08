@@ -15,6 +15,7 @@ interface ModalShellProps {
    * is never covered. A no-op while no input holds focus (--vk-height is 0).
    */
   avoidKeyboard?: boolean;
+  shellClassName?: string;
   panelClassName?: string;
   children: ReactNode;
 }
@@ -31,6 +32,7 @@ export function ModalShell({
   zIndex = Z_INDEX.MODAL,
   backdrop = "blur",
   avoidKeyboard = true,
+  shellClassName = "",
   panelClassName,
   children,
 }: ModalShellProps) {
@@ -64,10 +66,10 @@ export function ModalShell({
   return createPortal(
     <div
       data-modal-shell=""
-      className={`fixed inset-0 flex items-center justify-center p-4 ${BACKDROP_CLASS[backdrop]}`}
+      className={`fixed inset-0 flex ${shellClassName || "items-center justify-center p-4"} ${BACKDROP_CLASS[backdrop]}`}
       style={{
         zIndex,
-        paddingBottom: avoidKeyboard ? "calc(1rem + var(--vk-height, 0px))" : "1rem",
+        paddingBottom: avoidKeyboard ? "calc(1rem + var(--vk-height, 0px))" : "0",
       }}
     >
       <div className={panelClassName}>{children}</div>

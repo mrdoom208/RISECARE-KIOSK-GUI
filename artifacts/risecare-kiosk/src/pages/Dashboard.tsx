@@ -305,11 +305,14 @@ export default function Dashboard() {
   // counted. It stays confirmed even if the finger is lifted afterwards, so
   // the patient can still finish the measurement.
   const bpReading = liveReadings.bp;
+  const bpStage = String(bpReading?.stage ?? "");
   const cuffPulseRate = Number(bpReading?.pulseRate);
+  const bpCurrentPressure = Number(bpReading?.displayPressure ?? bpReading?.pressure);
+  const bpIsInflating = bpReading?.status === "running" && bpStage === "inflating";
+  const hasBpCurrentPressure = Number.isFinite(bpCurrentPressure) && bpCurrentPressure > 0;
   const bpComplete = readingVital === "bp" && bpReading?.status === "success" &&
     Number.isFinite(Number(bpReading.systolic)) && Number.isFinite(Number(bpReading.diastolic)) &&
     Number.isFinite(cuffPulseRate) && cuffPulseRate > 0 && cuffPulseRate <= 300;
-  const bpStage = String(bpReading?.stage ?? "");
   const bpOverallProgress = Math.max(0, Math.min(100, Number(bpReading?.progress) || 0));
   const reportedInflationProgress = Number(bpReading?.inflationProgress);
   const reportedDeflationProgress = Number(bpReading?.deflationProgress);
@@ -1041,7 +1044,7 @@ const handleCancelReading = async () => {
                     </div>
                     <Progress value={deflationProgress} aria-label="Cuff deflation progress" />
                   </div>
-                  {Number.isFinite(Number(bpReading.displayPressure ?? bpReading.pressure)) && (
+                  {!bpIsInflating && Number.isFinite(Number(bpReading.displayPressure ?? bpReading.pressure)) && (
                     <p className="text-center text-sm text-muted-foreground">
                       Cuff pressure: {Number(bpReading.displayPressure ?? bpReading.pressure).toFixed(0)} mmHg
                     </p>
@@ -1050,14 +1053,16 @@ const handleCancelReading = async () => {
               )}
 
               <div className="text-center mb-8">
-                  <div className={`font-bold font-display text-primary mb-2 ${display.hasValue ? "text-6xl" : "text-4xl"}`}>
-                    {display.hasValue || (readingVital === "bp" && (bpReading?.status === "failed" || bpReading?.status === "invalid"))
-                      ? display.value
-                      : (
-                        <span role="status" aria-label={`Measuring ${display.title.toLowerCase()}`} className="inline-flex items-center justify-center">
-                          <Loader2 className="w-10 h-10 animate-spin" />
-                        </span>
-                      )}
+                  <div className={`font-bold font-display text-primary mb-2 ${display.hasValue || bpIsInflating ? "text-6xl" : "text-4xl"}`}>
+                    {bpIsInflating ? (
+                      hasBpCurrentPressure ? bpCurrentPressure.toFixed(0) : "—"
+                    ) : display.hasValue || (readingVital === "bp" && (bpReading?.status === "failed" || bpReading?.status === "invalid")) ? (
+                      display.value
+                    ) : (
+                      <span role="status" aria-label={`Measuring ${display.title.toLowerCase()}`} className="inline-flex items-center justify-center">
+                        <Loader2 className="w-10 h-10 animate-spin" />
+                      </span>
+                    )}
                   </div>
                   <div className="text-xl text-muted-foreground">
                     {display.unit}
@@ -1109,15 +1114,17 @@ const handleCancelReading = async () => {
                     Stop
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    if (isRateLimited("cancel-reading")) return;
-                    handleCancelReading();
-                  }}
-                  className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 font-semibold text-lg"
-                >
-                  Cancel
-                </button>
+                {!bpIsInflating && (
+                  <button
+                    onClick={() => {
+                      if (isRateLimited("cancel-reading")) return;
+                      handleCancelReading();
+                    }}
+                    className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 font-semibold text-lg"
+                  >
+                    Cancel
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     if (isRateLimited("done-reading")) return;
@@ -1126,7 +1133,7 @@ const handleCancelReading = async () => {
                   disabled={!isStable}
                   className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Done {!isStable && `(${stableCount}/${requiredStableCount})`}
+                  Done {!isStable && readingVital !== "bp" && `(${stableCount}/${requiredStableCount})`}
                 </button>
               </div>
 

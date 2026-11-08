@@ -16,7 +16,7 @@ export const sensorGuides: SensorGuide[] = [
     name: "Blood Pressure Cuff",
     instruction: `Wrap the blood pressure cuff around your upper arm, ensuring it is snug but not too tight. The cuff should be positioned about an inch above the bend of your elbow. Sit comfortably with your back supported and feet flat on the floor. Rest your arm on a table at heart level and remain still while the measurement is taken.`,
     avoid: `❌ Do not move your arm during the measurement.<br/>❌ Avoid talking while measuring blood pressure.`,
-    image: "/images/bp-cuff.png",
+    image: "/instructions/BloodpressureInstruction.png",
   },
   {
     name: "Thermometer",
