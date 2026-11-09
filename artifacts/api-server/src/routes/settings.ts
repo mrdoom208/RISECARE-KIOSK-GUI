@@ -820,7 +820,8 @@ router.get("/update/check", requireAuth, requireSuperadmin, async (_req, res) =>
   }
 });
 
-// Apply updates and reboot the Raspberry Pi.
+// Apply updates. The system is not rebooted automatically; the user is told to
+// restart so the new version takes effect.
 router.post("/update/apply", requireAuth, requireSuperadmin, requireReauth, sensitiveLimiter, async (req, res) => {
   try {
     const root = findWorkspaceRoot();
@@ -834,21 +835,9 @@ router.post("/update/apply", requireAuth, requireSuperadmin, requireReauth, sens
     } catch {
       await execFileAsync("git", ["-C", root, "pull", "--rebase", "origin", "main"], { timeout: 60000 });
     }
-    await logActivity(req.user?.id ?? null, "System Update", "Applied update from origin/main and rebooting the Raspberry Pi");
-    void logSystem("INFO", "Backend", "System update applied; reboot requested");
-    res.json({ success: true, restartTarget: "raspberry-pi" });
-    setTimeout(() => {
-      const rebootSent = publish("risecare/command/restart", {
-        sensor: "restart",
-        value: 1,
-        timestamp: new Date().toISOString(),
-      });
-      if (!rebootSent && process.platform === "linux") {
-        execFileAsync("sudo", ["reboot"], { timeout: 10000 }).catch((error) => {
-          logger.error("Backend", "Could not reboot the Raspberry Pi", error);
-        });
-      }
-    }, 1500);
+    await logActivity(req.user?.id ?? null, "System Update", "Applied update from origin/main; restart required to take effect");
+    void logSystem("INFO", "Backend", "System update applied; restart required to take effect");
+    res.json({ success: true, restartRequired: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed to apply update" });
   }

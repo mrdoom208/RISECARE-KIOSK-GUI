@@ -487,6 +487,27 @@ export default function Dashboard() {
     );
   };
 
+  const handleFinish = async () => {
+    if (isRateLimited("finish-confirm")) return;
+    try {
+      if (session?.id) {
+        const res = await fetch(`/api/sessions/${session.id}/complete`, {
+          method: "POST",
+        });
+        if (!res.ok) throw new Error("Failed to finish session");
+        await queryClient.invalidateQueries({ queryKey: ["session", sessionToken] });
+      }
+    } catch {
+      toast({
+        title: "Could not finish session",
+        description: "Your readings are still saved on this kiosk. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setLocation(`/results?token=${encodeURIComponent(sessionToken)}`);
+  };
+
 const handleStartReading = async () => {
   if (!activeSensor || !activeKeypad || !session?.id) return;
 
@@ -907,10 +928,7 @@ const handleCancelReading = async () => {
               </AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
-                  if (isRateLimited("finish-confirm")) return;
-                  setLocation(
-                    `/results?token=${encodeURIComponent(sessionToken)}`,
-                  );
+                  void handleFinish();
                 }}
                 className="h-12 text-xl font-bold flex-1 bg-primary text-primary-foreground hover:bg-primary/80"
               >

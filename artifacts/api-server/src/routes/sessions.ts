@@ -195,6 +195,52 @@ router.get("/sessions/:id", async (req, res) => {
   res.json({ ...session, vitals });
 });
 
+// Mark the active session as finished by its public token. Used when the kiosk
+// idles out so a session is not left permanently unsynced.
+router.post("/sessions/complete", async (req, res) => {
+  const token =
+    typeof req.body?.token === "string" ? req.body.token.trim().toUpperCase() : "";
+  if (!token) {
+    res.status(400).json({ error: "invalid_request", message: "Token is required" });
+    return;
+  }
+
+  const sessions = await query(`${SESSION_SELECT} WHERE token = ? LIMIT 1`, [token]);
+  if (!sessions[0]) {
+    res.status(404).json({ error: "not_found", message: "Session not found" });
+    return;
+  }
+
+  await run(
+    `UPDATE sessions SET completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?`,
+    [sessions[0].id]
+  );
+
+  const updated = await query(`${SESSION_SELECT} WHERE id = ?`, [sessions[0].id]);
+  res.json(updated[0]);
+});
+
+// Mark a session as finished. Data from a session is only eligible for sync
+// once this has been called, so a session is never uploaded while the user is
+// still taking measurements.
+router.post("/sessions/:id/complete", async (req, res) => {
+  const { id } = GetSessionParams.parse({ id: Number(req.params.id) });
+
+  const sessions = await query(`SELECT id FROM sessions WHERE id = ?`, [id]);
+  if (!sessions[0]) {
+    res.status(404).json({ error: "not_found", message: "Session not found" });
+    return;
+  }
+
+  await run(
+    `UPDATE sessions SET completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?`,
+    [id]
+  );
+
+  const updated = await query(`${SESSION_SELECT} WHERE id = ?`, [id]);
+  res.json(updated[0]);
+});
+
 router.post("/sessions/:id/vitals", async (req, res) => {
   const { id } = SaveVitalsParams.parse({ id: Number(req.params.id) });
   const body = SaveVitalsBody.parse(req.body);
@@ -287,7 +333,9 @@ router.post("/sessions/:id/vitals", async (req, res) => {
     vital = inserted[0];
   }
 
-  await run(`UPDATE sessions SET completed_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+  // Completion is explicit via POST /sessions/:id/complete. Saving vitals
+  // alone must not mark the session finished, otherwise it could be synced
+  // while the user is still taking measurements.
 
   res.status(201).json(vital);
 });

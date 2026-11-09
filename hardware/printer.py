@@ -265,7 +265,7 @@ def _print_receipt(data):
         p.text("DISCLAIMER\n")
         p.set(align="left", width=1, height=1, font="a")
         p.text(_receipt_text(
-            "This report is a screening summary, not a diagnosis. General adult screening thresholds are shown for all ages; pediatric readings need age-specific clinical interpretation. The SpO2 value is an unvalidated screening estimate. Confirm concerning readings with a qualified healthcare professional."
+            "This is a screening summary, not a diagnosis. Confirm concerning readings with a qualified healthcare professional."
         ))
         p.text("-" * 32 + "\n")
 

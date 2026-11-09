@@ -68,6 +68,12 @@ app.use(
 app.use("/api", (req, res, next) => {
   const startedAt = Date.now();
   res.on("finish", () => {
+    // Successful GET requests are usually polling loops (status checks, sensor
+    // reads). Logging every one fills up the log storage quickly, so only
+    // record GET requests that failed.
+    if (req.method === "GET" && res.statusCode < 400) {
+      return;
+    }
     // Mask numeric resource IDs (for example /api/sessions/42) so debug logs
     // never persist record identifiers that could be linked back to a patient.
     const safePath = req.path

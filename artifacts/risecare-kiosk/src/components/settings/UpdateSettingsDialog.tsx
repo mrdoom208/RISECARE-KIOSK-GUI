@@ -238,7 +238,7 @@ export function UpdateSettingsDialog({
           </div>
           <button
             onClick={onClose}
-            disabled={updating}
+            disabled={applying}
             className="p-2 rounded-full hover:bg-muted disabled:opacity-50"
             aria-label="Close update dialog"
           >
@@ -341,15 +341,25 @@ export function UpdateSettingsDialog({
           </div>
         )}
 
-        {updating && (
+        {applying && (
           <div className="mt-4 flex items-start gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4 text-primary">
             <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin" />
             <div>
-              <p className="font-semibold">
-                {applied ? "Updating system" : "Applying update"}
-              </p>
+              <p className="font-semibold">Applying update</p>
               <p className="text-sm text-foreground/80">
-                The Raspberry Pi will reboot shortly. Keep the kiosk powered on.
+                Pulling the latest version. This may take a moment.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {applied && (
+          <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-semibold">Update installed</p>
+              <p className="text-sm">
+                Restart the system for the update to take effect.
               </p>
             </div>
           </div>
@@ -358,10 +368,10 @@ export function UpdateSettingsDialog({
         <div className="mt-6 flex gap-2">
           <button
             onClick={onClose}
-            disabled={updating}
+            disabled={applying}
             className="h-14 flex-1 rounded-xl bg-secondary text-lg font-semibold disabled:opacity-50"
           >
-            {updating ? "Please wait" : "Close"}
+            {applying ? "Please wait" : "Close"}
           </button>
           {hasUpdate ? (
             <button
@@ -374,7 +384,7 @@ export function UpdateSettingsDialog({
               ) : (
                 <DownloadCloud className="h-5 w-5" />
               )}
-              {updating ? "Updating..." : "Update & Reboot"}
+              {applying ? "Updating..." : applied ? "Restart Required" : "Install Update"}
             </button>
           ) : (
             <button
@@ -396,8 +406,8 @@ export function UpdateSettingsDialog({
       <ReauthPrompt
         open={showReauth}
         title="Apply Update"
-        description="Re-enter your password to pull updates from the main branch and reboot the Raspberry Pi."
-        confirmLabel="Update & Reboot"
+        description="Re-enter your password to pull updates from the main branch. You will need to restart the system afterward for the changes to take effect."
+        confirmLabel="Install Update"
         onClose={() => setShowReauth(false)}
         onConfirmed={handleConfirmed}
       />

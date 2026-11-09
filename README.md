@@ -25,7 +25,7 @@ A modern, self-service health monitoring kiosk application that enables patients
 - **Server Status** - Live backend, API, database, MQTT, portal, and device activation health
 - **System Information** - Service version/commit, Node and OS details, uptime, memory, and storage usage
 - **System Logs** - Searchable, filterable, paginated operational logs with date ranges, expandable details, and plain-text export (super admin only)
-- **Check for Updates** - Shows the installed commit and any newer commit on `origin/main`, then applies updates with re-authentication and reboots the kiosk
+- **Check for Updates** - Shows the installed commit and any newer commit on `origin/main`, then applies updates with re-authentication and prompts the user to restart the kiosk
 
 ---
 
@@ -166,7 +166,7 @@ SENSOR_DEBUG=0
 | `RISECARE_PORTAL_URL` | dev `http://localhost:3001`, prod `https://portal.example.com` | Portal URL for activation and sync. Precedence: this env var → `server_link` setting → environment default |
 | `SYSTEM_LOG_RETENTION_DAYS` | `14` | Days before system logs are pruned; clamped to `7–30` |
 | `SYSTEM_LOG_MAX_ENTRIES` | `2000` | Maximum stored system-log rows; clamped to `500–10000` |
-| `SYSTEM_LOG_DEBUG` | unset | Set to `1` to record DEBUG-level system logs (API requests and MQTT retry details) |
+| `SYSTEM_LOG_DEBUG` | unset | Set to `1` to record DEBUG-level system logs (non-GET API requests, failed GET requests, and MQTT retry details) |
 | `SENSOR_DEBUG` | unset | Set to `1` to print per-reading, calibration, and availability output |
 | `MQTT_DEBUG` | unset | Set to `1` to print every raw MQTT receive/publish payload |
 | `API_SILENT` | unset | Set to `1` to suppress `console.log`; warnings/errors still print |
@@ -291,7 +291,7 @@ All API routes are mounted under `/api`. `Auth` means an admin session is requir
 | --- | --- | --- | --- |
 | `/api/settings/update/info` | GET | Auth + Super admin | Installed commit (hash, subject, date, author) |
 | `/api/settings/update/check` | GET | Auth + Super admin | Fetch `origin/main` and compare local/remote commits |
-| `/api/settings/update/apply` | POST | Auth + Super admin + Re-auth | Reset to `origin/main` and reboot the Raspberry Pi |
+| `/api/settings/update/apply` | POST | Auth + Super admin + Re-auth | Reset to `origin/main` (restart required to take effect) |
 
 ### System Monitoring
 
@@ -347,7 +347,7 @@ The Settings dialog is available after admin login:
 | System Logs | Super admin | Search, filter, export operational logs |
 | Activity Log | Super admin | Audit trail of admin actions |
 | Accounts | Super admin | Create, edit, and remove admins/super admins |
-| Check for Updates | Super admin | Compare/apply `origin/main` and reboot |
+| Check for Updates | Super admin | Compare/apply `origin/main` (restart required) |
 | Power | All admins | Shutdown, restart, lock, or exit the kiosk |
 
 ### Server Status
@@ -397,8 +397,8 @@ The update dialog:
 2. Automatically checks `origin/main` when opened with network enabled
 3. Shows the installed and available commit subject, short hash, date, and author
 4. Requires re-authentication before applying an update
-5. Fetches and resets to `origin/main` (falling back to `pull --rebase`), then
-   sends a restart command via MQTT (or `sudo reboot` on Linux)
+5. Fetches and resets to `origin/main` (falling back to `pull --rebase`) and
+   asks the user to restart the kiosk so the new version takes effect
 
 Updates need the kiosk to have network access and a git remote configured.
 
@@ -447,6 +447,14 @@ Recommended production settings:
 readings, calibration progress, and test results. Those are high-frequency
 and may contain patient measurements.
 
+### When records sync
+
+A session is uploaded only after the user finishes it (taps **Finish & View
+Results**) or the kiosk idles out while that session is open. Sessions still in
+progress stay local, so a patient's record is never partially synced while
+measurements are being taken. Completed records are sent by the background loop
+every `SYNC_INTERVAL_MS` or on a manual export.
+
 While the MQTT broker is unreachable, the API retries indefinitely but logs
 failures at most once every 10 minutes; recovery is logged once. Per-retry
 detail is available only at DEBUG level.
@@ -457,7 +465,8 @@ detail is available only at DEBUG level.
 # Raw MQTT traffic and per-reading/calibration sensor output
 MQTT_DEBUG=1 SENSOR_DEBUG=1 pnpm dev:api
 
-# DEBUG-level system logs (API method/path/status/duration and MQTT retries)
+# DEBUG-level system logs (API method/path/status/duration and MQTT retries).
+# Successful GET requests are skipped so polling loops don't fill log storage.
 SYSTEM_LOG_DEBUG=1 pnpm dev:api
 ```
 

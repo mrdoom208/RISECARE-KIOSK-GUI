@@ -59,7 +59,7 @@ function randomUuid(): string {
 
 async function getSyncState(): Promise<SyncState> {
   const rows = await query(
-    "SELECT sync_status, COUNT(*) AS count FROM sessions GROUP BY sync_status",
+    "SELECT sync_status, COUNT(*) AS count FROM sessions WHERE completed_at IS NOT NULL GROUP BY sync_status",
   );
   let pending = 0;
   let synced = 0;
@@ -305,8 +305,9 @@ export async function syncPending(): Promise<{ exported: number }> {
       END AS patientGender, strftime('%Y-%m-%dT%H:%M:%fZ', started_at) AS startedAt,
       CASE WHEN completed_at IS NOT NULL THEN strftime('%Y-%m-%dT%H:%M:%fZ', completed_at) ELSE NULL END AS completedAt
     FROM sessions
-    WHERE sync_status = 'pending'
-       OR id IN (SELECT session_id FROM vital_readings WHERE sync_status = 'pending')
+    WHERE completed_at IS NOT NULL
+      AND (sync_status = 'pending'
+        OR id IN (SELECT session_id FROM vital_readings WHERE sync_status = 'pending'))
     ORDER BY started_at ASC
   `);
 
@@ -321,7 +322,8 @@ export async function syncPending(): Promise<{ exported: number }> {
       strftime('%Y-%m-%dT%H:%M:%fZ', vr.recorded_at) AS recordedAt
     FROM vital_readings vr
     JOIN sessions s ON s.id = vr.session_id
-    WHERE vr.sync_status = 'pending' ORDER BY vr.recorded_at ASC
+    WHERE vr.sync_status = 'pending' AND s.completed_at IS NOT NULL
+    ORDER BY vr.recorded_at ASC
   `);
 
   const total = sessions.length + vitals.length;
@@ -356,10 +358,11 @@ export async function syncPending(): Promise<{ exported: number }> {
     ]);
   }
 
-  await run("UPDATE sessions SET payload_id = ? WHERE sync_status = 'pending'", [payloadId]);
-  await run("UPDATE vital_readings SET payload_id = ? WHERE sync_status = 'pending'", [
-    payloadId,
-  ]);
+  await run("UPDATE sessions SET payload_id = ? WHERE sync_status = 'pending' AND completed_at IS NOT NULL", [payloadId]);
+  await run(
+    "UPDATE vital_readings SET payload_id = ? WHERE sync_status = 'pending' AND session_id IN (SELECT id FROM sessions WHERE completed_at IS NOT NULL)",
+    [payloadId],
+  );
 
   const payload = {
     source: "risecare-kiosk",
@@ -392,10 +395,14 @@ export async function syncPending(): Promise<{ exported: number }> {
   }
 
   if (status === 200) {
-    await run("UPDATE sessions SET sync_status = 'synced' WHERE payload_id = ?", [payloadId]);
-    await run("UPDATE vital_readings SET sync_status = 'synced' WHERE payload_id = ?", [
-      payloadId,
-    ]);
+    await run(
+      "UPDATE sessions SET sync_status = 'synced' WHERE payload_id = ? AND completed_at IS NOT NULL",
+      [payloadId],
+    );
+    await run(
+      "UPDATE vital_readings SET sync_status = 'synced' WHERE payload_id = ? AND session_id IN (SELECT id FROM sessions WHERE completed_at IS NOT NULL)",
+      [payloadId],
+    );
     await run("DELETE FROM settings WHERE key = 'sync_payload_id'");
     void logSystem("INFO", "Sync", "Records synced to server successfully", {
       records: total,
