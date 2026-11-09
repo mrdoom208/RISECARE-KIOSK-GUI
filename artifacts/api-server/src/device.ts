@@ -214,6 +214,62 @@ interface PendingRecord {
   [key: string]: any;
 }
 
+// Mirror the portal's validation bounds locally. A single bad legacy reading
+// must not make the whole batch permanently undeliverable: invalid fields are
+// dropped (sent as null) so the rest of the queue still syncs.
+const SYNC_GENDERS = new Set(["Male", "Female", "Other", "Unknown"]);
+const SYNC_VITAL_RANGES: Record<string, [number, number]> = {
+  bloodPressureSystolic: [20, 300],
+  bloodPressureDiastolic: [10, 200],
+  heartRate: [10, 300],
+  oxygenSaturation: [0, 100],
+  temperature: [28, 45],
+  weight: [1, 500],
+  height: [20, 250],
+  bmi: [5, 100],
+};
+
+function sanitizeSessions(records: PendingRecord[]): number {
+  let dropped = 0;
+  for (const session of records) {
+    if (session.patientAge !== null && session.patientAge !== undefined) {
+      const age = Number(session.patientAge);
+      if (!Number.isInteger(age) || age < 0 || age > 150) {
+        session.patientAge = null;
+        dropped += 1;
+      } else {
+        session.patientAge = age;
+      }
+    }
+    if (session.patientGender != null && !SYNC_GENDERS.has(String(session.patientGender))) {
+      session.patientGender = null;
+      dropped += 1;
+    }
+  }
+  return dropped;
+}
+
+function sanitizeVitals(records: PendingRecord[]): number {
+  let dropped = 0;
+  for (const vital of records) {
+    for (const [field, [min, max]] of Object.entries(SYNC_VITAL_RANGES)) {
+      const value = vital[field];
+      if (value === null || value === undefined) {
+        vital[field] = null;
+        continue;
+      }
+      const numeric = typeof value === "number" ? value : Number(value);
+      if (!Number.isFinite(numeric) || numeric < min || numeric > max) {
+        vital[field] = null;
+        dropped += 1;
+      } else {
+        vital[field] = numeric;
+      }
+    }
+  }
+  return dropped;
+}
+
 // Offline-first sync: sends all pending sessions + vitals in one batch to
 // POST /api/v1/sync/kiosk. The batch payloadId doubles as the Idempotency-Key
 // and is persisted so an interrupted request is safely replayed. Records are
@@ -225,9 +281,19 @@ export async function syncPending(): Promise<{ exported: number }> {
   if (!device.api_key) {
     throw new SyncError("This kiosk is not activated yet", "not_activated", true);
   }
+  if (!device.kiosk_id) {
+    // The portal identifies the kiosk by API key, but a missing server-assigned
+    // ID means activation did not finish locally. Sending `kioskId: null`
+    // would be rejected forever, so surface the real problem instead.
+    throw new SyncError(
+      "This kiosk is missing its server-assigned kiosk ID. Re-activate it with a fresh code.",
+      "missing_kiosk_id",
+      true,
+    );
+  }
 
   const sessions: PendingRecord[] = await query(`
-    SELECT id, source_session_id AS sourceSessionId, token,
+    SELECT id, COALESCE(NULLIF(source_session_id, ''), CAST(id AS TEXT)) AS sourceSessionId, token,
       patient_first_name AS patientFirstName, patient_last_name AS patientLastName,
       patient_phone AS patientPhone, patient_age AS patientAge,
       CASE
@@ -238,12 +304,15 @@ export async function syncPending(): Promise<{ exported: number }> {
         ELSE patient_gender
       END AS patientGender, strftime('%Y-%m-%dT%H:%M:%fZ', started_at) AS startedAt,
       CASE WHEN completed_at IS NOT NULL THEN strftime('%Y-%m-%dT%H:%M:%fZ', completed_at) ELSE NULL END AS completedAt
-    FROM sessions WHERE sync_status = 'pending' ORDER BY started_at ASC
+    FROM sessions
+    WHERE sync_status = 'pending'
+       OR id IN (SELECT session_id FROM vital_readings WHERE sync_status = 'pending')
+    ORDER BY started_at ASC
   `);
 
   const vitals: PendingRecord[] = await query(`
-    SELECT vr.id, vr.source_vital_id AS sourceVitalId,
-      s.source_session_id AS sourceSessionId,
+    SELECT vr.id, COALESCE(NULLIF(vr.source_vital_id, ''), CAST(vr.id AS TEXT)) AS sourceVitalId,
+      COALESCE(NULLIF(s.source_session_id, ''), CAST(s.id AS TEXT)) AS sourceSessionId,
       vr.blood_pressure_systolic AS bloodPressureSystolic,
       vr.blood_pressure_diastolic AS bloodPressureDiastolic,
       vr.blood_pressure_pulse AS bloodPressurePulse,
@@ -260,6 +329,14 @@ export async function syncPending(): Promise<{ exported: number }> {
     // Nothing to send; drop any stale in-flight batch marker.
     await run("DELETE FROM settings WHERE key = 'sync_payload_id'");
     return { exported: 0 };
+  }
+
+  const droppedFields = sanitizeSessions(sessions) + sanitizeVitals(vitals);
+  if (droppedFields > 0) {
+    // Count only — never log patient values.
+    void logSystem("WARNING", "Sync", "Omitted out-of-range values from sync payload", {
+      fields: droppedFields,
+    });
   }
 
   void logSystem("INFO", "Sync", "Preparing records for server sync", {

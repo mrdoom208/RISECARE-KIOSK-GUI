@@ -194,6 +194,7 @@ def _print_receipt(data):
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
         vitals = data.get("vitals", {})
         recommendation = data.get("recommendation", "")
+        survey_url = data.get("surveyUrl") or data.get("survey_url")
 
         p.set(align="center", width=2, height=2, font="b")
         p.text("RiseCare Health\n")
@@ -267,6 +268,23 @@ def _print_receipt(data):
             "This report is a screening summary, not a diagnosis. General adult screening thresholds are shown for all ages; pediatric readings need age-specific clinical interpretation. The SpO2 value is an unvalidated screening estimate. Confirm concerning readings with a qualified healthcare professional."
         ))
         p.text("-" * 32 + "\n")
+
+        if survey_url:
+            p.set(align="center", width=1, height=1, font="b")
+            p.text("SURVEY\n")
+            p.set(align="center", width=1, height=1, font="a")
+            p.text("Scan the QR code below\nto answer a short survey.\n")
+            try:
+                p.qr(survey_url, size=6)
+                p.text("\n")
+            except Exception as qr_error:
+                # Some ESC/POS clones lack the native QR command. Fall back to
+                # printing the link so the survey is still reachable.
+                print(f"⚠️ QR code could not be printed: {qr_error}")
+                p.set(align="left", width=1, height=1, font="a")
+                p.text(_receipt_text(f"Survey link: {survey_url}"))
+            p.text("-" * 32 + "\n")
+
         p.set(align="center", width=1, height=1, font="a")
         p.text("Thank you for using RiseCare!\n")
         p.text(f"{date_str}\n")

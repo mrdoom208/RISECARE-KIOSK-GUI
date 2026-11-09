@@ -1,11 +1,34 @@
 import { Router, type IRouter } from "express";
+import crypto from "crypto";
 import { query, run } from "@workspace/db";
 import { logger } from "../logger";
 import { publish, subscribe, isConnected, onMQTTConnected } from "../mqtt";
 import { logSystem } from "../system-log";
+import { getTransactionTags } from "../device";
 const SENSOR_SETTING_IDS = ["bp", "heartrate", "spo2", "height", "weight", "temperature", "printer"] as const;
 
 const SENSOR_DEBUG = process.env.SENSOR_DEBUG === "1";
+
+// The portal validates readings against sane clinical bounds. A sensor glitch
+// that publishes 0 (or an absurd value) must never be stored and then block
+// the whole sync queue, so only store values inside these ranges.
+const VITAL_RANGES: Record<string, [number, number]> = {
+  blood_pressure_systolic: [20, 300],
+  blood_pressure_diastolic: [10, 200],
+  blood_pressure_pulse: [10, 300],
+  heart_rate: [10, 300],
+  oxygen_saturation: [0, 100],
+  temperature: [28, 45],
+  weight: [1, 500],
+  height: [20, 250],
+};
+
+function inRange(value: unknown, column: string): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  const range = VITAL_RANGES[column];
+  if (!range || !Number.isFinite(numeric)) return null;
+  return numeric >= range[0] && numeric <= range[1] ? numeric : null;
+}
 
 // Routine per-reading output is useful while developing the hardware bridge,
 // but on a kiosk it prints continuously and can contain patient measurements.
@@ -167,20 +190,36 @@ router.put("/sensors/settings", async (req, res) => {
 });
 
 async function saveSensorValue(sessionId: number, column: string, value: number) {
+  const safeValue = inRange(value, column);
+  if (safeValue === null) {
+    logger.warn("Sensor", "Ignored out-of-range sensor reading", { column });
+    return;
+  }
+
   const existing = await query(
     `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
     [sessionId]
   );
 
+  const tags = await getTransactionTags();
   if (existing[0]) {
+    // Touch sync_status so a reading edited after an earlier sync is exported
+    // again, and backfill a stable source id if this row predates the sync
+    // columns.
     await run(
-      `UPDATE vital_readings SET ${column} = ?, recorded_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [value, existing[0].id]
+      `UPDATE vital_readings SET ${column} = ?,
+         source_vital_id = COALESCE(NULLIF(source_vital_id, ''), ?),
+         device_uid = ?, kiosk_id = ?,
+         sync_status = 'pending', payload_id = NULL,
+         recorded_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [safeValue, crypto.randomUUID(), tags.deviceUid, tags.kioskId, existing[0].id]
     );
   } else {
     await run(
-      `INSERT INTO vital_readings (session_id, ${column}) VALUES (?, ?)`,
-      [sessionId, value]
+      `INSERT INTO vital_readings (session_id, ${column}, source_vital_id, device_uid, kiosk_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [sessionId, safeValue, crypto.randomUUID(), tags.deviceUid, tags.kioskId]
     );
   }
 }
@@ -238,26 +277,33 @@ let testAllState: {
 // Subscribe to sensor data from Python
 subscribe("risecare/sensors/bp", async (data) => {
   latestReadings["bp"] = { ...data, _receivedAt: Date.now() };
-  const systolic = Number(data.systolic);
-  const diastolic = Number(data.diastolic);
-  const pulseRate = Number(data.pulseRate);
+  const systolic = inRange(data.systolic, "blood_pressure_systolic");
+  const diastolic = inRange(data.diastolic, "blood_pressure_diastolic");
+  const pulseRate = inRange(data.pulseRate, "blood_pressure_pulse");
   if (data.status === "success" && data.sessionId &&
-      Number.isFinite(systolic) && Number.isFinite(diastolic) &&
-      systolic > diastolic && systolic <= 300 && diastolic >= 0 &&
-      Number.isFinite(pulseRate) && pulseRate > 0 && pulseRate <= 300) {
+      systolic !== null && diastolic !== null && pulseRate !== null &&
+      systolic > diastolic) {
     const existing = await query(
       `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
       [data.sessionId]
     );
+    const tags = await getTransactionTags();
     if (existing[0]) {
       await run(
-        `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, blood_pressure_pulse = ?, recorded_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [systolic, diastolic, pulseRate, existing[0].id]
+        `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, blood_pressure_pulse = ?,
+           source_vital_id = COALESCE(NULLIF(source_vital_id, ''), ?),
+           device_uid = ?, kiosk_id = ?,
+           sync_status = 'pending', payload_id = NULL,
+           recorded_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [systolic, diastolic, pulseRate, crypto.randomUUID(), tags.deviceUid, tags.kioskId, existing[0].id]
       );
     } else {
       await run(
-        `INSERT INTO vital_readings (session_id, blood_pressure_systolic, blood_pressure_diastolic, blood_pressure_pulse) VALUES (?, ?, ?, ?)`,
-        [data.sessionId, systolic, diastolic, pulseRate]
+        `INSERT INTO vital_readings (session_id, blood_pressure_systolic, blood_pressure_diastolic, blood_pressure_pulse,
+           source_vital_id, device_uid, kiosk_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [data.sessionId, systolic, diastolic, pulseRate, crypto.randomUUID(), tags.deviceUid, tags.kioskId]
       );
     }
     sensorDebug("💾 BP saved from sensor:", data);
@@ -273,13 +319,15 @@ subscribe("risecare/sensors/vitals", async (data) => {
     // Only a reading the driver marked as valid may be stored.
     const hrValid = data.hrValid ?? data.bpm != null;
     const spo2Valid = data.spo2Valid ?? data.spo2 != null;
+    const bpm = inRange(data.bpm, "heart_rate");
+    const spo2 = inRange(data.spo2, "oxygen_saturation");
 
-    if (hrValid && data.bpm != null) {
-      await saveSensorValue(data.sessionId, "heart_rate", data.bpm);
+    if (hrValid && bpm !== null) {
+      await saveSensorValue(data.sessionId, "heart_rate", bpm);
       sensorDebug("💾 Heart rate saved from combined:", data);
     }
-    if (spo2Valid && data.spo2 != null) {
-      await saveSensorValue(data.sessionId, "oxygen_saturation", data.spo2);
+    if (spo2Valid && spo2 !== null) {
+      await saveSensorValue(data.sessionId, "oxygen_saturation", spo2);
       sensorDebug("💾 SpO2 saved from combined:", data);
     }
   }
@@ -287,24 +335,27 @@ subscribe("risecare/sensors/vitals", async (data) => {
 
 subscribe("risecare/sensors/temperature", async (data) => {
   latestReadings["temperature"] = { ...data, _receivedAt: Date.now() };
-  if (data.sessionId && data.celsius != null) {
-    await saveSensorValue(data.sessionId, "temperature", data.celsius);
+  const celsius = inRange(data.celsius, "temperature");
+  if (data.sessionId && celsius !== null) {
+    await saveSensorValue(data.sessionId, "temperature", celsius);
     sensorDebug("💾 Temperature saved from sensor:", data);
   }
 });
 
 subscribe("risecare/sensors/weight", async (data) => {
   latestReadings["weight"] = { ...data, _receivedAt: Date.now() };
-  if (data.sessionId && data.kg != null) {
-    await saveSensorValue(data.sessionId, "weight", data.kg);
+  const kg = inRange(data.kg, "weight");
+  if (data.sessionId && kg !== null) {
+    await saveSensorValue(data.sessionId, "weight", kg);
     sensorDebug("💾 Weight saved from sensor:", data);
   }
 });
 
 subscribe("risecare/sensors/height", async (data) => {
   latestReadings["height"] = { ...data, _receivedAt: Date.now() };
-  if (data.sessionId && data.cm != null) {
-    await saveSensorValue(data.sessionId, "height", data.cm);
+  const cm = inRange(data.cm, "height");
+  if (data.sessionId && cm !== null) {
+    await saveSensorValue(data.sessionId, "height", cm);
     sensorDebug("💾 Height saved from sensor:", data);
   }
 });
@@ -500,6 +551,7 @@ router.post("/sensors/trigger", async (req, res) => {
 router.get("/sensors/status", async (_req, res) => {
   res.json({
     connected: isConnected(),
+    mqttDisabled: process.env.NO_MQTT === "1",
     broker: process.env.MQTT_BROKER || "mqtt://localhost:1883",
     sensors: sensorAvailability,
     sensorsUpdatedAt: sensorAvailabilityAt || null,

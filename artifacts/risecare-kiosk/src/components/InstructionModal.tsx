@@ -27,40 +27,14 @@ export default function InstructionModal({
       panelClassName="bg-white shadow-lg p-4 sm:p-6 lg:p-8 w-full h-full max-w-none max-h-none overflow-hidden flex flex-col"
     >
             <h2 className="text-xl sm:text-2xl font-bold mb-4">{sensorGuide?.name}</h2>
-            <div className="flex flex-1 min-h-0 flex-col-reverse lg:flex-row gap-4 items-stretch mb-5">
-              <div className="flex-1 min-h-0 overflow-y-auto border border-border rounded-lg p-4 sm:p-6">
-                {sensorGuide?.instruction && (
-                  <div>
-                    <h1 className="text-[clamp(1.25rem,2.5vw,2rem)] font-semibold mb-2">
-                      How to use
-                    </h1>
-                    <div
-                      className="text-[clamp(1rem,2vw,1.5rem)] leading-relaxed text-muted-foreground mb-4 wrap-text"
-                      dangerouslySetInnerHTML={{ __html: sensorGuide.instruction }}
-                    />
-                  </div>
-                )}
-
-                {sensorGuide?.avoid && (
-                  <div>
-                    <h1 className="text-[clamp(1.25rem,2.5vw,2rem)] font-semibold mb-2 text-red-600">
-                      Things to avoid
-                    </h1>
-                    <div
-                      className="text-[clamp(1rem,2vw,1.5rem)] leading-relaxed text-red-600 mb-6 wrap-text"
-                      dangerouslySetInnerHTML={{ __html: sensorGuide.avoid }}
-                    />
-                  </div>
-                )}
-              </div>
-
+            <div className="flex flex-1 min-h-0 items-stretch mb-5">
               {sensorGuide?.image && (
                 <img
                   src={sensorGuide.image}
                   alt={sensorGuide.name}
                   draggable={false}
                   onDragStart={(event) => event.preventDefault()}
-                  className="w-full lg:w-3/5 lg:flex-[1.5] h-[38vh] lg:h-full min-h-0 max-h-none object-contain bg-white rounded-md border select-none [-webkit-user-drag:none]"
+                  className="w-full h-full flex-1 min-h-0 max-h-none object-contain select-none [-webkit-user-drag:none]"
                 />
               )}
             </div>

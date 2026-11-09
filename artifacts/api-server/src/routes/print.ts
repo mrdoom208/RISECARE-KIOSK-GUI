@@ -1,10 +1,21 @@
 import { Router, type IRouter } from "express";
 import { query } from "@workspace/db";
+import { getPortalBaseUrl, getTransactionTags } from "../device";
 import { logger } from "../logger";
 import { publish } from "../mqtt";
 import { logSystem } from "../system-log";
 
 const router: IRouter = Router();
+
+// Builds the patient survey link printed as a QR code on the receipt:
+//   {RISECARE_PORTAL_URL}/survey?kioskId={kioskId}
+// Returns null when this device has not been activated yet (no kioskId).
+async function buildSurveyUrl(): Promise<string | null> {
+  const { kioskId } = await getTransactionTags();
+  if (!kioskId) return null;
+  const baseUrl = (await getPortalBaseUrl()).replace(/\/+$/, "");
+  return `${baseUrl}/survey?kioskId=${encodeURIComponent(kioskId)}`;
+}
 
 router.post("/print/test", async (_req, res) => {
   const sent = publish("risecare/command/printer", {
@@ -64,6 +75,8 @@ router.post("/print/receipt", async (req, res) => {
       [sessionId]
     );
 
+    const surveyUrl = await buildSurveyUrl();
+
     const payload = {
       sessionId: session.id,
       token: session.token,
@@ -75,6 +88,7 @@ router.post("/print/receipt", async (req, res) => {
       patientGender: session.patientGender,
       vitals: vitals[0] || {},
       recommendation: req.body.recommendation || "",
+      surveyUrl,
       timestamp: new Date().toISOString(),
     };
 

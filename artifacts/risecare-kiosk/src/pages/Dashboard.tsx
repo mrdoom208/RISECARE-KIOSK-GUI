@@ -214,7 +214,14 @@ export default function Dashboard() {
   const max30102Available = sensorStatus?.sensors?.max30102;
   const availabilityStale = sensorStatus?.sensorsStale === true;
 
+  // Development only: allow opening the sensor instruction modal even when
+  // MQTT (and therefore sensor availability) is unavailable. This never adds
+  // manual/keypad input; it only lets the instructions be previewed.
+  const instructionPreview =
+    import.meta.env.DEV || sensorStatus?.mqttDisabled === true;
+
   const isVitalDisabled = (vital: VitalType) => {
+    if (instructionPreview) return !isVitalEnabled(vital);
     const usesMax30102 = vital === "hr" || vital === "spo2";
     const availabilityId = usesMax30102 ? "max30102" : vitalToSensorId[vital];
     const sensorMissing = availabilityStale || sensorStatus?.sensors?.[availabilityId] === false;
@@ -222,8 +229,9 @@ export default function Dashboard() {
   };
 
   const getVitalDisabledLabel = (vital: VitalType) => {
-    if (!mqttConnected) return "Not detected";
+    if (!mqttConnected && !instructionPreview) return "Not detected";
     if (!isVitalEnabled(vital)) return "Disabled";
+    if (instructionPreview) return "Disabled";
     const availabilityId = vital === "hr" || vital === "spo2" ? "max30102" : vitalToSensorId[vital];
     if (availabilityStale || sensorStatus?.sensors?.[availabilityId] === false) return "Not detected";
     return "Disabled";
