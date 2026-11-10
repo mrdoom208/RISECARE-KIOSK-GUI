@@ -228,6 +228,7 @@ const SYNC_GENDERS = new Set(["Male", "Female", "Other", "Unknown"]);
 const SYNC_VITAL_RANGES: Record<string, [number, number]> = {
   bloodPressureSystolic: [20, 300],
   bloodPressureDiastolic: [10, 200],
+  bloodPressurePulse: [10, 300],
   heartRate: [10, 300],
   oxygenSaturation: [0, 100],
   temperature: [28, 45],

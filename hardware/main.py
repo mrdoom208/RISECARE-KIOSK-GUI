@@ -403,6 +403,11 @@ def handle_command(sensor, session_id, value, payload):
             if "bpRatios" in payload:
                 ratios = settings_store.save_bp_ratios(payload.get("bpRatios"))
                 print(f"BP SYS/DIA ratios saved: {ratios['systolic']:.2f}/{ratios['diastolic']:.2f}")
+            if "temperatureOffset" in payload:
+                offset = settings_store.save_temperature_offset(payload.get("temperatureOffset"))
+                if temp_device is not None:
+                    temp_device.set_temperature_offset(offset)
+                print(f"Temperature offset saved: {offset:+.2f} C")
             print("Sensor preferences saved to settings.json")
         except Exception as exc:
             print(f"Failed to save sensor preferences: {exc}")

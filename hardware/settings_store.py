@@ -7,6 +7,11 @@ import threading
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 SENSOR_IDS = {"bp", "heartrate", "spo2", "height", "weight", "temperature", "printer"}
 BP_RATIO_DEFAULTS = {"systolic": 0.45, "diastolic": 0.85}
+# Fixed offset added to the MLX90614 object temperature to estimate body
+# temperature. Adjustable from the kiosk sensor settings.
+TEMPERATURE_OFFSET_DEFAULT = 3.4
+TEMPERATURE_OFFSET_MIN = -20.0
+TEMPERATURE_OFFSET_MAX = 20.0
 _lock = threading.RLock()
 
 
@@ -108,3 +113,33 @@ def save_bp_ratios(value):
         raise ValueError("Invalid SYS/DIA ratios")
     update_section("bp_ratios", ratios)
     return ratios
+
+
+def normalize_temperature_offset(value):
+    """Validate the fixed offset added to the MLX90614 temperature reading."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return TEMPERATURE_OFFSET_DEFAULT
+    offset = float(value)
+    if not (TEMPERATURE_OFFSET_MIN <= offset <= TEMPERATURE_OFFSET_MAX):
+        return TEMPERATURE_OFFSET_DEFAULT
+    return round(offset, 2)
+
+
+def load_temperature_offset():
+    try:
+        return normalize_temperature_offset(
+            load_settings().get("temperature_offset", TEMPERATURE_OFFSET_DEFAULT)
+        )
+    except (OSError, ValueError, TypeError):
+        return TEMPERATURE_OFFSET_DEFAULT
+
+
+def save_temperature_offset(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("Invalid temperature offset")
+    offset = float(value)
+    if not (TEMPERATURE_OFFSET_MIN <= offset <= TEMPERATURE_OFFSET_MAX):
+        raise ValueError("Invalid temperature offset")
+    offset = round(offset, 2)
+    update_section("temperature_offset", offset)
+    return offset

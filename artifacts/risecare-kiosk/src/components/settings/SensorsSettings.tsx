@@ -47,6 +47,8 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [bpAdvancedOpen, setBpAdvancedOpen] = useState(false);
   const [bpRatios, setBpRatios] = useState({ systolic: 0.45, diastolic: 0.85 });
+  const [tempAdvancedOpen, setTempAdvancedOpen] = useState(false);
+  const [temperatureOffset, setTemperatureOffset] = useState(3.4);
   const testTimestamps = useRef<Record<string, number>>({});
   const calTimestamps = useRef<Record<string, number>>({});
   const feedbackTimers = useRef<Record<string, NodeJS.Timeout>>({});
@@ -74,6 +76,21 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     if (savedBpRatios) setBpRatios(savedBpRatios);
   }, [savedBpRatios]);
 
+  const { data: savedTemperatureOffset } = useQuery({
+    queryKey: ["temperature-offset"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/temperature-offset");
+      if (!res.ok) throw new Error("Failed to load temperature offset");
+      const data = await res.json();
+      return data.temperatureOffset as number;
+    },
+    enabled: isOpen,
+  });
+
+  useEffect(() => {
+    if (typeof savedTemperatureOffset === "number") setTemperatureOffset(savedTemperatureOffset);
+  }, [savedTemperatureOffset]);
+
   const saveBpRatiosMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/sensors/bp-ratios", {
@@ -90,6 +107,30 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
         title: "BP ratios saved",
         description: data.hardwareSynced
           ? "New ratios will be used for the next measurement."
+          : "Saved on the kiosk and will sync to the sensor device when it reconnects.",
+      });
+    },
+    onError: (error) => {
+      toast({ title: "Settings not saved", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const saveTemperatureOffsetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/sensors/temperature-offset", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ temperatureOffset }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save temperature offset");
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Temperature offset saved",
+        description: data.hardwareSynced
+          ? "New offset will be used for the next measurement."
           : "Saved on the kiosk and will sync to the sensor device when it reconnects.",
       });
     },
@@ -742,6 +783,59 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                             >
                               {saveBpRatiosMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
                               Save BP ratios
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {sensor.id === "temperature" && (
+                      <div className="rounded-xl border border-border/50 bg-background/40 p-4">
+                        <button
+                          type="button"
+                          onClick={() => setTempAdvancedOpen((value) => !value)}
+                          className="flex w-full items-center justify-between gap-3 text-left"
+                          aria-expanded={tempAdvancedOpen}
+                        >
+                          <span className="text-base font-semibold">Advanced calibration</span>
+                          <ChevronDown className={`h-5 w-5 transition-transform ${tempAdvancedOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {tempAdvancedOpen && (
+                          <div className="mt-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                              Fixed value added to the infrared skin temperature reading. Adjust only against a trusted reference thermometer.
+                            </p>
+                            <label className="block space-y-1.5">
+                              <span className="text-sm font-medium">Temperature offset (°C)</span>
+                              <input
+                                type="number"
+                                min="-20"
+                                max="20"
+                                step="0.1"
+                                value={temperatureOffset}
+                                onChange={(event) => setTemperatureOffset(Number(event.target.value))}
+                                className="h-12 w-full rounded-lg border border-input bg-background px-3 text-base"
+                              />
+                            </label>
+                            {(!Number.isFinite(temperatureOffset) ||
+                              temperatureOffset < -20 ||
+                              temperatureOffset > 20) && (
+                              <p className="text-sm text-destructive">Offset must be between -20 and 20 °C.</p>
+                            )}
+                            <Button
+                              onClick={() => saveTemperatureOffsetMutation.mutate()}
+                              disabled={
+                                saveTemperatureOffsetMutation.isPending ||
+                                !Number.isFinite(temperatureOffset) ||
+                                temperatureOffset < -20 ||
+                                temperatureOffset > 20
+                              }
+                              variant="outline"
+                              size="lg"
+                              className="h-12 w-full text-base"
+                            >
+                              {saveTemperatureOffsetMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+                              Save temperature offset
                             </Button>
                           </div>
                         )}

@@ -2,6 +2,11 @@ import time
 import traceback
 
 try:
+    from . import settings_store
+except ImportError:
+    import settings_store
+
+try:
     from smbus2 import SMBus
     smbus_available = True
 except ImportError:
@@ -23,6 +28,12 @@ class MLX90614:
         self._owns_bus = i2c_bus is None
         self._shared_bus = i2c_bus
         self._bus_number = bus
+        # Fixed value added to the object temperature. Loaded from the shared
+        # settings so it survives restarts and matches the kiosk UI.
+        try:
+            self.temperature_offset = settings_store.load_temperature_offset()
+        except Exception:
+            self.temperature_offset = settings_store.TEMPERATURE_OFFSET_DEFAULT
 
         if not smbus_available:
             print("❌ smbus2 not available")
@@ -103,6 +114,11 @@ class MLX90614:
             return None
         return round(raw * 0.02 - 273.15, 2)
 
+    def set_temperature_offset(self, offset):
+        """Update the fixed offset used by get_temperature()."""
+        self.temperature_offset = settings_store.normalize_temperature_offset(offset)
+        return self.temperature_offset
+
     def get_temperature(self):
         try:
             skin_temp = self.read_object()
@@ -111,7 +127,7 @@ class MLX90614:
             room_temp = self.read_ambient()
             if room_temp is None:
                 return skin_temp
-            estimated = skin_temp + 3.4 #(0.15 * (37.0 - room_temp)) + (0.05 * (37.0 - skin_temp))"
+            estimated = skin_temp + self.temperature_offset
             return round(estimated, 2)
         except Exception:
             return None
