@@ -24,6 +24,8 @@ interface CommitInfo {
 
 interface UpdateCheckResult {
   hasUpdate: boolean;
+  diverged?: boolean;
+  localAhead?: boolean;
   localHash: string;
   remoteHash: string;
   local: CommitInfo | null;
@@ -307,6 +309,26 @@ export function UpdateSettingsDialog({
                   </p>
                 </div>
               </div>
+            ) : checkResult?.diverged ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <p className="font-semibold">Update needs attention</p>
+                  <p className="text-sm">
+                    The installed version and origin/main have different commits. Resolve the branch state before updating.
+                  </p>
+                </div>
+              </div>
+            ) : checkResult?.localAhead ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <p className="font-semibold">Installed version is ahead</p>
+                  <p className="text-sm">
+                    The kiosk has local commits that are not on origin/main. No update was applied.
+                  </p>
+                </div>
+              </div>
             ) : checkResult ? (
               <div className="flex items-start gap-3 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-green-700">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
@@ -359,7 +381,7 @@ export function UpdateSettingsDialog({
             <div>
               <p className="font-semibold">Update installed</p>
               <p className="text-sm">
-                Restart the system for the update to take effect.
+                The update is installed and waiting. When ready, an admin can restart the kiosk from Power Settings to activate it.
               </p>
             </div>
           </div>
@@ -406,7 +428,7 @@ export function UpdateSettingsDialog({
       <ReauthPrompt
         open={showReauth}
         title="Apply Update"
-        description="Re-enter your password to pull updates from the main branch. You will need to restart the system afterward for the changes to take effect."
+        description="Re-enter your password to install updates from the main branch. The kiosk will keep running; an admin can restart it later from Power Settings to activate the update."
         confirmLabel="Install Update"
         onClose={() => setShowReauth(false)}
         onConfirmed={handleConfirmed}

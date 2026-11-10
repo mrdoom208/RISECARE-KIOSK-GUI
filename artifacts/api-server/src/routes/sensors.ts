@@ -6,6 +6,30 @@ import { publish, subscribe, isConnected, onMQTTConnected } from "../mqtt";
 import { logSystem } from "../system-log";
 import { getTransactionTags } from "../device";
 const SENSOR_SETTING_IDS = ["bp", "heartrate", "spo2", "height", "weight", "temperature", "printer"] as const;
+const BP_RATIO_DEFAULTS = { systolic: 0.45, diastolic: 0.85 };
+
+function normalizeBpRatios(value: unknown): { systolic: number; diastolic: number } | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const ratios = value as Record<string, unknown>;
+  const systolic = ratios.systolic;
+  const diastolic = ratios.diastolic;
+  if (typeof systolic !== "number" || typeof diastolic !== "number"
+      || !Number.isFinite(systolic) || !Number.isFinite(diastolic)
+      || systolic < 0.2 || systolic > 0.7
+      || diastolic < 0.6 || diastolic > 1.0
+      || systolic >= diastolic) return null;
+  return { systolic, diastolic };
+}
+
+async function getSavedBpRatios() {
+  const rows = await query("SELECT value FROM settings WHERE key = 'bp_ratios'");
+  if (!rows?.[0]?.value) return BP_RATIO_DEFAULTS;
+  try {
+    return normalizeBpRatios(JSON.parse(rows[0].value)) ?? BP_RATIO_DEFAULTS;
+  } catch {
+    return BP_RATIO_DEFAULTS;
+  }
+}
 
 const SENSOR_DEBUG = process.env.SENSOR_DEBUG === "1";
 
@@ -126,11 +150,22 @@ const router: IRouter = Router();
 
 onMQTTConnected(async () => {
   try {
-    const rows = await query("SELECT value FROM settings WHERE key = 'enabled_sensors'");
-    if (!rows?.[0]?.value) return;
+    const rows = await query("SELECT key, value FROM settings WHERE key IN ('enabled_sensors', 'bp_ratios')");
+    const saved = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+    let enabledSensors = {};
+    let bpRatios = BP_RATIO_DEFAULTS;
+    try {
+      enabledSensors = saved.enabled_sensors ? JSON.parse(saved.enabled_sensors) : {};
+    } catch { /* Send defaults if the stored preference is malformed. */ }
+    try {
+      bpRatios = saved.bp_ratios
+        ? normalizeBpRatios(JSON.parse(saved.bp_ratios)) ?? BP_RATIO_DEFAULTS
+        : BP_RATIO_DEFAULTS;
+    } catch { /* Send defaults if the stored ratio is malformed. */ }
     publish("risecare/command/settings", {
       sensor: "settings",
-      enabledSensors: JSON.parse(rows[0].value),
+      enabledSensors,
+      bpRatios,
     }, { retain: true });
   } catch (error) {
     logger.error(
@@ -169,9 +204,11 @@ router.put("/sensors/settings", async (req, res) => {
       SENSOR_SETTING_IDS.map((id) => [id, enabledSensors[id]]),
     );
     await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('enabled_sensors', ?)", [JSON.stringify(normalized)]);
+    const bpRatios = await getSavedBpRatios();
     const hardwareSynced = publish("risecare/command/settings", {
       sensor: "settings",
       enabledSensors: normalized,
+      bpRatios,
     }, { retain: true });
     void logSystem("INFO", "Sensor", "Sensor settings updated", {
       hardwareSynced,
@@ -186,6 +223,42 @@ router.put("/sensors/settings", async (req, res) => {
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).json({ error: "Failed to save sensor settings" });
+  }
+});
+
+router.get("/sensors/bp-ratios", async (_req, res) => {
+  try {
+    res.json({ bpRatios: await getSavedBpRatios() });
+  } catch {
+    res.status(500).json({ error: "Failed to read blood pressure ratios" });
+  }
+});
+
+router.put("/sensors/bp-ratios", async (req, res) => {
+  const bpRatios = normalizeBpRatios(req.body?.bpRatios);
+  if (!bpRatios) {
+    res.status(400).json({
+      error: "SYS ratio must be 0.20–0.70, DIA ratio must be 0.60–1.00, and SYS must be lower than DIA",
+    });
+    return;
+  }
+  try {
+    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('bp_ratios', ?)", [JSON.stringify(bpRatios)]);
+    const enabledRows = await query("SELECT value FROM settings WHERE key = 'enabled_sensors'");
+    let enabledSensors = {};
+    try {
+      enabledSensors = enabledRows?.[0]?.value ? JSON.parse(enabledRows[0].value) : {};
+    } catch { /* Continue with defaults for enabled sensors. */ }
+    const hardwareSynced = publish("risecare/command/settings", {
+      sensor: "settings",
+      enabledSensors,
+      bpRatios,
+    }, { retain: true });
+    void logSystem("INFO", "Sensor", "Blood pressure ratios updated", { ...bpRatios, hardwareSynced });
+    res.json({ success: true, bpRatios, hardwareSynced });
+  } catch (error) {
+    logger.error("Sensor", "Could not save blood pressure ratios", error);
+    res.status(500).json({ error: "Failed to save blood pressure ratios" });
   }
 });
 

@@ -316,26 +316,12 @@ export default function Dashboard() {
   const bpStage = String(bpReading?.stage ?? "");
   const cuffPulseRate = Number(bpReading?.pulseRate);
   const bpCurrentPressure = Number(bpReading?.displayPressure ?? bpReading?.pressure);
-  const bpIsInflating = bpReading?.status === "running" && bpStage === "inflating";
+  const bpIsRunning = readingVital === "bp" && bpReading?.status === "running";
   const hasBpCurrentPressure = Number.isFinite(bpCurrentPressure) && bpCurrentPressure > 0;
   const bpComplete = readingVital === "bp" && bpReading?.status === "success" &&
     Number.isFinite(Number(bpReading.systolic)) && Number.isFinite(Number(bpReading.diastolic)) &&
     Number.isFinite(cuffPulseRate) && cuffPulseRate > 0 && cuffPulseRate <= 300;
   const bpOverallProgress = Math.max(0, Math.min(100, Number(bpReading?.progress) || 0));
-  const reportedInflationProgress = Number(bpReading?.inflationProgress);
-  const reportedDeflationProgress = Number(bpReading?.deflationProgress);
-  const inflationProgress = Number.isFinite(reportedInflationProgress)
-    ? Math.max(0, Math.min(100, reportedInflationProgress))
-    : bpStage === "inflating"
-      ? Math.max(0, Math.min(100, ((bpOverallProgress - 5) / 40) * 100))
-      : bpStage === "settling" || bpStage === "deflating"
-        ? 100
-        : 0;
-  const deflationProgress = Number.isFinite(reportedDeflationProgress)
-    ? Math.max(0, Math.min(100, reportedDeflationProgress))
-    : bpStage === "deflating"
-      ? Math.max(0, Math.min(100, ((bpOverallProgress - 45) / 50) * 100))
-      : 0;
   const bpStageLabel =
     bpStage === "starting"
       ? "Preparing cuff..."
@@ -1043,44 +1029,26 @@ const handleCancelReading = async () => {
                 {display.title}
               </h2>
 
-              {readingVital === "bp" && bpReading?.status === "running" && (
+              {bpIsRunning && (
                 <div className="mb-6 space-y-4" aria-live="polite">
-                  <p className="text-center text-sm font-medium text-foreground">
-                    {bpStageLabel}
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className={bpStage === "inflating" ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                        Inflating cuff
-                      </span>
-                      <span className={bpStage === "inflating" ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                        {Math.round(inflationProgress)}%
-                      </span>
-                    </div>
-                    <Progress value={inflationProgress} aria-label="Cuff inflation progress" />
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center">
+                    <p className="font-semibold text-amber-800">Experimental measurement</p>
+                    <p className="mt-1 text-sm text-amber-800/90">Not for diagnosis or treatment decisions.</p>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className={bpStage === "deflating" ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                        Releasing pressure
-                      </span>
-                      <span className={bpStage === "deflating" ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                        {Math.round(deflationProgress)}%
-                      </span>
+                  <div className="rounded-2xl border border-border/60 bg-secondary/40 p-4">
+                    <p className="text-center text-base font-semibold text-foreground">{bpStageLabel}</p>
+                    <div className="mt-3 flex justify-between text-sm text-muted-foreground">
+                      <span>Measurement progress</span>
+                      <span>{Math.round(bpOverallProgress)}%</span>
                     </div>
-                    <Progress value={deflationProgress} aria-label="Cuff deflation progress" />
+                    <Progress value={bpOverallProgress} aria-label="Blood pressure measurement progress" className="mt-2" />
                   </div>
-                  {!bpIsInflating && Number.isFinite(Number(bpReading.displayPressure ?? bpReading.pressure)) && (
-                    <p className="text-center text-sm text-muted-foreground">
-                      Cuff pressure: {Number(bpReading.displayPressure ?? bpReading.pressure).toFixed(0)} mmHg
-                    </p>
-                  )}
                 </div>
               )}
 
               <div className="text-center mb-8">
-                  <div className={`font-bold font-display text-primary mb-2 ${display.hasValue || bpIsInflating ? "text-6xl" : "text-4xl"}`}>
-                    {bpIsInflating ? (
+                  <div className={`font-bold font-display text-primary mb-2 ${display.hasValue || bpIsRunning ? "text-6xl" : "text-4xl"}`}>
+                    {bpIsRunning ? (
                       hasBpCurrentPressure ? bpCurrentPressure.toFixed(0) : "—"
                     ) : display.hasValue || (readingVital === "bp" && (bpReading?.status === "failed" || bpReading?.status === "invalid")) ? (
                       display.value
@@ -1140,7 +1108,7 @@ const handleCancelReading = async () => {
                     Stop
                   </button>
                 )}
-                {!bpIsInflating && (
+                {!bpIsRunning && (
                   <button
                     onClick={() => {
                       if (isRateLimited("cancel-reading")) return;
@@ -1151,16 +1119,18 @@ const handleCancelReading = async () => {
                     Cancel
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    if (isRateLimited("done-reading")) return;
-                    handleDoneReading();
-                  }}
-                  disabled={!isStable}
-                  className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Done {!isStable && readingVital !== "bp" && `(${stableCount}/${requiredStableCount})`}
-                </button>
+                {!bpIsRunning && (
+                  <button
+                    onClick={() => {
+                      if (isRateLimited("done-reading")) return;
+                      handleDoneReading();
+                    }}
+                    disabled={!isStable}
+                    className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Done {!isStable && readingVital !== "bp" && `(${stableCount}/${requiredStableCount})`}
+                  </button>
+                )}
               </div>
 
               {readingVital === "hr" && !isStable && (

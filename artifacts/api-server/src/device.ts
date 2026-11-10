@@ -19,6 +19,13 @@ function syncDebug(message: string, details?: unknown): void {
 let lastSyncErrorSignature = "";
 let lastSyncErrorLoggedAt = 0;
 
+// Last time the portal confirmed the kiosk is present: either a successful
+// heartbeat or a successful record sync (which also refreshes presence).
+// Used so the heartbeat loop does not send a redundant ping right after a sync.
+let lastPresenceAt = 0;
+
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+
 function logSyncError(
   level: "ERROR" | "WARNING",
   message: string,
@@ -407,6 +414,9 @@ export async function syncPending(): Promise<{ exported: number }> {
     void logSystem("INFO", "Sync", "Records synced to server successfully", {
       records: total,
     });
+    // The portal treats a successful sync as presence, so no separate
+    // heartbeat is needed at this moment.
+    lastPresenceAt = Date.now();
     lastSyncErrorSignature = "";
     return { exported: total };
   }
@@ -443,6 +453,123 @@ export async function syncPending(): Promise<{ exported: number }> {
     records: total,
   });
   throw new SyncError(`Sync failed (HTTP ${status}). Will retry later.`, "http_error");
+}
+
+export interface HeartbeatResult {
+  kioskId: string | null;
+  receivedAt: string | null;
+  nextHeartbeatInSeconds: number | null;
+}
+
+// Presence ping. The portal records last_heartbeat_at and reports the kiosk as
+// online; if no heartbeat arrives for 5 minutes it is reported as offline.
+//   POST {portal}/api/v1/sync/kiosk/heartbeat
+//   header: X-RiseCare-Kiosk-Key: <per-kiosk-secret>
+//   body: { kioskId, deviceUid } (identity fields, used for validation)
+// A successful record sync also refreshes presence, so callers can skip this
+// when syncPending() has just succeeded.
+export async function sendHeartbeat(): Promise<HeartbeatResult> {
+  const device = await ensureDeviceIdentity();
+  if (!device.api_key) {
+    throw new SyncError("This kiosk is not activated yet", "not_activated", true);
+  }
+
+  const portalBase = await getPortalBaseUrl();
+  const heartbeatUrl = `${portalBase.replace(/\/$/, "")}/api/v1/sync/kiosk/heartbeat`;
+
+  const body: Record<string, string> = { deviceUid: device.device_uid };
+  // Only echo the kioskId when activation completed locally; sending a missing
+  // or stale ID would be rejected as a mismatch (422).
+  if (device.kiosk_id) body.kioskId = String(device.kiosk_id);
+
+  syncDebug("Sending heartbeat", { method: "POST", url: heartbeatUrl });
+
+  const { status, data } = await postJsonWithBackoff(
+    heartbeatUrl,
+    body,
+    {
+      "X-RiseCare-Kiosk-Key": device.api_key,
+    },
+    { attempts: 3, baseDelayMs: 2000, timeoutMs: 10000 },
+  );
+
+  if (status === 200) {
+    lastPresenceAt = Date.now();
+    syncDebug("Heartbeat acknowledged", { status });
+    return {
+      kioskId:
+        typeof data?.kioskId === "string" ? data.kioskId : device.kiosk_id || null,
+      receivedAt: typeof data?.receivedAt === "string" ? data.receivedAt : null,
+      nextHeartbeatInSeconds:
+        typeof data?.nextHeartbeatInSeconds === "number"
+          ? data.nextHeartbeatInSeconds
+          : null,
+    };
+  }
+
+  if (status === 401) {
+    logSyncError("ERROR", "Server rejected the kiosk API key during heartbeat", {
+      status,
+    });
+    throw new SyncError(
+      "The kiosk API key was rejected by the server. Re-activate this kiosk with a fresh code.",
+      "invalid_key",
+      true,
+    );
+  }
+  if (status === 422) {
+    logSyncError("ERROR", "Server rejected the heartbeat identity", { status });
+    throw new SyncError(
+      "The server rejected the heartbeat identity. Re-activate this kiosk with a fresh code.",
+      "invalid_identity",
+      true,
+    );
+  }
+  logSyncError("WARNING", "Heartbeat failed; kiosk may be reported offline", {
+    status,
+  });
+  throw new SyncError(`Heartbeat failed (HTTP ${status}).`, "http_error");
+}
+
+let heartbeatRunning = false;
+
+// Background presence loop: pings the portal every 5 minutes while the kiosk
+// is running and activated. Skipped when a recent sync or heartbeat already
+// refreshed presence. Failures are silent and retried on the next tick.
+export function startHeartbeatLoop(): void {
+  const configured = Number(
+    process.env.HEARTBEAT_INTERVAL_MS ?? DEFAULT_HEARTBEAT_INTERVAL_MS,
+  );
+  const intervalMs = Math.max(
+    60_000,
+    Number.isFinite(configured) ? configured : DEFAULT_HEARTBEAT_INTERVAL_MS,
+  );
+
+  const tick = async () => {
+    if (heartbeatRunning) return;
+    heartbeatRunning = true;
+    try {
+      const device = await getDeviceInfo();
+      if (!device.activated) return;
+      // A successful sync also refreshes presence, so don't ping redundantly.
+      if (lastPresenceAt && Date.now() - lastPresenceAt < intervalMs) return;
+      await sendHeartbeat();
+    } catch (error) {
+      // Expected SyncError failures are already logged (throttled). Unexpected
+      // failures are logged here so they are visible in Settings.
+      if (!(error instanceof SyncError)) {
+        logSyncError("WARNING", "Heartbeat failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      heartbeatRunning = false;
+    }
+  };
+
+  // Mark presence immediately on boot, then keep the 5-minute cadence.
+  void tick();
+  setInterval(tick, intervalMs);
 }
 
 let syncing = false;

@@ -18,13 +18,7 @@ export default function FindSession() {
   const findSessions = useFindSessions();
 
   const referenceTrimmed = reference.trim().toUpperCase();
-  const referenceValid = /^[A-Z0-9]{4,12}$/.test(referenceTrimmed);
-  const referenceError =
-    referenceTrimmed.length > 0 && !referenceValid
-      ? "Enter a valid reference using 4–12 letters or numbers"
-      : "";
-
-  const canSearch = referenceValid;
+  const canSearch = referenceTrimmed.length > 0;
 
   const errorMessage =
     findSessions.isError && !findSessions.isPending
@@ -95,12 +89,9 @@ export default function FindSession() {
                     type="text"
                     value={reference}
                     onChange={(e) => {
-                      const value = e.target.value
-                        .toUpperCase()
-                        .replace(/[^A-Z0-9]/g, "")
-                        .slice(0, 12);
+                      const value = e.target.value;
                       setReference(value);
-                      if (value !== referenceTrimmed) {
+                      if (value.trim().toUpperCase() !== referenceTrimmed) {
                         setSubmitted(false);
                         findSessions.reset();
                       }
@@ -109,13 +100,8 @@ export default function FindSession() {
                       if (e.key === "Enter") handleSearch();
                     }}
                     placeholder="e.g. AB12CD"
-                    className={`no-spinner w-full h-12 px-4 text-xl tracking-widest uppercase rounded-lg bg-background border-2 ${referenceError ? "border-destructive" : "border-border"} focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground placeholder:normal-case placeholder:tracking-normal`}
+                    className={`no-spinner w-full h-12 px-4 text-xl tracking-widest uppercase rounded-lg bg-background border-2 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-muted-foreground placeholder:normal-case placeholder:tracking-normal`}
                   />
-                  {referenceError && (
-                    <p className="text-destructive text-sm mt-1">
-                      {referenceError}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>

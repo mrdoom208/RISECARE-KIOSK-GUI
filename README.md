@@ -172,6 +172,7 @@ SENSOR_DEBUG=0
 | `API_SILENT` | unset | Set to `1` to suppress `console.log`; warnings/errors still print |
 | `SYNC_DEBUG` | unset | Set to `1` to dump outbound sync payloads |
 | `SYNC_INTERVAL_MS` | `30000` | Background offline-sync interval |
+| `HEARTBEAT_INTERVAL_MS` | `300000` | Presence heartbeat interval (5 minutes); the portal marks the kiosk offline if none arrives within that window |
 
 > Debug flags can expose measurement data in the console. Leave them off on a
 > production kiosk and enable them only while troubleshooting.
@@ -454,6 +455,15 @@ Results**) or the kiosk idles out while that session is open. Sessions still in
 progress stay local, so a patient's record is never partially synced while
 measurements are being taken. Completed records are sent by the background loop
 every `SYNC_INTERVAL_MS` or on a manual export.
+
+### Presence heartbeat
+
+While activated, the kiosk calls
+`POST {portal}/api/v1/sync/kiosk/heartbeat` every 5 minutes
+(`HEARTBEAT_INTERVAL_MS`) with the `X-RiseCare-Kiosk-Key` header so the portal
+can report it as online. A successful record sync also refreshes presence, so
+the heartbeat is skipped when a sync has just succeeded. If no heartbeat or
+sync reaches the portal for 5 minutes, the kiosk is reported as offline.
 
 While the MQTT broker is unreachable, the API retries indefinitely but logs
 failures at most once every 10 minutes; recovery is logged once. Per-retry

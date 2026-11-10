@@ -276,7 +276,6 @@ def _print_receipt(data):
             p.text("Scan the QR code below\nto answer a short survey.\n")
             try:
                 p.qr(survey_url, size=6)
-                p.text("\n")
             except Exception as qr_error:
                 # Some ESC/POS clones lack the native QR command. Fall back to
                 # printing the link so the survey is still reachable.

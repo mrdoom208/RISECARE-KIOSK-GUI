@@ -26,6 +26,7 @@ import sys
 import time
 
 import RPi.GPIO as GPIO
+import settings_store
 
 
 # BCM pins
@@ -494,9 +495,11 @@ class InflationTracker:
 class OscillometricAnalyzer:
     """Port of the Arduino oscillometric envelope and BP estimation code."""
 
-    def __init__(self):
+    def __init__(self, sys_ratio=SYS_RATIO, dia_ratio=DIA_RATIO):
         self.reset()
         self.baseline = 0.0
+        self.sys_ratio = sys_ratio
+        self.dia_ratio = dia_ratio
 
     def reset(self):
         self.baseline = 0.0
@@ -851,8 +854,8 @@ class OscillometricAnalyzer:
         # Stop only once both configured BP crossings pass the same checks as
         # calculate_bp(). A diastolic crossing alone is not enough to produce
         # a valid result.
-        sys_target = envelope_max_amplitude * SYS_RATIO
-        dia_target = envelope_max_amplitude * DIA_RATIO
+        sys_target = envelope_max_amplitude * self.sys_ratio
+        dia_target = envelope_max_amplitude * self.dia_ratio
         systolic = self.find_envelope_crossing(
             envelope_pressures, envelope_amplitudes, envelope_map_pressure,
             sys_target, systolic_side=True,
@@ -952,8 +955,8 @@ class OscillometricAnalyzer:
             self.print_envelope()
             return
 
-        sys_target = self.max_amplitude * SYS_RATIO
-        dia_target = self.max_amplitude * DIA_RATIO
+        sys_target = self.max_amplitude * self.sys_ratio
+        dia_target = self.max_amplitude * self.dia_ratio
 
         if self.valid_envelope_result is None:
             self.SYS = self.find_envelope_crossing(
@@ -1023,7 +1026,11 @@ class OscillometricAnalyzer:
 class BloodPressureTest:
     def __init__(self):
         self.adc = HX710B()
-        self.analyzer = OscillometricAnalyzer()
+        bp_ratios = settings_store.load_bp_ratios()
+        self.analyzer = OscillometricAnalyzer(
+            sys_ratio=bp_ratios["systolic"],
+            dia_ratio=bp_ratios["diastolic"],
+        )
         self.pressure_filter = PressureSpikeFilter()
         self.pump_running = False
         self.measuring = False

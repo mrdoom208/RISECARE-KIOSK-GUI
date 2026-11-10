@@ -12,13 +12,16 @@ import path from "path";
 import fs from "fs";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { fileURLToPath } from "url";
 
 const BCRYPT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 12;
 const execFileAsync = promisify(execFile);
 
 function findWorkspaceRoot(): string {
-  let currentDir = process.cwd();
+  // Resolve from this module so the API works when systemd/PM2 starts it with
+  // a working directory outside the repository (common on Linux kiosks).
+  let currentDir = path.dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 10; i++) {
     if (fs.existsSync(path.resolve(currentDir, "pnpm-workspace.yaml"))) {
       return currentDir;
@@ -27,7 +30,27 @@ function findWorkspaceRoot(): string {
     if (parent === currentDir) break;
     currentDir = parent;
   }
-  return process.cwd();
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+}
+
+function getWifiCommandError(error: any): string {
+  const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
+  if (stdout) {
+    try {
+      const parsed = JSON.parse(stdout);
+      if (typeof parsed?.error === "string") return parsed.error;
+    } catch {
+      // Fall through to stderr/message for non-JSON command output.
+    }
+  }
+  return String(error?.stderr || error?.message || "Failed to update Wi-Fi radio").trim();
+}
+
+function isWifiPermissionError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return ["permission", "not authorized", "not authorised", "access denied", "password is required", "sudo"].some(
+    (token) => lower.includes(token),
+  );
 }
 
 function getDbPath(): string {
@@ -578,12 +601,15 @@ router.post("/network-enabled", requireAuth, async (req, res) => {
     try {
       await execFileAsync("python3", [wifiScript, "radio", enabled ? "on" : "off"], { timeout: 20000 });
     } catch (err: any) {
-      const msg = err?.message || err?.stderr || "Failed to toggle network";
-      if (msg.includes("permission") || msg.includes("Password") || msg.includes("sudo")) {
-        res.status(403).json({ error: "Network control requires elevated privileges on this system" });
+      const msg = getWifiCommandError(err);
+      if (isWifiPermissionError(msg)) {
+        res.status(403).json({
+          error: `Linux denied the Wi-Fi radio change: ${msg}. Allow the API service user to run nmcli radio wifi on/off with sudo, or grant it NetworkManager radio-control permission.`,
+        });
         return;
       }
-      throw err;
+      res.status(500).json({ error: `Failed to turn Wi-Fi ${enabled ? "on" : "off"}: ${msg}` });
+      return;
     }
     const val = enabled ? "true" : "false";
     await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('network_enabled', ?)", [val]);
@@ -808,13 +834,30 @@ router.get("/update/check", requireAuth, requireSuperadmin, async (_req, res) =>
     const remoteCommit = await readCommit(root, "origin/main");
     const localHash = localCommit?.hash ?? "";
     const remoteHash = remoteCommit?.hash ?? "";
-    if (localHash && remoteHash && localHash === remoteHash) {
-      res.json({ hasUpdate: false, localHash, remoteHash, local: localCommit, remote: remoteCommit });
-    } else if (remoteHash && localHash && localHash !== remoteHash) {
-      res.json({ hasUpdate: true, localHash, remoteHash, local: localCommit, remote: remoteCommit });
-    } else {
-      res.json({ hasUpdate: false, localHash, remoteHash, local: localCommit, remote: remoteCommit });
+    if (!localHash || !remoteHash) {
+      res.status(500).json({ error: "Could not determine the installed or available commit" });
+      return;
     }
+
+    const { stdout: counts } = await execFileAsync(
+      "git",
+      ["-C", root, "rev-list", "--left-right", "--count", "HEAD...origin/main"],
+      { timeout: 10000 },
+    );
+    const [localOnly, remoteOnly] = counts.trim().split(/\s+/).map(Number);
+    if (!Number.isFinite(localOnly) || !Number.isFinite(remoteOnly)) {
+      throw new Error("Could not compare the installed and available commits");
+    }
+
+    res.json({
+      hasUpdate: localOnly === 0 && remoteOnly > 0,
+      localHash,
+      remoteHash,
+      local: localCommit,
+      remote: remoteCommit,
+      diverged: localOnly > 0 && remoteOnly > 0,
+      localAhead: localOnly > 0 && remoteOnly === 0,
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed to check for updates" });
   }
@@ -830,11 +873,29 @@ router.post("/update/apply", requireAuth, requireSuperadmin, requireReauth, sens
     } catch {
       await execFileAsync("git", ["-C", root, "fetch", "origin", "main"], { timeout: 30000 });
     }
-    try {
-      await execFileAsync("git", ["-C", root, "reset", "--hard", "origin/main"], { timeout: 60000 });
-    } catch {
-      await execFileAsync("git", ["-C", root, "pull", "--rebase", "origin", "main"], { timeout: 60000 });
+    const { stdout: counts } = await execFileAsync(
+      "git",
+      ["-C", root, "rev-list", "--left-right", "--count", "HEAD...origin/main"],
+      { timeout: 10000 },
+    );
+    const [localOnly, remoteOnly] = counts.trim().split(/\s+/).map(Number);
+    if (!Number.isFinite(localOnly) || !Number.isFinite(remoteOnly)) {
+      throw new Error("Could not compare the installed and available commits");
     }
+    if (localOnly !== 0) {
+      res.status(409).json({
+        error: "The installed version has local commits and cannot be updated automatically. Resolve the branch state before applying this update.",
+      });
+      return;
+    }
+    if (remoteOnly === 0) {
+      res.status(409).json({ error: "No newer update is available on origin/main" });
+      return;
+    }
+
+    // Fast-forward only: this fails safely if the workspace has local changes
+    // and never discards files like reset --hard would.
+    await execFileAsync("git", ["-C", root, "merge", "--ff-only", "origin/main"], { timeout: 60000 });
     await logActivity(req.user?.id ?? null, "System Update", "Applied update from origin/main; restart required to take effect");
     void logSystem("INFO", "Backend", "System update applied; restart required to take effect");
     res.json({ success: true, restartRequired: true });

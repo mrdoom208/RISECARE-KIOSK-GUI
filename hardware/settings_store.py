@@ -6,6 +6,7 @@ import threading
 
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 SENSOR_IDS = {"bp", "heartrate", "spo2", "height", "weight", "temperature", "printer"}
+BP_RATIO_DEFAULTS = {"systolic": 0.45, "diastolic": 0.85}
 _lock = threading.RLock()
 
 
@@ -71,3 +72,39 @@ def save_enabled_sensors(enabled_sensors):
             existing = {}
         settings["enabled_sensors"] = {**existing, **enabled_sensors}
         save_settings(settings)
+
+
+def normalize_bp_ratios(value):
+    """Validate the experimental oscillometric SYS/DIA envelope ratios."""
+    if not isinstance(value, dict):
+        return dict(BP_RATIO_DEFAULTS)
+    systolic = value.get("systolic")
+    diastolic = value.get("diastolic")
+    if (isinstance(systolic, bool) or not isinstance(systolic, (int, float))
+            or isinstance(diastolic, bool) or not isinstance(diastolic, (int, float))):
+        return dict(BP_RATIO_DEFAULTS)
+    systolic = float(systolic)
+    diastolic = float(diastolic)
+    if not (0.2 <= systolic <= 0.7 and 0.6 <= diastolic <= 1.0
+            and systolic < diastolic):
+        return dict(BP_RATIO_DEFAULTS)
+    return {"systolic": systolic, "diastolic": diastolic}
+
+
+def load_bp_ratios():
+    try:
+        return normalize_bp_ratios(load_settings().get("bp_ratios"))
+    except (OSError, ValueError, TypeError):
+        return dict(BP_RATIO_DEFAULTS)
+
+
+def save_bp_ratios(value):
+    ratios = normalize_bp_ratios(value)
+    if ratios != value and not (
+        isinstance(value, dict)
+        and value.get("systolic") == ratios["systolic"]
+        and value.get("diastolic") == ratios["diastolic"]
+    ):
+        raise ValueError("Invalid SYS/DIA ratios")
+    update_section("bp_ratios", ratios)
+    return ratios

@@ -398,7 +398,11 @@ def handle_command(sensor, session_id, value, payload):
 
     if sensor == "settings":
         try:
-            settings_store.save_enabled_sensors(payload.get("enabledSensors", {}))
+            if "enabledSensors" in payload:
+                settings_store.save_enabled_sensors(payload.get("enabledSensors", {}))
+            if "bpRatios" in payload:
+                ratios = settings_store.save_bp_ratios(payload.get("bpRatios"))
+                print(f"BP SYS/DIA ratios saved: {ratios['systolic']:.2f}/{ratios['diastolic']:.2f}")
             print("Sensor preferences saved to settings.json")
         except Exception as exc:
             print(f"Failed to save sensor preferences: {exc}")

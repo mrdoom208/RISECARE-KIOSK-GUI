@@ -1,0 +1,4 @@
+# Permit the kiosk service account (when it is in the netdev group) to toggle
+# only the NetworkManager Wi-Fi radio. Install with visudo -f and ensure the
+# account running the API belongs to netdev.
+%netdev ALL=(root) NOPASSWD: /usr/bin/nmcli radio wifi on, /usr/bin/nmcli radio wifi off

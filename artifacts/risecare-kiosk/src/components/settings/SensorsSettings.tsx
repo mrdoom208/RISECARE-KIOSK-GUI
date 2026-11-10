@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Loader2, CheckCircle2, XCircle, HeartPulse, Ruler, Scale, Thermometer, Zap, RefreshCw, Printer, Activity } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2, XCircle, HeartPulse, Ruler, Scale, Thermometer, Zap, RefreshCw, Printer, Activity, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -45,6 +45,8 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const [doneCooldown, setDoneCooldown] = useState<Record<string, boolean>>({});
   const [feedback, setFeedback] = useState<Record<string, Feedback | null>>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [bpAdvancedOpen, setBpAdvancedOpen] = useState(false);
+  const [bpRatios, setBpRatios] = useState({ systolic: 0.45, diastolic: 0.85 });
   const testTimestamps = useRef<Record<string, number>>({});
   const calTimestamps = useRef<Record<string, number>>({});
   const feedbackTimers = useRef<Record<string, NodeJS.Timeout>>({});
@@ -56,6 +58,45 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   };
 
   const hasPending = Object.values(feedback).some((f) => f?.status === "pending");
+
+  const { data: savedBpRatios } = useQuery({
+    queryKey: ["bp-ratios"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/bp-ratios");
+      if (!res.ok) throw new Error("Failed to load BP calibration settings");
+      const data = await res.json();
+      return data.bpRatios as { systolic: number; diastolic: number };
+    },
+    enabled: isOpen,
+  });
+
+  useEffect(() => {
+    if (savedBpRatios) setBpRatios(savedBpRatios);
+  }, [savedBpRatios]);
+
+  const saveBpRatiosMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/sensors/bp-ratios", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bpRatios }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save BP calibration settings");
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "BP ratios saved",
+        description: data.hardwareSynced
+          ? "New ratios will be used for the next measurement."
+          : "Saved on the kiosk and will sync to the sensor device when it reconnects.",
+      });
+    },
+    onError: (error) => {
+      toast({ title: "Settings not saved", description: error.message, variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
     return () => {
@@ -639,6 +680,73 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                         className="h-8 w-[52px] shrink-0 [&>span]:h-6! [&>span]:w-6! [&>span]:data-[state=checked]:translate-x-6! [&>span]:data-[state=unchecked]:translate-x-0!"
                       />
                     </div>
+
+                    {sensor.id === "bp" && (
+                      <div className="rounded-xl border border-border/50 bg-background/40 p-4">
+                        <button
+                          type="button"
+                          onClick={() => setBpAdvancedOpen((value) => !value)}
+                          className="flex w-full items-center justify-between gap-3 text-left"
+                          aria-expanded={bpAdvancedOpen}
+                        >
+                          <span className="text-base font-semibold">Advanced calibration</span>
+                          <ChevronDown className={`h-5 w-5 transition-transform ${bpAdvancedOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {bpAdvancedOpen && (
+                          <div className="mt-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                              Set the SYS and DIA envelope ratios as percentages of the pulse amplitude peak. These experimental values can affect readings; adjust only against a trusted reference.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <label className="space-y-1.5">
+                                <span className="text-sm font-medium">SYS ratio (%)</span>
+                                <input
+                                  type="number"
+                                  min="20"
+                                  max="70"
+                                  step="1"
+                                  value={Math.round(bpRatios.systolic * 100)}
+                                  onChange={(event) => setBpRatios((current) => ({ ...current, systolic: Number(event.target.value) / 100 }))}
+                                  className="h-12 w-full rounded-lg border border-input bg-background px-3 text-base"
+                                />
+                              </label>
+                              <label className="space-y-1.5">
+                                <span className="text-sm font-medium">DIA ratio (%)</span>
+                                <input
+                                  type="number"
+                                  min="60"
+                                  max="100"
+                                  step="1"
+                                  value={Math.round(bpRatios.diastolic * 100)}
+                                  onChange={(event) => setBpRatios((current) => ({ ...current, diastolic: Number(event.target.value) / 100 }))}
+                                  className="h-12 w-full rounded-lg border border-input bg-background px-3 text-base"
+                                />
+                              </label>
+                            </div>
+                            {bpRatios.systolic >= bpRatios.diastolic && (
+                              <p className="text-sm text-destructive">SYS ratio must be lower than DIA ratio.</p>
+                            )}
+                            <Button
+                              onClick={() => saveBpRatiosMutation.mutate()}
+                              disabled={
+                                saveBpRatiosMutation.isPending ||
+                                !Number.isFinite(bpRatios.systolic) ||
+                                !Number.isFinite(bpRatios.diastolic) ||
+                                bpRatios.systolic < 0.2 || bpRatios.systolic > 0.7 ||
+                                bpRatios.diastolic < 0.6 || bpRatios.diastolic > 1 ||
+                                bpRatios.systolic >= bpRatios.diastolic
+                              }
+                              variant="outline"
+                              size="lg"
+                              className="h-12 w-full text-base"
+                            >
+                              {saveBpRatiosMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+                              Save BP ratios
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Feedback */}
                     {fb && (

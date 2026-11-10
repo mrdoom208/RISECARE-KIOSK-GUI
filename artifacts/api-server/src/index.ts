@@ -5,7 +5,7 @@ import { resolve } from "path";
 dotenv.config({ path: resolve("../../.env") });
 import app from "./app";
 import { connectMQTT, disconnectMQTT } from "./mqtt";
-import { startSyncLoop } from "./device";
+import { startHeartbeatLoop, startSyncLoop } from "./device";
 import { setupWebSocket } from "./ws";
 import { logger } from "./logger";
 import { logSystem, pruneSystemLogs } from "./system-log";
@@ -46,6 +46,9 @@ const server = app.listen(port, host, async () => {
 
   // Background offline-first sync (runs only when the kiosk is activated)
   startSyncLoop();
+
+  // Presence heartbeat every 5 minutes so the portal reports this kiosk online
+  startHeartbeatLoop();
 
   // Connect to MQTT broker (skip if NO_MQTT=1)
   if (process.env.NO_MQTT !== "1") {
