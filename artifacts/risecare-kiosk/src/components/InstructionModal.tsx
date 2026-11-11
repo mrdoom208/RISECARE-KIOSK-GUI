@@ -8,6 +8,8 @@ interface InstructionModalProps {
   onClose: () => void;
   onStart: () => void;
   sensorGuide?: SensorGuide;
+  /** Stack above the settings modal when opened from SensorsSettings. */
+  zIndex?: number;
 }
 
 export default function InstructionModal({
@@ -15,12 +17,13 @@ export default function InstructionModal({
   onClose,
   onStart,
   sensorGuide,
+  zIndex = Z_INDEX.MODAL,
 }: InstructionModalProps) {
   const { isRateLimited } = useRateLimit(1000);
   return (
     <ModalShell
       open={isOpen}
-      zIndex={Z_INDEX.MODAL}
+      zIndex={zIndex}
       backdrop="blur"
       avoidKeyboard={false}
       shellClassName="items-stretch justify-stretch p-0"

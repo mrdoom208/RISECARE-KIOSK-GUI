@@ -2,9 +2,22 @@ import { Router, type IRouter } from "express";
 import crypto from "crypto";
 import { query, run } from "@workspace/db";
 import { logger } from "../logger";
+import { requireAuth } from "../auth";
 import { publish, subscribe, isConnected, onMQTTConnected } from "../mqtt";
 import { logSystem } from "../system-log";
 import { getTransactionTags } from "../device";
+import {
+  normalizeWeightCalibration,
+  normalizeHeightOffset,
+  WEIGHT_OFFSET_RAW_MIN,
+  WEIGHT_OFFSET_RAW_MAX,
+  WEIGHT_PER_KG_MIN,
+  WEIGHT_PER_KG_MAX,
+  WEIGHT_PER_KG_DEFAULT,
+  HEIGHT_OFFSET_DEFAULT,
+  HEIGHT_OFFSET_MIN,
+  HEIGHT_OFFSET_MAX,
+} from "../sensor-calibration";
 const SENSOR_SETTING_IDS = ["bp", "heartrate", "spo2", "height", "weight", "temperature", "printer"] as const;
 const BP_RATIO_DEFAULTS = { systolic: 0.45, diastolic: 0.85 };
 const TEMPERATURE_OFFSET_DEFAULT = 3.4;
@@ -48,6 +61,74 @@ async function getSavedTemperatureOffset(): Promise<number> {
   } catch {
     return TEMPERATURE_OFFSET_DEFAULT;
   }
+}
+
+async function getSavedWeightCalibration() {
+  const rows = await query("SELECT value FROM settings WHERE key = 'weight_calibration'");
+  if (!rows?.[0]?.value) return null;
+  try {
+    return normalizeWeightCalibration(JSON.parse(rows[0].value));
+  } catch {
+    return null;
+  }
+}
+
+async function getSavedHeightOffset(): Promise<number> {
+  const rows = await query("SELECT value FROM settings WHERE key = 'height_offset'");
+  if (!rows?.[0]?.value) return HEIGHT_OFFSET_DEFAULT;
+  try {
+    return normalizeHeightOffset(JSON.parse(rows[0].value)) ?? HEIGHT_OFFSET_DEFAULT;
+  } catch {
+    return HEIGHT_OFFSET_DEFAULT;
+  }
+}
+
+// Assembles the full settings payload for the hardware bridge from the DB.
+// Every route that changes one setting republishes the whole state so the
+// kiosk and the hardware cannot drift apart.
+async function savedSettingsPayload() {
+  const rows = await query(
+    "SELECT key, value FROM settings WHERE key IN ('enabled_sensors', 'bp_ratios', 'temperature_offset', 'weight_calibration', 'height_offset')"
+  );
+  const saved = Object.fromEntries((rows ?? []).map((row) => [row.key, row.value]));
+  let enabledSensors = {};
+  let bpRatios = BP_RATIO_DEFAULTS;
+  let temperatureOffset = TEMPERATURE_OFFSET_DEFAULT;
+  let heightOffset = HEIGHT_OFFSET_DEFAULT;
+  let weightCalibration: { offsetRaw: number; perKgRaw: number } | null = null;
+  try {
+    enabledSensors = saved.enabled_sensors ? JSON.parse(saved.enabled_sensors) : {};
+  } catch { /* Send defaults if the stored preference is malformed. */ }
+  try {
+    bpRatios = saved.bp_ratios
+      ? normalizeBpRatios(JSON.parse(saved.bp_ratios)) ?? BP_RATIO_DEFAULTS
+      : BP_RATIO_DEFAULTS;
+  } catch { /* Send defaults if the stored ratio is malformed. */ }
+  try {
+    temperatureOffset = saved.temperature_offset
+      ? normalizeTemperatureOffset(JSON.parse(saved.temperature_offset)) ?? TEMPERATURE_OFFSET_DEFAULT
+      : TEMPERATURE_OFFSET_DEFAULT;
+  } catch { /* Send defaults if the stored offset is malformed. */ }
+  try {
+    weightCalibration = saved.weight_calibration
+      ? normalizeWeightCalibration(JSON.parse(saved.weight_calibration))
+      : null;
+  } catch { /* Keep the hardware's own tare-calibrated values. */ }
+  try {
+    heightOffset = saved.height_offset !== undefined
+      ? normalizeHeightOffset(JSON.parse(saved.height_offset)) ?? HEIGHT_OFFSET_DEFAULT
+      : HEIGHT_OFFSET_DEFAULT;
+  } catch { /* Send the default offset. */ }
+  return {
+    sensor: "settings",
+    enabledSensors,
+    bpRatios,
+    temperatureOffset,
+    // Omitted while never set: the hardware keeps its tare-calibrated values
+    // instead of being overwritten with defaults.
+    ...(weightCalibration ? { weightCalibration } : {}),
+    heightOffset,
+  };
 }
 
 const SENSOR_DEBUG = process.env.SENSOR_DEBUG === "1";
@@ -169,30 +250,7 @@ const router: IRouter = Router();
 
 onMQTTConnected(async () => {
   try {
-    const rows = await query("SELECT key, value FROM settings WHERE key IN ('enabled_sensors', 'bp_ratios', 'temperature_offset')");
-    const saved = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-    let enabledSensors = {};
-    let bpRatios = BP_RATIO_DEFAULTS;
-    let temperatureOffset = TEMPERATURE_OFFSET_DEFAULT;
-    try {
-      enabledSensors = saved.enabled_sensors ? JSON.parse(saved.enabled_sensors) : {};
-    } catch { /* Send defaults if the stored preference is malformed. */ }
-    try {
-      bpRatios = saved.bp_ratios
-        ? normalizeBpRatios(JSON.parse(saved.bp_ratios)) ?? BP_RATIO_DEFAULTS
-        : BP_RATIO_DEFAULTS;
-    } catch { /* Send defaults if the stored ratio is malformed. */ }
-    try {
-      temperatureOffset = saved.temperature_offset
-        ? normalizeTemperatureOffset(JSON.parse(saved.temperature_offset)) ?? TEMPERATURE_OFFSET_DEFAULT
-        : TEMPERATURE_OFFSET_DEFAULT;
-    } catch { /* Send defaults if the stored offset is malformed. */ }
-    publish("risecare/command/settings", {
-      sensor: "settings",
-      enabledSensors,
-      bpRatios,
-      temperatureOffset,
-    }, { retain: true });
+    publish("risecare/command/settings", await savedSettingsPayload(), { retain: true });
   } catch (error) {
     logger.error(
       "Sensor",
@@ -214,7 +272,7 @@ router.get("/sensors/settings", async (_req, res) => {
   }
 });
 
-router.put("/sensors/settings", async (req, res) => {
+router.put("/sensors/settings", requireAuth, async (req, res) => {
   const enabledSensors = req.body?.enabledSensors;
   if (!enabledSensors || typeof enabledSensors !== "object" || Array.isArray(enabledSensors)) {
     res.status(400).json({ error: "enabledSensors object required" });
@@ -230,14 +288,7 @@ router.put("/sensors/settings", async (req, res) => {
       SENSOR_SETTING_IDS.map((id) => [id, enabledSensors[id]]),
     );
     await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('enabled_sensors', ?)", [JSON.stringify(normalized)]);
-    const bpRatios = await getSavedBpRatios();
-    const temperatureOffset = await getSavedTemperatureOffset();
-    const hardwareSynced = publish("risecare/command/settings", {
-      sensor: "settings",
-      enabledSensors: normalized,
-      bpRatios,
-      temperatureOffset,
-    }, { retain: true });
+    const hardwareSynced = publish("risecare/command/settings", await savedSettingsPayload(), { retain: true });
     void logSystem("INFO", "Sensor", "Sensor settings updated", {
       hardwareSynced,
       enabledSensors: Object.entries(normalized)
@@ -262,7 +313,7 @@ router.get("/sensors/bp-ratios", async (_req, res) => {
   }
 });
 
-router.put("/sensors/bp-ratios", async (req, res) => {
+router.put("/sensors/bp-ratios", requireAuth, async (req, res) => {
   const bpRatios = normalizeBpRatios(req.body?.bpRatios);
   if (!bpRatios) {
     res.status(400).json({
@@ -272,18 +323,7 @@ router.put("/sensors/bp-ratios", async (req, res) => {
   }
   try {
     await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('bp_ratios', ?)", [JSON.stringify(bpRatios)]);
-    const enabledRows = await query("SELECT value FROM settings WHERE key = 'enabled_sensors'");
-    let enabledSensors = {};
-    try {
-      enabledSensors = enabledRows?.[0]?.value ? JSON.parse(enabledRows[0].value) : {};
-    } catch { /* Continue with defaults for enabled sensors. */ }
-    const temperatureOffset = await getSavedTemperatureOffset();
-    const hardwareSynced = publish("risecare/command/settings", {
-      sensor: "settings",
-      enabledSensors,
-      bpRatios,
-      temperatureOffset,
-    }, { retain: true });
+    const hardwareSynced = publish("risecare/command/settings", await savedSettingsPayload(), { retain: true });
     void logSystem("INFO", "Sensor", "Blood pressure ratios updated", { ...bpRatios, hardwareSynced });
     res.json({ success: true, bpRatios, hardwareSynced });
   } catch (error) {
@@ -300,7 +340,7 @@ router.get("/sensors/temperature-offset", async (_req, res) => {
   }
 });
 
-router.put("/sensors/temperature-offset", async (req, res) => {
+router.put("/sensors/temperature-offset", requireAuth, async (req, res) => {
   const temperatureOffset = normalizeTemperatureOffset(req.body?.temperatureOffset);
   if (temperatureOffset === null) {
     res.status(400).json({
@@ -310,18 +350,7 @@ router.put("/sensors/temperature-offset", async (req, res) => {
   }
   try {
     await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('temperature_offset', ?)", [JSON.stringify(temperatureOffset)]);
-    const enabledRows = await query("SELECT value FROM settings WHERE key = 'enabled_sensors'");
-    let enabledSensors = {};
-    try {
-      enabledSensors = enabledRows?.[0]?.value ? JSON.parse(enabledRows[0].value) : {};
-    } catch { /* Continue with defaults for enabled sensors. */ }
-    const bpRatios = await getSavedBpRatios();
-    const hardwareSynced = publish("risecare/command/settings", {
-      sensor: "settings",
-      enabledSensors,
-      bpRatios,
-      temperatureOffset,
-    }, { retain: true });
+    const hardwareSynced = publish("risecare/command/settings", await savedSettingsPayload(), { retain: true });
     void logSystem("INFO", "Sensor", "Temperature offset updated", { temperatureOffset, hardwareSynced });
     res.json({ success: true, temperatureOffset, hardwareSynced });
   } catch (error) {
@@ -330,46 +359,151 @@ router.put("/sensors/temperature-offset", async (req, res) => {
   }
 });
 
-async function saveSensorValue(sessionId: number, column: string, value: number) {
-  const safeValue = inRange(value, column);
-  if (safeValue === null) {
-    logger.warn("Sensor", "Ignored out-of-range sensor reading", { column });
+// Manual raw scale calibration: offset (empty-platform counts) and per-kg
+// counts. Weight = (raw − offset) / per kg on the HX711 bridge.
+router.get("/sensors/weight-calibration", async (_req, res) => {
+  try {
+    const saved = await getSavedWeightCalibration();
+    res.json({ offsetRaw: saved?.offsetRaw ?? null, perKgRaw: saved?.perKgRaw ?? WEIGHT_PER_KG_DEFAULT });
+  } catch {
+    res.status(500).json({ error: "Failed to read weight calibration" });
+  }
+});
+
+router.put("/sensors/weight-calibration", requireAuth, async (req, res) => {
+  const weightCalibration = normalizeWeightCalibration(req.body?.weightCalibration);
+  if (!weightCalibration) {
+    res.status(400).json({
+      error: `Offset must be ${WEIGHT_OFFSET_RAW_MIN}–${WEIGHT_OFFSET_RAW_MAX} and per kg ${WEIGHT_PER_KG_MIN}–${WEIGHT_PER_KG_MAX} (raw counts)`,
+    });
     return;
   }
+  try {
+    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('weight_calibration', ?)", [JSON.stringify(weightCalibration)]);
+    const hardwareSynced = publish("risecare/command/settings", await savedSettingsPayload(), { retain: true });
+    void logSystem("INFO", "Sensor", "Weight calibration updated", { ...weightCalibration, hardwareSynced });
+    res.json({ success: true, weightCalibration, hardwareSynced });
+  } catch (error) {
+    logger.error("Sensor", "Could not save weight calibration", error);
+    res.status(500).json({ error: "Failed to save weight calibration" });
+  }
+});
 
+router.get("/sensors/height-offset", async (_req, res) => {
+  try {
+    res.json({ heightOffset: await getSavedHeightOffset() });
+  } catch {
+    res.status(500).json({ error: "Failed to read height offset" });
+  }
+});
+
+// Fine adjustment (cm) added to every measured height.
+router.put("/sensors/height-offset", requireAuth, async (req, res) => {
+  const heightOffset = normalizeHeightOffset(req.body?.heightOffset);
+  if (heightOffset === null) {
+    res.status(400).json({
+      error: `Height offset must be between ${HEIGHT_OFFSET_MIN} and ${HEIGHT_OFFSET_MAX} cm`,
+    });
+    return;
+  }
+  try {
+    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('height_offset', ?)", [JSON.stringify(heightOffset)]);
+    const hardwareSynced = publish("risecare/command/settings", await savedSettingsPayload(), { retain: true });
+    void logSystem("INFO", "Sensor", "Height offset updated", { heightOffset, hardwareSynced });
+    res.json({ success: true, heightOffset, hardwareSynced });
+  } catch (error) {
+    logger.error("Sensor", "Could not save height offset", error);
+    res.status(500).json({ error: "Failed to save height offset" });
+  }
+});
+
+// Settings sensor tests run a real measurement (value 1) exactly like the
+// Dashboard, but those readings must never be stored as patient data. All
+// test commands run under one dedicated session row that is created once
+// and reused for every test, so repeated tests never add rows.
+const TEST_SESSION_TOKEN = "sensor-test";
+let testSessionId: number | null = null;
+let testSessionIdPromise: Promise<number> | null = null;
+
+function getOrCreateTestSessionId(): Promise<number> {
+  if (testSessionId != null) return Promise.resolve(testSessionId);
+  if (!testSessionIdPromise) {
+    testSessionIdPromise = (async () => {
+      const existing = await query(
+        `SELECT id FROM sessions WHERE token = ? LIMIT 1`,
+        [TEST_SESSION_TOKEN]
+      );
+      const id = existing[0]?.id != null
+        ? Number(existing[0].id)
+        : Number((await run(
+            `INSERT INTO sessions (token, patient_first_name, patient_last_name) VALUES (?, ?, ?)`,
+            [TEST_SESSION_TOKEN, "Sensor", "Test"]
+          )).lastInsertRowid);
+      testSessionId = id;
+      return id;
+    })().catch((error) => {
+      // Allow a later retry instead of caching the failure forever.
+      testSessionIdPromise = null;
+      throw error;
+    });
+  }
+  return testSessionIdPromise;
+}
+
+// Readings that belong to the settings test session are display-only: they
+// are broadcast to the kiosk but never written to vital_readings.
+function isTestSessionReading(sessionId: unknown): boolean {
+  if (sessionId == null) return false;
+  const value = String(sessionId);
+  return value === TEST_SESSION_TOKEN || (testSessionId != null && value === String(testSessionId));
+}
+
+// One shared upsert for sensor-driven vital writes. Touches sync_status so an
+// edited reading is exported again, and backfills a stable source id on rows
+// that predate the sync columns. Column names come from fixed call sites.
+async function upsertVitalFields(sessionId: number, values: Record<string, number>) {
+  const columns = Object.keys(values);
+  const tags = await getTransactionTags();
   const existing = await query(
     `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
     [sessionId]
   );
-
-  const tags = await getTransactionTags();
   if (existing[0]) {
-    // Touch sync_status so a reading edited after an earlier sync is exported
-    // again, and backfill a stable source id if this row predates the sync
-    // columns.
+    const setClause = columns.map((column) => `${column} = ?`).join(", ");
     await run(
-      `UPDATE vital_readings SET ${column} = ?,
+      `UPDATE vital_readings SET ${setClause},
          source_vital_id = COALESCE(NULLIF(source_vital_id, ''), ?),
          device_uid = ?, kiosk_id = ?,
          sync_status = 'pending', payload_id = NULL,
          recorded_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [safeValue, crypto.randomUUID(), tags.deviceUid, tags.kioskId, existing[0].id]
+      [...columns.map((column) => values[column]), crypto.randomUUID(), tags.deviceUid, tags.kioskId, existing[0].id]
     );
   } else {
+    const insertColumns = ["session_id", ...columns, "source_vital_id", "device_uid", "kiosk_id"];
     await run(
-      `INSERT INTO vital_readings (session_id, ${column}, source_vital_id, device_uid, kiosk_id)
-       VALUES (?, ?, ?, ?, ?)`,
-      [sessionId, safeValue, crypto.randomUUID(), tags.deviceUid, tags.kioskId]
+      `INSERT INTO vital_readings (${insertColumns.join(", ")})
+       VALUES (${insertColumns.map(() => "?").join(", ")})`,
+      [sessionId, ...columns.map((column) => values[column]), crypto.randomUUID(), tags.deviceUid, tags.kioskId]
     );
   }
+}
+
+async function saveSensorValue(sessionId: number, column: string, value: number) {
+  // Settings test readings are display-only and must not be persisted.
+  if (isTestSessionReading(sessionId)) return;
+  const safeValue = inRange(value, column);
+  if (safeValue === null) {
+    logger.warn("Sensor", "Ignored out-of-range sensor reading", { column });
+    return;
+  }
+  await upsertVitalFields(sessionId, { [column]: safeValue });
 }
 
 // In-memory stores
 let latestReadings: Record<string, any> = {};
 let calibrationResults: Record<string, any> = {};
 let calibrationProgress: Record<string, any> = {};
-let testResults: Record<string, any> = {};
 let sensorAvailability: Record<string, any> = {};
 let sensorAvailabilityAt = 0;
 let hasAvailabilitySnapshot = false;
@@ -405,48 +539,22 @@ const availabilityWatchdog = setInterval(() => {
 }, 10_000);
 availabilityWatchdog.unref?.();
 
-// Test-all state
-let testAllState: {
-  sessionId: string;
-  sensors: string[];
-  results: Record<string, { status: string; sensor: string; receivedAt: number }>;
-  startedAt: number;
-  completed: boolean;
-  summary: Record<string, string>;
-} | null = null;
-
 // Subscribe to sensor data from Python
 subscribe("risecare/sensors/bp", async (data) => {
   latestReadings["bp"] = { ...data, _receivedAt: Date.now() };
+  // Settings test readings are display-only and must not be persisted.
+  if (isTestSessionReading(data.sessionId)) return;
   const systolic = inRange(data.systolic, "blood_pressure_systolic");
   const diastolic = inRange(data.diastolic, "blood_pressure_diastolic");
   const pulseRate = inRange(data.pulseRate, "blood_pressure_pulse");
   if (data.status === "success" && data.sessionId &&
       systolic !== null && diastolic !== null && pulseRate !== null &&
       systolic > diastolic) {
-    const existing = await query(
-      `SELECT id FROM vital_readings WHERE session_id = ? LIMIT 1`,
-      [data.sessionId]
-    );
-    const tags = await getTransactionTags();
-    if (existing[0]) {
-      await run(
-        `UPDATE vital_readings SET blood_pressure_systolic = ?, blood_pressure_diastolic = ?, blood_pressure_pulse = ?,
-           source_vital_id = COALESCE(NULLIF(source_vital_id, ''), ?),
-           device_uid = ?, kiosk_id = ?,
-           sync_status = 'pending', payload_id = NULL,
-           recorded_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [systolic, diastolic, pulseRate, crypto.randomUUID(), tags.deviceUid, tags.kioskId, existing[0].id]
-      );
-    } else {
-      await run(
-        `INSERT INTO vital_readings (session_id, blood_pressure_systolic, blood_pressure_diastolic, blood_pressure_pulse,
-           source_vital_id, device_uid, kiosk_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [data.sessionId, systolic, diastolic, pulseRate, crypto.randomUUID(), tags.deviceUid, tags.kioskId]
-      );
-    }
+    await upsertVitalFields(data.sessionId, {
+      blood_pressure_systolic: systolic,
+      blood_pressure_diastolic: diastolic,
+      blood_pressure_pulse: pulseRate,
+    });
     sensorDebug("💾 BP saved from sensor:", data);
   }
 });
@@ -532,24 +640,6 @@ subscribe("risecare/calibration/progress/+", async (data, topic) => {
   }
 });
 
-subscribe("risecare/test/+", async (data, topic) => {
-  const sensor = topic?.split("/").pop();
-  if (sensor) {
-    testResults[sensor] = { ...data, _receivedAt: Date.now() };
-    sensorDebug(`🧪 Test result [${sensor}]:`, data);
-
-    // Feed into test-all state
-    if (testAllState && !testAllState.completed && testAllState.sensors.includes(sensor)) {
-      testAllState.results[sensor] = { ...data, receivedAt: Date.now() };
-
-      // Check if all sensors have results
-      if (Object.keys(testAllState.results).length === testAllState.sensors.length) {
-        completeTestAll();
-      }
-    }
-  }
-});
-
 subscribe("risecare/calibration/height", async (data) => {
   sensorDebug("📏 Height calibration result:", data);
   calibrationResults["height"] = { ...data, _receivedAt: Date.now() };
@@ -558,90 +648,56 @@ subscribe("risecare/calibration/height", async (data) => {
 subscribe("risecare/calibration/weight", async (data) => {
   sensorDebug("⚖️ Weight calibration result:", data);
   calibrationResults["weight"] = { ...data, _receivedAt: Date.now() };
-});
-
-// Complete test-all and publish MQTT summary
-function completeTestAll() {
-  if (!testAllState || testAllState.completed) return;
-  testAllState.completed = true;
-
-  const summary: Record<string, string> = {};
-  for (const sensor of testAllState.sensors) {
-    const result = testAllState.results[sensor];
-    summary[sensor] = result?.status === "success" ? "working" : "not_working";
-  }
-  testAllState.summary = summary;
-
-  publish("risecare/test/summary", {
-    sensors: summary,
-    sessionId: testAllState.sessionId,
-    timestamp: new Date().toISOString(),
-  });
-  sensorDebug("📋 Test-all summary:", summary);
-  void logSystem("INFO", "Sensor", "Sensor test-all completed", {
-    sensors: Object.entries(summary).map(([sensor, status]) => `${sensor}: ${status}`),
-  });
-}
-
-// API endpoint to test all enabled sensors sequentially
-router.post("/sensors/test-all", async (req, res) => {
-  const { sessionId, sensors: sensorIds } = req.body;
-
-  if (!sessionId || !sensorIds?.length) {
-    res.status(400).json({ error: "sessionId and sensors array required" });
-    return;
-  }
-
-  if (!isConnected()) {
-    void logSystem("WARNING", "Sensor", "Sensor test-all failed: MQTT not connected");
-    res.status(500).json({ error: "MQTT not connected" });
-    return;
-  }
-
-  testAllState = {
-    sessionId,
-    sensors: sensorIds,
-    results: {},
-    startedAt: Date.now(),
-    completed: false,
-    summary: {},
-  };
-
-  // Send test commands staggered by 2 seconds
-  sensorIds.forEach((sensor: string, index: number) => {
-    setTimeout(() => {
-      publish(`risecare/command/${sensor}`, {
-        sessionId,
-        sensor,
-        value: 3,
-        timestamp: new Date().toISOString(),
-      });
-    }, index * 2000);
-  });
-
-  // Set timeout to force-complete if some sensors don't respond
-  const totalTime = sensorIds.length * 2000 + 14000;
-  setTimeout(() => {
-    if (testAllState && !testAllState.completed) {
-      completeTestAll();
+  // A successful tare re-zeroed the scale on the device. Forget the manual
+  // calibration here too, or the next settings sync would resurrect stale
+  // manual values over the fresh tare.
+  if (data?.status === "ok") {
+    try {
+      await run("DELETE FROM settings WHERE key = 'weight_calibration'");
+      publish("risecare/command/settings", await savedSettingsPayload(), { retain: true });
+    } catch (error) {
+      logger.error("Sensor", "Could not clear manual weight calibration after tare", error);
     }
-  }, totalTime);
-
-  res.json({ status: "started", sensorCount: sensorIds.length });
+  }
 });
 
-// Get test-all results
-router.get("/sensors/test-all-results", async (_req, res) => {
-  res.json(testAllState);
+// Single dedicated session used by the Sensors settings test flow. It is
+// created once and reused for every test; readings from it are never saved.
+router.get("/sensors/test-session", async (_req, res) => {
+  try {
+    const sessionId = await getOrCreateTestSessionId();
+    res.json({ sessionId });
+  } catch (error) {
+    logger.error("Sensor", "Failed to create sensor test session", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: "Failed to create sensor test session" });
+  }
 });
 
 // API endpoint to send sensor command (start=1 / stop=0)
 router.post("/sensors/command", async (req, res) => {
-  const { sessionId, sensor, value, knownWeightGrams } = req.body;
+  const { sensor, value, knownWeightGrams } = req.body;
+  let { sessionId } = req.body;
 
   if (!sessionId || !sensor || value === undefined) {
     res.status(400).json({ error: "sessionId, sensor, and value required" });
     return;
+  }
+
+  // The settings test flow may address the test session by its token.
+  // Resolve it here so the readings are stamped with the real session id
+  // and are always recognized as display-only test data before they arrive.
+  if (String(sessionId) === TEST_SESSION_TOKEN) {
+    try {
+      sessionId = String(await getOrCreateTestSessionId());
+    } catch (error) {
+      logger.error("Sensor", "Failed to resolve sensor test session", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to resolve test session" });
+      return;
+    }
   }
 
   const sent = publish(`risecare/command/${sensor}`, {
@@ -718,7 +774,7 @@ router.post("/sensors/refresh", async (_req, res) => {
 });
 
 // Reset all calibration data
-router.post("/sensors/calibration/reset", async (req, res) => {
+router.post("/sensors/calibration/reset", requireAuth, async (req, res) => {
   calibrationResults = {};
   calibrationProgress = {};
   publish("risecare/command/calibration", {
@@ -727,6 +783,14 @@ router.post("/sensors/calibration/reset", async (req, res) => {
     value: 99,
     timestamp: new Date().toISOString(),
   });
+  // The advanced weight/height calibration is calibration too: forget it, or
+  // the next settings sync would bring the old values back after the reset.
+  try {
+    await run("DELETE FROM settings WHERE key IN ('weight_calibration', 'height_offset')");
+    publish("risecare/command/settings", await savedSettingsPayload(), { retain: true });
+  } catch (error) {
+    logger.error("Sensor", "Could not clear saved advanced calibration", error);
+  }
   res.json({ status: "ok" });
 });
 
@@ -743,11 +807,6 @@ router.get("/sensors/calibration-progress", async (_req, res) => {
 // Get latest sensor readings (for live preview)
 router.get("/sensors/latest-readings", async (_req, res) => {
   res.json(latestReadings);
-});
-
-// Get test results
-router.get("/sensors/test-results", async (_req, res) => {
-  res.json(testResults);
 });
 
 export default router;

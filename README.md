@@ -16,6 +16,7 @@ A modern, self-service health monitoring kiosk application that enables patients
 - **Session Management** - Track and review patient sessions with full history
 - **Find My Session** - Patients can look up past sessions and results by reference code, with rate limiting
 - **Kiosk Mode** - Touchscreen-optimized UI with auto-reset after session completion
+- **Recent Sessions Privacy** - Optional home screen widget showing recent sessions to everyone with patient names masked (first letter only) and non-clickable entries; can be locked back to the sign-in state in Settings
 - **Configurable Idle Timeout** - Returns to the home screen after a period of inactivity; duration is set by admins in Settings (30s to 1 hour)
 - **Orientation-Responsive Layout** - UI adapts smoothly between wide/landscape and portrait kiosk displays, with side-aligned scrollbars
 - **Admin Security** - Username/password-protected settings, history, and account management (super admins and admins), with rate-limited login and re-authentication for destructive actions
@@ -68,7 +69,7 @@ RISECARE-KIOSK-GUI/
 ├── artifacts/
 │   ├── api-server/          # Express backend API
 │   │   └── src/
-│   │       ├── routes/      # sessions, vitals, sensors, settings, system, print, network, device
+│   │       ├── routes/      # sessions, sensors, settings, accounts, power, update, system, print, network, device
 │   │       ├── mqtt.ts      # MQTT client and throttled logging
 │   │       ├── system-log.ts# Bounded, PHI-redacted system log writer
 │   │       ├── ws.ts        # WebSocket bridge (/ws)
@@ -237,31 +238,33 @@ All API routes are mounted under `/api`. `Auth` means an admin session is requir
 | --- | --- | --- | --- |
 | `/api/healthz` | GET | Public | Health check |
 | `/api/sessions` | GET | Auth | List all sessions |
+| `/api/sessions/recent` | GET | Public | Latest sessions for the home widget, names masked to the first letter only |
 | `/api/sessions` | POST | Public | Create a new patient session |
 | `/api/sessions/find` | POST | Public | Find a session by reference code (rate-limited) |
 | `/api/sessions/token` | POST | Public | Validate a session token |
-| `/api/sessions/:id` | GET | Public | Get session details |
+| `/api/sessions/:id` | GET | Auth | Get session details |
 | `/api/sessions/:id/vitals` | POST | Public | Save or update vitals for a session |
 | `/api/sessions/:id/vitals/clear` | POST | Public | Clear individual vital fields for a session |
-| `/api/vitals/latest` | GET | Public | Get the latest live vital readings |
 
 ### Sensors & Printing
 
 | Endpoint | Method | Access | Description |
 | --- | --- | --- | --- |
-| `/api/sensors/settings` | GET/PUT | Public | Read or save enabled sensors (PUT also syncs them over MQTT) |
+| `/api/sensors/settings` | GET/PUT | Public / Auth | Read or save enabled sensors (PUT also syncs them over MQTT) |
+| `/api/sensors/bp-ratios` | GET/PUT | Public / Auth | Read or save the blood pressure cuff ratios |
+| `/api/sensors/temperature-offset` | GET/PUT | Public / Auth | Read or save the temperature sensor offset |
+| `/api/sensors/weight-calibration` | GET/PUT | Public / Auth | Read or save the raw weight calibration (offset counts, counts per kg) |
+| `/api/sensors/height-offset` | GET/PUT | Public / Auth | Read or save the height measurement offset (cm) |
 | `/api/sensors/status` | GET | Public | MQTT connection, latest availability snapshot, and staleness |
 | `/api/sensors/refresh` | POST | Public | Ask the hardware process to re-probe sensors |
 | `/api/sensors/trigger` | POST | Public | Trigger a single sensor measurement |
 | `/api/sensors/command` | POST | Public | Send a command to a sensor |
-| `/api/sensors/test-all` | POST | Public | Test enabled sensors sequentially |
-| `/api/sensors/test-all-results` | GET | Public | Get the latest test-all results |
+| `/api/sensors/test-session` | GET | Public | Get the dedicated session used by the Sensors settings test flow |
 | `/api/sensors/latest-readings` | GET | Public | Get the latest in-memory reading per sensor |
-| `/api/sensors/test-results` | GET | Public | Get per-sensor test results |
 | `/api/sensors/calibration` | GET | Public | Get calibration results |
 | `/api/sensors/calibration-progress` | GET | Public | Get calibration progress |
-| `/api/sensors/calibration/reset` | POST | Public | Reset stored calibration values |
-| `/api/print/test` | POST | Public | Print a test page |
+| `/api/sensors/calibration/reset` | POST | Auth | Reset stored calibration values |
+| `/api/print/test` | POST | Auth | Print a test page |
 | `/api/print/receipt` | POST | Public | Print a patient health report |
 
 ### Settings & Accounts
@@ -277,10 +280,10 @@ All API routes are mounted under `/api`. `Auth` means an admin session is requir
 | `/api/settings/reauthenticate` | POST | Auth | Verify the password again for destructive actions |
 | `/api/settings/logs` | GET | Auth + Super admin | Get the activity log (last 100 entries) |
 | `/api/settings/export` | GET | Auth + Super admin + Re-auth | Download the SQLite database |
-| `/api/settings/import` | POST | Auth + Super admin + Re-auth | Import a database |
 | `/api/settings/delete` | POST | Auth + Super admin + Re-auth | Delete all session and vital data |
 | `/api/settings/export-server` | POST | Auth + Re-auth | Export pending records to the portal |
 | `/api/settings/idle-timeout` | GET/POST | Public / Auth | Get or set the idle timeout (30–3600 seconds) |
+| `/api/settings/recent-sessions` | GET/POST | Public / Auth | Get or set whether the home screen shows the recent sessions widget (masked names when on, locked when off) |
 | `/api/settings/network-enabled` | GET/POST | Public / Auth | Get or set whether network features are enabled |
 | `/api/settings/server-connection` | GET | Auth | Check connectivity to the configured portal |
 | `/api/settings/power` | POST | Auth + Re-auth | Send shutdown / restart / lock / exit-kiosk |
@@ -290,8 +293,8 @@ All API routes are mounted under `/api`. `Auth` means an admin session is requir
 
 | Endpoint | Method | Access | Description |
 | --- | --- | --- | --- |
-| `/api/settings/update/info` | GET | Auth + Super admin | Installed commit (hash, subject, date, author) |
-| `/api/settings/update/check` | GET | Auth + Super admin | Fetch `origin/main` and compare local/remote commits |
+| `/api/settings/update/info` | GET | Auth + Super admin | Installed version and commit (hash, subject, date, author) |
+| `/api/settings/update/check` | GET | Auth + Super admin | Fetch `origin/main` and compare local/remote versions and commits |
 | `/api/settings/update/apply` | POST | Auth + Super admin + Re-auth | Reset to `origin/main` (restart required to take effect) |
 
 ### System Monitoring
@@ -342,6 +345,7 @@ The Settings dialog is available after admin login:
 | Device Information | All admins | Device UID, kiosk identity, activation, sync state |
 | Network Settings | All admins | Network status, WiFi scan, LAN status, connect/disconnect |
 | Idle Timeout | All admins | Set inactivity timeout (30–3600 seconds) |
+| Recent Sessions | All admins | Unlock the home screen widget; it shows recent sessions to everyone with masked names (first letter only) and non-clickable entries |
 | Server Status | All admins | Backend/API/database/MQTT/portal health |
 | System Information | All admins | Version, commit, OS, uptime, memory, storage |
 | Sensors/Print Test | All admins | Enable sensors, run tests/calibration, print a test page |
@@ -394,9 +398,9 @@ Logs are stored server-side only:
 
 The update dialog:
 
-1. Loads the installed commit from `/api/settings/update/info`
+1. Loads the installed version and commit from `/api/settings/update/info`
 2. Automatically checks `origin/main` when opened with network enabled
-3. Shows the installed and available commit subject, short hash, date, and author
+3. Shows the installed and available version, commit subject, short hash, date, and author
 4. Requires re-authentication before applying an update
 5. Fetches and resets to `origin/main` (falling back to `pull --rebase`) and
    asks the user to restart the kiosk so the new version takes effect
@@ -438,7 +442,7 @@ Recommended production settings:
   - Detected/unavailable changes per sensor
   - Printer connected/offline/paper-out/low-paper/ready changes
   - One stale warning per availability outage and one recovery entry
-- Sensor settings saves, test-all completion, and command failures
+- Sensor settings saves and command failures
 - Print test/receipt failures
 - Sync exports and failures
 - Admin/system actions such as exports, imports, deletes, network toggles,
@@ -537,15 +541,20 @@ The kiosk UI adapts to both portrait and widescreen (landscape) displays:
 
 ## Vital Signs Evaluation
 
-Health status is automatically evaluated based on standard medical guidelines:
+Health status is automatically evaluated from the thresholds implemented in
+[`artifacts/risecare-kiosk/src/lib/vitals-utils.ts`](artifacts/risecare-kiosk/src/lib/vitals-utils.ts)
+(the same code that renders the status on screen):
 
 | Vital Sign | Normal | Warning | Critical |
 | --- | --- | --- | --- |
-| Blood Pressure | <120/<80 mmHg | 120-129/<80 | ≥130 or ≥80 |
-| Heart Rate | 60-100 bpm | 50-59 or 101-110 | <50 or >110 |
-| SpO2 | ≥95% | 90-94% | <90% |
-| Temperature | 36.1-37.2°C | Boundaries | Outside range |
-| BMI | 18.5-24.9 | <18.5 or 25-29.9 | ≥30 |
+| Blood Pressure | <120 and <80 mmHg | systolic <90 or diastolic <60, or any other non-normal value below critical | ≥180 systolic or ≥120 diastolic |
+| Heart Rate | 60-100 bpm | 40-59 or 101-149 | <40 or ≥150 |
+| SpO2 | ≥95% | 91-94% | ≤90% |
+| Temperature | 36.0-37.9°C | 35.0-35.9°C or 38.0-39.9°C | <35.0°C or ≥40.0°C |
+| BMI | 18.5-24.9 | any other value (no critical tier) | — |
+
+Readings outside plausible clinical bounds (for example blood pressure where
+systolic ≤ diastolic) are shown as **Not assessed** rather than assigned a status.
 
 ---
 
@@ -574,7 +583,9 @@ Uses SQLite (file-based, no external server required):
 To enable real-time IoT sensor data:
 
 1. Install an MQTT broker (e.g., [Mosquitto](https://mosquitto.org/))
-2. Start the broker on the default port `1883`
+2. Start the broker on the default port `1883` (the bundled
+   [`deploy/mosquitto.conf`](deploy/mosquitto.conf) listens on loopback only,
+   because every MQTT client in this system runs on the kiosk itself)
 3. Configure sensors to publish to the `risecare/sensors/#` topic
 4. The system works without MQTT using manual input (`NO_MQTT=1`)
 
@@ -583,6 +594,12 @@ To enable real-time IoT sensor data:
 `risecare/command/exit-kiosk`) to remotely control the Raspberry Pi (see
 `hardware/shutdown.py`). Settings are pushed on `risecare/command/settings`,
 and sensor probes can be requested on `risecare/command/status`.
+
+Shutdown and restart both run through the `shutdown` binary on the Pi
+(`shutdown -h now` / `shutdown -r now`), with `systemctl` and `reboot`
+fallbacks. If the kiosk user is not root, add NOPASSWD sudoers entries for
+`/usr/sbin/shutdown` — this covers both actions — and for
+`/usr/bin/loginctl` if lock screen is used.
 
 The hardware process publishes availability on `risecare/sensors/availability`
 at boot and every 10 seconds. The API marks availability stale after 30 seconds
@@ -633,6 +650,7 @@ python3 vl53l1x_test.py --calibrate  # calibrate the sensor-to-floor distance
 ## Admin & Security
 
 - **Username & password login**: Settings, session history, and admin actions are locked behind an admin login; passwords are stored as bcrypt hashes
+- **First boot**: the initial `admin` super admin is created with a random password that is printed **once** to the API console (visible in the systemd journal or terminal). Save it immediately — it is not stored anywhere else. Use it to sign in, then create your own account
 - **Account roles**: Accounts are either **Super Admin** (full access) or **Admin**. Only super admins see System Logs, Activity Log, Accounts, and Check for Updates; admins get the remaining settings (Profile, Device Information, Network, Idle Timeout, Server Status, System Information, Sensors/Print Test, Power)
 - **Re-authentication**: Database export/import/delete, device activation/sync, power commands, server export, and updates require a recent password confirmation before running
 - **Rate limiting**: Repeated failed logins are limited to 10 per 15 minutes; sensitive actions are limited to 20 per minute; session lookup has its own limiter
@@ -650,15 +668,12 @@ python3 vl53l1x_test.py --calibrate  # calibrate the sensor-to-floor distance
 | `pnpm prod` | Start both with `API_SILENT=1` |
 | `pnpm dev:api` | Start API server only |
 | `pnpm dev:local` | Start API + kiosk with the local proxy |
+| `pnpm test` | Run unit tests (vital thresholds, sync sanitization, sensor calibration) |
 | `pnpm build:kiosk` | Build the frontend for production |
 | `pnpm start` | Build the kiosk and serve it from the production API |
 | `pnpm build` | Type-check and build all packages |
 | `pnpm typecheck` | Run TypeScript type checking |
 | `pnpm typecheck:libs` | Type-check shared libraries |
-| `pnpm test:api` | Placeholder API test command |
-| `pnpm run db:push` | Push database schema changes |
-| `pnpm run db:migrate` | Apply database migrations |
-| `pnpm run db:studio` | Open the database studio |
 
 ---
 

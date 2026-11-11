@@ -9,6 +9,7 @@ import { ActivityLogsSettings } from "./ActivityLogsSettings";
 import { AccountsSettings } from "./AccountsSettings";
 import { IdleTimeoutSettings } from "./IdleTimeoutSettings";
 import { NetworkSettings } from "./NetworkSettings";
+import { RecentSessionsSettings } from "./RecentSessionsSettings";
 import { PowerSettings } from "./PowerSettings";
 import { ProfileSettings } from "./ProfileSettings";
 import { SensorsSettings } from "./SensorsSettings";
@@ -306,7 +307,9 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
               ? "Accounts"
               : activeSubmenu === "idle-timeout"
                   ? "Idle Timeout"
-                  : activeSubmenu === "network"
+                  : activeSubmenu === "recent-sessions"
+                    ? "Recent Sessions"
+                    : activeSubmenu === "network"
                     ? "Network Settings"
                     : activeSubmenu === "server-status"
                       ? "Server Status"
@@ -528,6 +531,8 @@ export const SettingsDialog = memo(function SettingsDialog({ account, isOpen, on
               />
             ) : activeSubmenu === "idle-timeout" ? (
               <IdleTimeoutSettings account={account} isRateLimited={isRateLimited} />
+            ) : activeSubmenu === "recent-sessions" ? (
+              <RecentSessionsSettings isRateLimited={isRateLimited} />
             ) : activeSubmenu === "network" ? (
               <NetworkSettings isRateLimited={isRateLimited} />
             ) : activeSubmenu === "server-status" ? (

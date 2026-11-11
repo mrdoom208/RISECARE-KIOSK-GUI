@@ -129,10 +129,19 @@ export function connectMQTT() {
       const data = raw;
       mqttDebug("Received message", { topic, payload: data });
 
-      // Call registered handlers
+      // Call registered handlers. Handlers are async and write to the DB; a
+      // rejected handler must never become an unhandled rejection that kills
+      // the whole API mid-session.
       const handlers = messageHandlers.get(topic);
       if (handlers) {
-        handlers.forEach((handler) => handler(data, topic));
+        for (const handler of handlers) {
+          void Promise.resolve(handler(data, topic)).catch((error) =>
+            logger.error("MQTT", "Message handler failed", {
+              topic,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }
       }
 
       // Also call wildcard handlers
@@ -142,7 +151,14 @@ export function connectMQTT() {
             "^" + pattern.replace(/\/#$/, "/.*").replace(/\+/, "[^/]+") + "$"
           );
           if (regex.test(topic)) {
-            fns.forEach((fn) => fn(data, topic));
+            for (const fn of fns) {
+              void Promise.resolve(fn(data, topic)).catch((error) =>
+                logger.error("MQTT", "Message handler failed", {
+                  topic,
+                  error: error instanceof Error ? error.message : String(error),
+                }),
+              );
+            }
           }
         }
       });
@@ -246,8 +262,4 @@ export function subscribe(topic: string, handler: MessageHandler) {
 
 export function isConnected() {
   return client?.connected ?? false;
-}
-
-export function getClient() {
-  return client;
 }

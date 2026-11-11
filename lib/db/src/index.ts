@@ -1,5 +1,6 @@
 import initSqlJs from "sql.js";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -150,9 +151,15 @@ function createTables() {
     // Insert default account if none exists
     const accounts = db.exec("SELECT COUNT(*) as count FROM accounts");
     if (accounts[0]?.values?.[0]?.[0] === 0) {
+      // First boot only: the initial super admin gets a random password that
+      // is printed once to the console (systemd journal) and exists nowhere
+      // else. Never ship a known default password.
+      const password = crypto.randomBytes(8).toString("hex");
       db.run("INSERT INTO accounts (username, password, role) VALUES ('admin', ?, 'superadmin')", [
-        bcrypt.hashSync("082405", 10),
+        bcrypt.hashSync(password, 10),
       ]);
+      console.error(`[risecare] First boot: super admin "admin" created. One-time password: ${password}`);
+      console.error("[risecare] Save this password now — it is not shown again.");
     }
 
     // Migrate plaintext passwords to bcrypt hashes (run every boot, idempotent)
@@ -254,15 +261,17 @@ export async function run(sql: string, params: any[] = []) {
   db.run(sql, params);
   const result = db.exec("SELECT last_insert_rowid()");
   const lastInsertRowid = result[0]?.values?.[0]?.[0];
-  saveDb();
   return { lastInsertRowid };
 }
 
+// shortcut: writes persist at most 30s late (interval below + exit handlers);
+// a crash loses only readings the patient re-measures. Move to a real SQLite
+// driver with WAL if that window ever matters.
 process.on('exit', saveDb);
 process.on('SIGINT', () => { saveDb(); process.exit(); });
 process.on('SIGTERM', () => { saveDb(); process.exit(); });
 setInterval(saveDb, 30000);
 
 await initDb();
-export { db };
+export { db, dbPath, saveDb, workspaceRoot };
 export * from "./schema";

@@ -26,6 +26,8 @@ interface UpdateCheckResult {
   hasUpdate: boolean;
   diverged?: boolean;
   localAhead?: boolean;
+  version?: string;
+  remoteVersion?: string | null;
   localHash: string;
   remoteHash: string;
   local: CommitInfo | null;
@@ -122,6 +124,7 @@ export function UpdateSettingsDialog({
 
   const { data: info, isLoading: infoLoading } = useQuery<{
     local: CommitInfo | null;
+    version?: string;
   }>({
     queryKey: ["update-info"],
     queryFn: async () => {
@@ -216,6 +219,7 @@ export function UpdateSettingsDialog({
 
   const hasUpdate = !!checkResult?.hasUpdate;
   const displayLocal = checkResult?.local ?? info?.local ?? null;
+  const displayVersion = checkResult?.version ?? info?.version ?? "";
   const updating = applying || applied;
 
   return (
@@ -249,7 +253,14 @@ export function UpdateSettingsDialog({
         </div>
 
         <section aria-label="Current build" className="space-y-2">
-          <p className="text-sm font-semibold text-muted-foreground">Current version</p>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-sm font-semibold text-muted-foreground">Current version</p>
+            {displayVersion && (
+              <p className="rounded-md bg-secondary px-2.5 py-1 font-mono text-sm font-bold">
+                v{displayVersion}
+              </p>
+            )}
+          </div>
           {infoLoading ? (
             <div className="rounded-2xl border border-border/60 bg-secondary/40 p-4">
               <div className="h-4 w-24 animate-pulse rounded bg-muted" />
@@ -305,7 +316,9 @@ export function UpdateSettingsDialog({
                 <div>
                   <p className="font-semibold">Update available</p>
                   <p className="text-sm text-foreground/80">
-                    A newer commit is available on origin/main.
+                    {checkResult.remoteVersion
+                      ? `Version v${checkResult.remoteVersion} is available on origin/main.`
+                      : "A newer commit is available on origin/main."}
                   </p>
                 </div>
               </div>
@@ -348,7 +361,15 @@ export function UpdateSettingsDialog({
 
           {hasUpdate && checkResult?.remote && (
             <div className="mt-3">
-              <CommitSummary label="Available commit" commit={checkResult.remote} tone="primary" />
+              <CommitSummary
+                label={
+                  checkResult.remoteVersion
+                    ? `Available update · v${checkResult.remoteVersion}`
+                    : "Available commit"
+                }
+                commit={checkResult.remote}
+                tone="primary"
+              />
             </div>
           )}
         </section>

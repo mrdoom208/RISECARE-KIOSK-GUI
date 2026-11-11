@@ -66,6 +66,10 @@ MODE_CALIBRATE = "calibrate"
 DIAGNOSTIC_INTERVAL = 0.5
 
 TOTAL_HEIGHT = None
+# Fine offset (cm) added to every measured height, set from the kiosk advanced
+# calibration. Stored in settings.json independently of the vl53l1x section so
+# a height calibration cannot wipe it.
+height_offset = 0.0
 sensor_available = False
 bus = None
 sensor = None
@@ -276,7 +280,7 @@ def get_height():
         return None
 
     distance = _average_readings(distances)
-    height = TOTAL_HEIGHT - distance
+    height = TOTAL_HEIGHT - distance + height_offset
 
     if height < MIN_HEIGHT_CM or height > MAX_HEIGHT_CM:
         # The beam reached the floor (nobody under the sensor) or the reading
@@ -285,6 +289,13 @@ def get_height():
         return None
 
     return _smooth_height(height)
+
+
+def set_height_offset(value):
+    """Update the fine offset added to every measured height."""
+    global height_offset
+    height_offset = settings_store.save_height_offset(value)
+    return height_offset
 
 
 def reset_calibration():
@@ -296,15 +307,18 @@ def reset_calibration():
 
 
 def load_calibration():
-    global TOTAL_HEIGHT
+    global TOTAL_HEIGHT, height_offset
 
     data = settings_store.load_settings()
     TOTAL_HEIGHT = data.get("vl53l1x", {}).get("total_height")
+    height_offset = settings_store.load_height_offset()
     if _is_valid_distance(TOTAL_HEIGHT):
         print(f"Loaded VL53L1X calibration: {TOTAL_HEIGHT:.2f} cm")
     else:
         TOTAL_HEIGHT = None
         print("No VL53L1X calibration found. Please calibrate.")
+    if height_offset:
+        print(f"Loaded height offset: {height_offset:+.2f} cm")
 
     _height_history.clear()
 

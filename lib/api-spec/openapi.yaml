@@ -176,19 +176,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/VitalReading"
 
-  /vitals/latest:
-    get:
-      operationId: getLatestVitals
-      tags: [vitals]
-      summary: Get the latest vital readings
-      responses:
-        "200":
-          description: Latest vitals
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LatestVitals"
-
 components:
   schemas:
     HealthStatus:
@@ -354,16 +341,3 @@ components:
         - id
         - sessionId
         - recordedAt
-
-    LatestVitals:
-      type: object
-      properties:
-        session:
-          $ref: "#/components/schemas/Session"
-          nullable: true
-        vitals:
-          $ref: "#/components/schemas/VitalReading"
-          nullable: true
-      required:
-        - session
-        - vitals

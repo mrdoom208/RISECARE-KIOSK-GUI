@@ -1,8 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import rateLimit from "express-rate-limit";
-import { run, query } from "@workspace/db";
-import { publish } from "../mqtt";
+import { run, query, saveDb, dbPath, workspaceRoot } from "@workspace/db";
 import { logger } from "../logger";
 import { requireAuth, requireReauth, requireSuperadmin, REAUTH_TTL_MS } from "../auth";
 import { logActivity } from "../activity-log";
@@ -12,26 +11,13 @@ import path from "path";
 import fs from "fs";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { fileURLToPath } from "url";
 
-const BCRYPT_ROUNDS = 10;
-const MIN_PASSWORD_LENGTH = 12;
+// Kiosk settings and admin authentication: login/logout/re-authenticate,
+// idle timeout, network toggle, portal connectivity, and database
+// export/delete. Account management lives in accounts.ts, power commands in
+// power.ts, and updates in update.ts.
+
 const execFileAsync = promisify(execFile);
-
-function findWorkspaceRoot(): string {
-  // Resolve from this module so the API works when systemd/PM2 starts it with
-  // a working directory outside the repository (common on Linux kiosks).
-  let currentDir = path.dirname(fileURLToPath(import.meta.url));
-  for (let i = 0; i < 10; i++) {
-    if (fs.existsSync(path.resolve(currentDir, "pnpm-workspace.yaml"))) {
-      return currentDir;
-    }
-    const parent = path.resolve(currentDir, "..");
-    if (parent === currentDir) break;
-    currentDir = parent;
-  }
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
-}
 
 function getWifiCommandError(error: any): string {
   const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
@@ -53,103 +39,11 @@ function isWifiPermissionError(message: string): boolean {
   );
 }
 
-function getDbPath(): string {
-  const root = findWorkspaceRoot();
-  const envPath = path.resolve(root, ".env");
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, "utf-8");
-    const match = envContent.match(/DATABASE_URL=(.+)/);
-    if (match) {
-      return path.resolve(root, match[1].trim());
-    }
-  }
-  return path.resolve(root, "risecare.sqlite");
+function isHashed(password: string): boolean {
+  return typeof password === "string" && /^\$2[aby]\$/.test(password);
 }
-
-const dbPath = getDbPath();
 
 const router: IRouter = Router();
-
-interface ChromiumProcessScan {
-  pids: number[];
-  inspected: number;
-  processNames: string[];
-  readErrors: string[];
-}
-
-async function findChromiumPids(): Promise<ChromiumProcessScan> {
-  if (process.platform !== "linux") {
-    return { pids: [], inspected: 0, processNames: [], readErrors: [] };
-  }
-
-  const entries = await fs.promises.readdir("/proc", { withFileTypes: true });
-  const pids: number[] = [];
-  const processNames = new Set<string>();
-  const readErrors: string[] = [];
-  let inspected = 0;
-
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
-
-    inspected += 1;
-    let processName = "";
-    try {
-      processName = (await fs.promises.readFile(
-        `/proc/${entry.name}/comm`,
-        "utf8",
-      )).trim();
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      if (readErrors.length < 5) {
-        readErrors.push(
-          `PID ${entry.name} comm: ${(error as Error).message}`,
-        );
-      }
-    }
-
-    if (processName) processNames.add(processName);
-    const isChromiumName =
-      /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/i.test(
-        processName,
-      );
-
-    if (isChromiumName) {
-      pids.push(Number(entry.name));
-      continue;
-    }
-
-    try {
-      const args = (await fs.promises.readFile(
-        `/proc/${entry.name}/cmdline`,
-      ))
-        .toString("utf8")
-        .split("\0")
-        .filter(Boolean);
-      const executable = path.basename(args[0] ?? "");
-      if (
-        /^(chromium(?:-browser)?|chrome|google-chrome(?:-stable)?)$/i.test(
-          executable,
-        )
-      ) {
-        pids.push(Number(entry.name));
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      if (readErrors.length < 5) {
-        readErrors.push(
-          `PID ${entry.name} cmdline: ${(error as Error).message}`,
-        );
-      }
-    }
-  }
-
-  return {
-    pids,
-    inspected,
-    processNames: [...processNames].slice(0, 10),
-    readErrors,
-  };
-}
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -160,219 +54,6 @@ const loginLimiter = rateLimit({
   handler: (_req, res, _next, options) => {
     res.status(429).json({ error: "rate_limited", message: options.message });
   },
-});
-
-const sensitiveLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (_req, res, _next, options) => {
-    res.status(429).json({ error: "rate_limited", message: options.message });
-  },
-});
-
-function isHashed(password: string): boolean {
-  return typeof password === "string" && /^\$2[aby]\$/.test(password);
-}
-
-function normalizeRole(role: any): "superadmin" | "admin" | null {
-  return role === "superadmin" ? "superadmin" : role === "admin" ? "admin" : null;
-}
-
-function publicAccount(account: any) {
-  return { id: account.id, username: account.username, role: account.role };
-}
-
-// Register a new admin account (superadmin only)
-router.post("/register", requireAuth, requireSuperadmin, async (req, res) => {
-  try {
-    const { username, password, role } = req.body ?? {};
-    if (typeof username !== "string" || !username.trim()) {
-      res.status(400).json({ error: "Username is required" });
-      return;
-    }
-    if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-      res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
-      return;
-    }
-    const normalizedRole = normalizeRole(role);
-    if (!normalizedRole) {
-      res.status(400).json({ error: "Role must be 'superadmin' or 'admin'" });
-      return;
-    }
-
-    const existing = await query("SELECT id FROM accounts WHERE username = ?", [username.trim()]);
-    if (existing && existing.length > 0) {
-      res.status(409).json({ error: "An account with that username already exists" });
-      return;
-    }
-
-    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    const result = await run("INSERT INTO accounts (username, password, role) VALUES (?, ?, ?)", [
-      username.trim(),
-      hashedPassword,
-      normalizedRole,
-    ]);
-
-    const account = { id: result?.lastInsertRowid, username: username.trim(), role: normalizedRole };
-    await logActivity(
-      account.id,
-      "Account Created",
-      `${normalizedRole === "superadmin" ? "Super admin" : "Admin"} account "${username.trim()}" was created by ${req.user?.username}`,
-    );
-
-    res.json({ success: true, account });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to create account" });
-  }
-});
-
-// List accounts (superadmin only)
-router.get("/accounts", requireAuth, requireSuperadmin, async (req, res) => {
-  try {
-    const roleFilter = req.query.role;
-    let sql = "SELECT id, username, role, created_at FROM accounts";
-    const params: any[] = [];
-    if (roleFilter === "superadmin" || roleFilter === "admin") {
-      sql += " WHERE role = ?";
-      params.push(roleFilter);
-    }
-    sql += " ORDER BY created_at DESC";
-    const accounts = await query(sql, params);
-    res.json(accounts || []);
-  } catch (e) {
-    res.status(500).json({ error: "Failed to fetch accounts" });
-  }
-});
-
-// Current signed-in account profile (any authenticated user)
-router.get("/me", requireAuth, async (req, res) => {
-  try {
-    const rows = await query("SELECT id, username, role, created_at FROM accounts WHERE id = ?", [
-      req.user?.id ?? 0,
-    ]);
-    if (!rows || rows.length === 0) {
-      res.status(404).json({ error: "Account not found" });
-      return;
-    }
-    res.json(rows[0]);
-  } catch (e) {
-    res.status(500).json({ error: "Failed to fetch profile" });
-  }
-});
-
-// Edit an account (superadmin only)
-router.put("/accounts/:id", requireAuth, requireSuperadmin, async (req, res) => {
-  try {
-    const accountId = Number(req.params.id);
-    if (!accountId) {
-      res.status(400).json({ error: "Invalid account id" });
-      return;
-    }
-
-    const existing = await query("SELECT * FROM accounts WHERE id = ?", [accountId]);
-    if (!existing || existing.length === 0) {
-      res.status(404).json({ error: "Account not found" });
-      return;
-    }
-
-    if (existing[0].role === "superadmin" && req.user?.id !== accountId) {
-      res.status(403).json({ error: "You cannot modify another super admin account" });
-      return;
-    }
-
-    const { username, password, role } = req.body ?? {};
-    const newRole = normalizeRole(role) ?? existing[0].role;
-
-    if (newRole !== existing[0].role && existing[0].role === "superadmin") {
-      const superadmins = await query("SELECT id FROM accounts WHERE role = 'superadmin'");
-      if (superadmins.length <= 1) {
-        res.status(400).json({ error: "Cannot change the role of the last super admin" });
-        return;
-      }
-    }
-
-    const updates: string[] = [];
-    const params: any[] = [];
-
-    if (typeof username === "string" && username.trim() && username.trim() !== existing[0].username) {
-      const conflict = await query("SELECT id FROM accounts WHERE username = ? AND id != ?", [
-        username.trim(),
-        accountId,
-      ]);
-      if (conflict && conflict.length > 0) {
-        res.status(409).json({ error: "An account with that username already exists" });
-        return;
-      }
-      updates.push("username = ?");
-      params.push(username.trim());
-    }
-    if (typeof password === "string" && password.length > 0) {
-      if (password.length < MIN_PASSWORD_LENGTH) {
-        res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
-        return;
-      }
-      updates.push("password = ?");
-      params.push(await bcrypt.hash(password, BCRYPT_ROUNDS));
-    }
-    if (newRole !== existing[0].role) {
-      updates.push("role = ?");
-      params.push(newRole);
-    }
-
-    if (updates.length > 0) {
-      await run(`UPDATE accounts SET ${updates.join(", ")} WHERE id = ?`, [...params, accountId]);
-      await logActivity(
-        req.user?.id ?? null,
-        "Account Updated",
-        `User ${req.user?.username ?? "Unknown"} updated account "${existing[0].username}"`,
-      );
-    }
-
-    const updated = await query("SELECT id, username, role, created_at FROM accounts WHERE id = ?", [accountId]);
-    res.json({ success: true, account: updated[0] });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to update account" });
-  }
-});
-
-// Remove an account (superadmin only)
-router.delete("/accounts/:id", requireAuth, requireSuperadmin, async (req, res) => {
-  try {
-    const accountId = Number(req.params.id);
-    if (!accountId) {
-      res.status(400).json({ error: "Invalid account id" });
-      return;
-    }
-
-    if (req.user?.id === accountId) {
-      res.status(403).json({ error: "You cannot remove your own account" });
-      return;
-    }
-
-    const existing = await query("SELECT * FROM accounts WHERE id = ?", [accountId]);
-    if (!existing || existing.length === 0) {
-      res.status(404).json({ error: "Account not found" });
-      return;
-    }
-
-    if (existing[0].role === "superadmin") {
-      res.status(403).json({ error: "You cannot remove another super admin account" });
-      return;
-    }
-
-    await run("DELETE FROM accounts WHERE id = ?", [accountId]);
-    await logActivity(
-      req.user?.id ?? null,
-      "Account Removed",
-      `User ${req.user?.username ?? "Unknown"} removed account "${existing[0].username}"`,
-    );
-
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to remove account" });
-  }
 });
 
 // Login with username + password. Establishes a server-side session (HttpOnly cookie).
@@ -395,7 +76,7 @@ router.post("/login", loginLimiter, async (req, res) => {
         valid = account.password === password;
         if (valid) {
           await run("UPDATE accounts SET password = ? WHERE id = ?", [
-            await bcrypt.hash(password, BCRYPT_ROUNDS),
+            await bcrypt.hash(password, 10),
             account.id,
           ]);
         }
@@ -421,7 +102,7 @@ router.post("/login", loginLimiter, async (req, res) => {
         context === "history" ? "User opened session history" : "User opened settings menu";
       void logActivity(account.id, action, details);
 
-      res.json({ success: true, account: publicAccount(account) });
+      res.json({ success: true, account: { id: account.id, username: account.username, role: account.role } });
     });
   } catch (e) {
     res.status(500).json({ error: "Failed to login" });
@@ -471,25 +152,12 @@ router.post("/reauthenticate", requireAuth, loginLimiter, async (req, res) => {
   }
 });
 
-// Get activity logs (superadmin only)
-router.get("/logs", requireAuth, requireSuperadmin, async (_req, res) => {
-  try {
-    const logs = await query(`
-      SELECT activity_log.*, accounts.username as account_name
-      FROM activity_log
-      LEFT JOIN accounts ON activity_log.account_id = accounts.id
-      ORDER BY created_at DESC
-      LIMIT 100
-    `);
-    res.json(logs || []);
-  } catch (e) {
-    res.json([]);
-  }
-});
-
 // Export database (superadmin, requires recent re-auth)
 router.get("/export", requireAuth, requireSuperadmin, requireReauth, async (req, res) => {
   try {
+    // Writes are persisted on a 30s interval; flush first so the downloaded
+    // backup always contains every completed write.
+    saveDb();
     if (!fs.existsSync(dbPath)) {
       res.status(404).json({ error: "Database not found" });
       return;
@@ -510,26 +178,14 @@ router.get("/export", requireAuth, requireSuperadmin, requireReauth, async (req,
   }
 });
 
-// Import database (superadmin, requires recent re-auth)
-router.post("/import", requireAuth, requireSuperadmin, requireReauth, async (req, res) => {
-  try {
-    await logActivity(
-      req.user?.id ?? null,
-      "Database Imported",
-      `User ${req.user?.username ?? "Unknown"} imported a database`,
-    );
-
-    res.json({ status: "imported" });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to import database" });
-  }
-});
-
 // Delete all data (superadmin, requires recent re-auth)
 router.post("/delete", requireAuth, requireSuperadmin, requireReauth, async (req, res) => {
   try {
     await run("DELETE FROM vital_readings");
     await run("DELETE FROM sessions");
+    // Flush immediately so a power cut right after cannot resurrect the
+    // deleted patient data from a stale file.
+    saveDb();
 
     await logActivity(
       req.user?.id ?? null,
@@ -597,7 +253,7 @@ router.post("/network-enabled", requireAuth, async (req, res) => {
       res.status(400).json({ error: "enabled must be a boolean" });
       return;
     }
-    const wifiScript = path.resolve(findWorkspaceRoot(), "hardware", "wifi.py");
+    const wifiScript = path.resolve(workspaceRoot, "hardware", "wifi.py");
     try {
       await execFileAsync("python3", [wifiScript, "radio", enabled ? "on" : "off"], { timeout: 20000 });
     } catch (err: any) {
@@ -627,6 +283,40 @@ router.post("/network-enabled", requireAuth, async (req, res) => {
     res.json({ success: true, enabled: !!enabled });
   } catch (e: any) {
     res.status(500).json({ error: e?.message || "Failed to set network connection setting" });
+  }
+});
+
+// Get recent sessions visibility setting (public read used by the kiosk)
+router.get("/recent-sessions", async (_req, res) => {
+  try {
+    const rows = await query("SELECT value FROM settings WHERE key = 'recent_sessions_enabled'");
+    const enabled = rows && rows.length > 0 ? rows[0].value === "true" : true;
+    res.json({ enabled });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || "Failed to get recent sessions setting" });
+  }
+});
+
+// Set recent sessions visibility setting (authenticated). When enabled, the
+// home screen widget shows recent sessions to everyone with masked names
+// (first letter only) and no clickable entries; when disabled, it stays locked.
+router.post("/recent-sessions", requireAuth, async (req, res) => {
+  try {
+    const { enabled } = req.body ?? {};
+    if (typeof enabled !== "boolean") {
+      res.status(400).json({ error: "enabled must be a boolean" });
+      return;
+    }
+    const val = enabled ? "true" : "false";
+    await run("INSERT OR REPLACE INTO settings (key, value) VALUES ('recent_sessions_enabled', ?)", [val]);
+    await logActivity(
+      req.user?.id ?? null,
+      "Recent Sessions Toggled",
+      `Recent sessions widget ${enabled ? "enabled (names masked)" : "disabled"} by ${req.user?.username ?? "Unknown"}`,
+    );
+    res.json({ success: true, enabled });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || "Failed to set recent sessions setting" });
   }
 });
 
@@ -677,230 +367,6 @@ router.post("/export-server", requireAuth, requireReauth, async (req, res) => {
       return;
     }
     res.status(502).json({ error: "Failed to sync records" });
-  }
-});
-
-type PowerCommand = "shutdown" | "restart" | "lock" | "exit-kiosk";
-
-const POWER_COMMAND_LABEL: Record<PowerCommand, string> = {
-  shutdown: "Shutdown",
-  restart: "Restart",
-  lock: "Lock",
-  "exit-kiosk": "Exit Program",
-};
-
-// Send a power command (shutdown / restart / lock) via MQTT, or exit local kiosk Chromium.
-async function sendPowerCommand(
-  req: any,
-  res: any,
-  action: PowerCommand,
-) {
-  try {
-    const actionLabel = POWER_COMMAND_LABEL[action];
-
-    if (action === "exit-kiosk") {
-      const scan = await findChromiumPids();
-      const { pids } = scan;
-      if (pids.length === 0) {
-        logger.error("System", "Exit Program failed because Chromium was not found", {
-          platform: process.platform,
-          procPath: "/proc",
-          inspectedPidEntries: scan.inspected,
-          processNames: scan.processNames,
-          readErrors: scan.readErrors,
-          note:
-            "The scan only sees processes visible in the API server's process namespace.",
-        });
-        res.status(409).json({
-          error: "Kiosk Chromium was not found on the API server host",
-        });
-        return;
-      }
-
-      await logActivity(
-        req.user?.id ?? null,
-        `System ${actionLabel}`,
-        `User ${req.user?.username ?? "Unknown"} exited kiosk mode`,
-      );
-      void logSystem("INFO", "System", "Kiosk program exited", {
-        by: req.user?.username ?? "Unknown",
-      });
-
-      for (const pid of pids) {
-        try {
-          process.kill(pid, "SIGTERM");
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
-        }
-      }
-
-      res.json({ success: true, action, message: "Kiosk program exited" });
-      return;
-    }
-
-    await logActivity(
-      req.user?.id ?? null,
-      `System ${actionLabel}`,
-      `User ${req.user?.username ?? "Unknown"} initiated system ${action}`,
-    );
-    void logSystem("INFO", "System", `System ${action} requested`, {
-      by: req.user?.username ?? "Unknown",
-    });
-
-    const sent = publish(`risecare/command/${action}`, {
-      sensor: action,
-      value: 1,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (sent) {
-      res.json({ success: true, action, message: `${actionLabel} command sent` });
-    } else {
-      res.status(503).json({ error: "MQTT not connected" });
-    }
-  } catch (e) {
-    logger.error("System", `Could not execute the ${action} power command`, e);
-    res.status(500).json({ error: `Failed to send ${action} command` });
-  }
-}
-
-// Power commands: shutdown / restart / lock (authenticated, requires recent re-auth)
-router.post("/power", requireAuth, requireReauth, sensitiveLimiter, async (req, res) => {
-  const { action } = req.body ?? {};
-  if (action !== "shutdown" && action !== "restart" && action !== "lock"
-      && action !== "exit-kiosk") {
-    res.status(400).json({
-      error: "Action must be 'shutdown', 'restart', 'lock', or 'exit-kiosk'",
-    });
-    return;
-  }
-  await sendPowerCommand(req, res, action);
-});
-
-// Backward-compatible alias for shutdown
-router.post("/shutdown", requireAuth, requireReauth, sensitiveLimiter, async (req, res) => {
-  await sendPowerCommand(req, res, "shutdown");
-});
-
-// Check for updates (git fetch + compare with origin/main)
-interface CommitInfo {
-  hash: string;
-  shortHash: string;
-  subject: string;
-  date: string;
-  author: string;
-}
-
-async function readCommit(root: string, ref: string): Promise<CommitInfo | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      "git",
-      ["-C", root, "log", "-1", "--format=%H%n%h%n%s%n%cI%n%an", ref],
-      { timeout: 10000 },
-    );
-    const [hash, shortHash, subject, date, author] = stdout.trim().split("\n");
-    if (!hash) return null;
-    return {
-      hash,
-      shortHash: shortHash || hash.slice(0, 7),
-      subject: subject || "(no commit message)",
-      date: date || "",
-      author: author || "",
-    };
-  } catch {
-    return null;
-  }
-}
-
-// Current build details for the update dialog (no network access).
-router.get("/update/info", requireAuth, requireSuperadmin, async (_req, res) => {
-  try {
-    const local = await readCommit(findWorkspaceRoot(), "HEAD");
-    res.json({ local });
-  } catch {
-    res.json({ local: null });
-  }
-});
-
-router.get("/update/check", requireAuth, requireSuperadmin, async (_req, res) => {
-  try {
-    const root = findWorkspaceRoot();
-    try {
-      await execFileAsync("git", ["-C", root, "fetch", "--all", "--prune"], { timeout: 30000 });
-    } catch {
-      await execFileAsync("git", ["-C", root, "fetch", "origin", "main"], { timeout: 30000 });
-    }
-    const localCommit = await readCommit(root, "HEAD");
-    const remoteCommit = await readCommit(root, "origin/main");
-    const localHash = localCommit?.hash ?? "";
-    const remoteHash = remoteCommit?.hash ?? "";
-    if (!localHash || !remoteHash) {
-      res.status(500).json({ error: "Could not determine the installed or available commit" });
-      return;
-    }
-
-    const { stdout: counts } = await execFileAsync(
-      "git",
-      ["-C", root, "rev-list", "--left-right", "--count", "HEAD...origin/main"],
-      { timeout: 10000 },
-    );
-    const [localOnly, remoteOnly] = counts.trim().split(/\s+/).map(Number);
-    if (!Number.isFinite(localOnly) || !Number.isFinite(remoteOnly)) {
-      throw new Error("Could not compare the installed and available commits");
-    }
-
-    res.json({
-      hasUpdate: localOnly === 0 && remoteOnly > 0,
-      localHash,
-      remoteHash,
-      local: localCommit,
-      remote: remoteCommit,
-      diverged: localOnly > 0 && remoteOnly > 0,
-      localAhead: localOnly > 0 && remoteOnly === 0,
-    });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message || "Failed to check for updates" });
-  }
-});
-
-// Apply updates. The system is not rebooted automatically; the user is told to
-// restart so the new version takes effect.
-router.post("/update/apply", requireAuth, requireSuperadmin, requireReauth, sensitiveLimiter, async (req, res) => {
-  try {
-    const root = findWorkspaceRoot();
-    try {
-      await execFileAsync("git", ["-C", root, "fetch", "--all", "--prune"], { timeout: 30000 });
-    } catch {
-      await execFileAsync("git", ["-C", root, "fetch", "origin", "main"], { timeout: 30000 });
-    }
-    const { stdout: counts } = await execFileAsync(
-      "git",
-      ["-C", root, "rev-list", "--left-right", "--count", "HEAD...origin/main"],
-      { timeout: 10000 },
-    );
-    const [localOnly, remoteOnly] = counts.trim().split(/\s+/).map(Number);
-    if (!Number.isFinite(localOnly) || !Number.isFinite(remoteOnly)) {
-      throw new Error("Could not compare the installed and available commits");
-    }
-    if (localOnly !== 0) {
-      res.status(409).json({
-        error: "The installed version has local commits and cannot be updated automatically. Resolve the branch state before applying this update.",
-      });
-      return;
-    }
-    if (remoteOnly === 0) {
-      res.status(409).json({ error: "No newer update is available on origin/main" });
-      return;
-    }
-
-    // Fast-forward only: this fails safely if the workspace has local changes
-    // and never discards files like reset --hard would.
-    await execFileAsync("git", ["-C", root, "merge", "--ff-only", "origin/main"], { timeout: 60000 });
-    await logActivity(req.user?.id ?? null, "System Update", "Applied update from origin/main; restart required to take effect");
-    void logSystem("INFO", "Backend", "System update applied; restart required to take effect");
-    res.json({ success: true, restartRequired: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message || "Failed to apply update" });
   }
 });
 

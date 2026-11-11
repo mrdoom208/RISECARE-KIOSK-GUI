@@ -1,9 +1,8 @@
 import { Router, type IRouter } from "express";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-import { existsSync } from "fs";
+import { resolve } from "path";
+import { workspaceRoot } from "@workspace/db";
 import { query } from "@workspace/db";
 import { requireAuth } from "../auth";
 
@@ -11,24 +10,6 @@ const execFileAsync = promisify(execFile);
 
 const router: IRouter = Router();
 
-function findWorkspaceRoot(): string {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-
-  let currentDir = __dirname;
-  for (let i = 0; i < 10; i++) {
-    if (existsSync(resolve(currentDir, "pnpm-workspace.yaml"))) {
-      return currentDir;
-    }
-    const parent = resolve(currentDir, "..");
-    if (parent === currentDir) break;
-    currentDir = parent;
-  }
-
-  return resolve(__dirname, "..", "..", "..");
-}
-
-const workspaceRoot = findWorkspaceRoot();
 const WIFI_SCRIPT = resolve(workspaceRoot, "hardware", "wifi.py");
 
 async function runWifi(args: string[]) {

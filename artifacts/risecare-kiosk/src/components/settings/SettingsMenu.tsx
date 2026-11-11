@@ -5,6 +5,7 @@ import {
   CircleUserRound,
   DownloadCloud,
   FileText,
+  History,
   Info,
   Loader2,
   MonitorSmartphone,
@@ -26,6 +27,7 @@ export type SettingsSubmenu =
   | "logs"
   | "accounts"
   | "idle-timeout"
+  | "recent-sessions"
   | "network"
   | "server-status"
   | "system-info"
@@ -182,6 +184,15 @@ export function SettingsMenu({
             onNavigate("idle-timeout");
           }}
           ariaLabel="Open Idle Timeout settings"
+        />
+        <SettingsMenuItem
+          icon={History}
+          label="Recent Sessions"
+          onClick={() => {
+            if (isRateLimited("recent-sessions-menu")) return;
+            onNavigate("recent-sessions");
+          }}
+          ariaLabel="Open Recent Sessions settings"
         />
       </SettingsSection>
 

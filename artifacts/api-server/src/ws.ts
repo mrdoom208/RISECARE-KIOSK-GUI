@@ -57,15 +57,6 @@ export function setupWebSocket(server: Server) {
     broadcast({ type: "calibration_progress", sensor, data, receivedAt: Date.now() });
   });
 
-  subscribe("risecare/test/+", (data, topic) => {
-    const sensor = topic?.split("/").pop() || "unknown";
-    broadcast({ type: "calibration_progress", sensor, data, receivedAt: Date.now() });
-  });
-
   logger.info("WebSocket", "WebSocket server ready", { path: "/ws" });
-  return wss;
-}
-
-export function getWss() {
   return wss;
 }

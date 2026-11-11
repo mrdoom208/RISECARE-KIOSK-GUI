@@ -44,6 +44,12 @@ CALIBRATION_FACTOR_PER_KG = 28205
 calibration_factor = None
 empty_offset = None
 
+# Manual advanced-calibration bounds, mirrored by the kiosk API server.
+OFFSET_RAW_MIN = -8_388_608  # 24-bit signed HX711 counts
+OFFSET_RAW_MAX = 8_388_607
+PER_KG_RAW_MIN = 1
+PER_KG_RAW_MAX = 10_000_000
+
 
 def _raw():
     if not hw_lock.acquire(blocking=False):
@@ -103,14 +109,21 @@ def probe():
 
 def load_calibration():
     global calibration_factor, empty_offset
+
     loadcell_data = settings_store.load_settings().get("loadcell", {})
-    calibration_factor = loadcell_data.get("calibration_factor")
     empty_offset = loadcell_data.get("empty_offset")
-    if calibration_factor:
-        calibration_factor = CALIBRATION_FACTOR_PER_KG
-        print(f" Loaded LoadCell Calibration: factor={calibration_factor}, offset={empty_offset}")
-    else:
+    stored_factor = loadcell_data.get("calibration_factor")
+    if empty_offset is None:
         print(" No loadcell calibration found. Please calibrate.")
+        return
+    # The stored factor can be a manual advanced-calibration value; fall back
+    # to the hardware default when it is missing or invalid.
+    if (isinstance(stored_factor, (int, float)) and not isinstance(stored_factor, bool)
+            and PER_KG_RAW_MIN <= float(stored_factor) <= PER_KG_RAW_MAX):
+        calibration_factor = round(float(stored_factor))
+    else:
+        calibration_factor = CALIBRATION_FACTOR_PER_KG
+    print(f" Loaded LoadCell Calibration: factor={calibration_factor}, offset={empty_offset}")
 
 
 def calibrate_tare(stop_event=None):
@@ -201,6 +214,34 @@ def reset_calibration():
     empty_offset = None
     if settings_store.remove_section("loadcell"):
         print("LoadCell calibration reset")
+
+
+def save_manual_calibration(value):
+    """Apply the raw offset and per-kg counts entered in the kiosk advanced
+    calibration. Replaces whatever the last tare produced."""
+    global calibration_factor, empty_offset
+
+    if not isinstance(value, dict):
+        raise ValueError("Invalid weight calibration")
+    offset_raw = value.get("offsetRaw")
+    per_kg_raw = value.get("perKgRaw")
+    for entry in (offset_raw, per_kg_raw):
+        if isinstance(entry, bool) or not isinstance(entry, (int, float)):
+            raise ValueError("Invalid weight calibration")
+    offset_raw = float(offset_raw)
+    per_kg_raw = float(per_kg_raw)
+    if not (OFFSET_RAW_MIN <= offset_raw <= OFFSET_RAW_MAX
+            and PER_KG_RAW_MIN <= per_kg_raw <= PER_KG_RAW_MAX):
+        raise ValueError("Weight calibration out of range")
+
+    empty_offset = round(offset_raw)
+    calibration_factor = round(per_kg_raw)
+    settings_store.update_section("loadcell", {
+        "calibration_factor": calibration_factor,
+        "empty_offset": empty_offset,
+    })
+    print(f"Saved manual weight calibration: factor={calibration_factor}, offset={empty_offset}")
+    return {"calibration_factor": calibration_factor, "empty_offset": empty_offset}
 
 
 def get_weight():

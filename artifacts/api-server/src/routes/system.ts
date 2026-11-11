@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { query } from "@workspace/db";
+import { query, workspaceRoot, dbPath } from "@workspace/db";
 import { requireAuth, requireSuperadmin } from "../auth";
 import { logActivity } from "../activity-log";
 import { getDeviceInfo, getPortalBaseUrl } from "../device";
@@ -20,37 +20,6 @@ const execFileAsync = promisify(execFile);
 
 const router: IRouter = Router();
 
-function findWorkspaceRoot(): string {
-  let currentDir = process.cwd();
-  for (let i = 0; i < 10; i++) {
-    if (fs.existsSync(path.resolve(currentDir, "pnpm-workspace.yaml"))) {
-      return currentDir;
-    }
-    const parent = path.resolve(currentDir, "..");
-    if (parent === currentDir) break;
-    currentDir = parent;
-  }
-  return process.cwd();
-}
-
-const workspaceRoot = findWorkspaceRoot();
-
-function resolveDatabasePath(): string {
-  try {
-    const envPath = path.resolve(workspaceRoot, ".env");
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, "utf-8");
-      const match = content.match(/DATABASE_URL=(.+)/);
-      if (match) return path.resolve(workspaceRoot, match[1].trim());
-    }
-  } catch {
-    // Fall back to the default database location below.
-  }
-  return path.resolve(workspaceRoot, "risecare.sqlite");
-}
-
-const databasePath = resolveDatabasePath();
-
 function resolveVersion(): string {
   const fromEnv = process.env.APP_VERSION?.trim();
   if (fromEnv) return fromEnv;
@@ -64,7 +33,7 @@ function resolveVersion(): string {
   }
 }
 
-const appVersion = resolveVersion();
+export const appVersion = resolveVersion();
 
 let buildCommit: string | null | undefined;
 
@@ -224,7 +193,7 @@ router.get("/info", requireAuth, async (_req, res) => {
 
   let databaseBytes = 0;
   try {
-    databaseBytes = fs.statSync(databasePath).size;
+    databaseBytes = fs.statSync(dbPath).size;
   } catch {
     databaseBytes = 0;
   }
@@ -232,7 +201,7 @@ router.get("/info", requireAuth, async (_req, res) => {
   let diskTotalBytes: number | null = null;
   let diskFreeBytes: number | null = null;
   try {
-    const stats = fs.statfsSync(path.dirname(databasePath));
+    const stats = fs.statfsSync(path.dirname(dbPath));
     diskTotalBytes = Number(stats.blocks) * Number(stats.bsize);
     diskFreeBytes = Number(stats.bavail) * Number(stats.bsize);
   } catch {

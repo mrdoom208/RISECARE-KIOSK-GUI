@@ -366,19 +366,61 @@ def read_hr_sensor(timeout=8.0, require_spo2=False):
     return latest_valid if latest_valid is not None else latest
 
 
+def _run_power_command(commands):
+    """Run the first system power command the host actually permits.
+
+    Returns True as soon as one command succeeds. Errors are printed instead of
+    silently swallowed so a failed restart is visible in the service log.
+    """
+    for command in commands:
+        try:
+            result = subprocess.run(command, capture_output=True, text=True)
+        except Exception as exc:
+            print(f"⚠️ Could not run '{' '.join(command)}': {exc}")
+            continue
+        if result.returncode == 0:
+            return True
+        detail = (result.stderr or result.stdout or "").strip()
+        print(f"⚠️ Command '{' '.join(command)}' failed ({result.returncode}): {detail}")
+    return False
+
+
+def _shutdown_system():
+    return _run_power_command((
+        ["sudo", "shutdown", "-h", "now"],
+        ["sudo", "systemctl", "poweroff"],
+        ["sudo", "poweroff"],
+    ))
+
+
+def _restart_system():
+    # `sudo reboot` is often left out of the NOPASSWD sudoers rule that allows
+    # `sudo shutdown`, which is why shutdown worked while restart did nothing.
+    # Prefer the same shutdown binary first, then fall back to systemd/reboot.
+    return _run_power_command((
+        ["sudo", "shutdown", "-r", "now"],
+        ["sudo", "systemctl", "reboot"],
+        ["sudo", "reboot"],
+    ))
+
+
 def handle_command(sensor, session_id, value, payload):
     global mode, running, current_session_id, hr_enabled, spo2_enabled, height_enabled, weight_enabled, temp_enabled, hr_last_read, height_last_read, weight_last_read, temp_last_read, measure_busy
 
     if sensor == "shutdown":
         print("Shutdown command received.")
-        mqtt_client.disconnect()
-        subprocess.run(["sudo", "shutdown", "-h", "now"])
+        if _shutdown_system():
+            mqtt_client.disconnect()
+        else:
+            print("⚠️ Shutdown command failed; the kiosk is still running")
         return
 
     if sensor == "restart":
         print("Restart command received.")
-        mqtt_client.disconnect()
-        subprocess.run(["sudo", "reboot"])
+        if _restart_system():
+            mqtt_client.disconnect()
+        else:
+            print("⚠️ Restart command failed; the kiosk is still running")
         return
 
     if sensor == "lock":
@@ -408,6 +450,16 @@ def handle_command(sensor, session_id, value, payload):
                 if temp_device is not None:
                     temp_device.set_temperature_offset(offset)
                 print(f"Temperature offset saved: {offset:+.2f} C")
+            if "weightCalibration" in payload:
+                weight_calibration = loadcell.save_manual_calibration(payload.get("weightCalibration"))
+                print(
+                    "Weight calibration saved: "
+                    f"offset={weight_calibration['empty_offset']:.0f}, "
+                    f"per-kg={weight_calibration['calibration_factor']:.0f}"
+                )
+            if "heightOffset" in payload:
+                height_offset = vl53l1x.set_height_offset(payload.get("heightOffset"))
+                print(f"Height offset saved: {height_offset:+.2f} cm")
             print("Sensor preferences saved to settings.json")
         except Exception as exc:
             print(f"Failed to save sensor preferences: {exc}")
@@ -643,115 +695,12 @@ def handle_command(sensor, session_id, value, payload):
                 "timestamp": time.time()
             })
 
-    elif value == 3:
-        print(f"🧪 Testing {sensor}...")
-        if not _reserve_sensor_operation():
-            mqtt_client.publish(f"risecare/test/{sensor}", {
-                "sensor": sensor,
-                "status": "failed",
-                "error": "Another sensor operation is in progress",
-                "sessionId": current_session_id,
-                "timestamp": time.time(),
-            })
-            return
-        try:
-            success = False
-            result = {}
-            if sensor == "height":
-                # The test owns the sensor: pause the background sampler so
-                # the ranging transactions are not shared.
-                _stop_height_worker()
-                try:
-                    dist = vl53l1x.measure_distance()
-                    print(f"VL53L1X distance: {dist} cm")
-                    height = vl53l1x.get_height()
-                except Exception as e:
-                    print(f"⚠️ VL53L1X test failed: {e}")
-                    dist = None
-                    height = None
-                finally:
-                    if height_enabled:
-                        _start_height_worker()
-                if height is not None:
-                    print(f"Height: {height} cm")
-                    result = {"cm": height, "distanceCm": dist}
-                    success = True
-                elif dist is not None:
-                    # The sensor answers, but nobody is standing under it, so
-                    # there is no height to report.
-                    print("Height: unavailable (no one under the sensor)")
-                    result = {"distanceCm": dist}
-                    success = True
-                else:
-                    print("Height: no reading")
-            elif sensor == "weight":
-                weight = loadcell.get_stable_weight()
-                if weight:
-                    print(f"LoadCell weight: {weight} kg")
-                    result = {"kg": weight}
-                    success = True
-            elif sensor == "heartrate":
-                if hr_sensor is not None:
-                    # The sensor is shut down after startup and when dashboard
-                    # readings stop. A test command does not pass through the
-                    # normal start-reading (value=1) path, so wake/configure it
-                    # before attempting to read the FIFO.
-                    hr_sensor.setup()
-                    hr_sensor.clear_buffer()
-                    hr, hr_valid, spo2, spo2_valid = read_hr_sensor(timeout=8.0)
-                    if hr_valid:
-                        print(f"HeartRate: {hr:.2f} bpm")
-                        result = {"bpm": hr}
-                        success = True
-                    else:
-                        print("HeartRate: Invalid reading")
-                else:
-                    print("⚠️ Heart rate sensor not available")
-            elif sensor == "spo2":
-                if hr_sensor is not None:
-                    hr_sensor.setup()
-                    hr_sensor.clear_buffer()
-                    hr, hr_valid, spo2, spo2_valid = read_hr_sensor(
-                        timeout=8.0,
-                        require_spo2=True,
-                    )
-                    if spo2_valid:
-                        print(f"SpO2: {spo2:.2f}%")
-                        result = {"value": spo2}
-                        success = True
-                    else:
-                        print("SpO2: Invalid reading")
-                else:
-                    print("⚠️ SpO2 sensor not available")
-            elif sensor == "temperature":
-                if temp_sensor is not None:
-                    celsius = temp_sensor.get_temperature()
-                    if celsius is not None:
-                        print(f"Temperature: {celsius:.2f} C")
-                        result = {"celsius": celsius}
-                        success = True
-                    else:
-                        print("Temperature: Invalid reading")
-                else:
-                    print("⚠️ Temperature sensor not available")
-            elif sensor == "printer":
-                success = printer.test_print()
-                result = {"status": "success" if success else "failed"}
-            else:
-                print(f"⚠️ Unknown sensor for test: {sensor}")
-            payload = {
-                "sensor": sensor,
-                "sessionId": current_session_id,
-                "timestamp": time.time(),
-                "status": "success" if success else "failed",
-                **result
-            }
-            mqtt_client.publish(f"risecare/test/{sensor}", payload)
-            print(f"   Test {'successful' if success else 'failed'}: {payload}")
-        finally:
-            _release_sensor_operation()
-        mode = 1
-        running = True
+    elif value == 13:
+        # Printer self-test: prints a test page on the thermal printer.
+        if sensor == "printer":
+            printer.test_print()
+        else:
+            print(f"⚠️ Unknown sensor for printer test: {sensor}")
 
     elif value == 99:
         if sensor == "calibration":

@@ -66,6 +66,26 @@ router.get("/sessions", requireAuth, async (req, res) => {
   res.json(result);
 });
 
+// Public, privacy-safe feed for the home screen Recent Sessions widget:
+// latest sessions with names masked to the first letter only. No other
+// patient fields are exposed, so it is safe without an admin login.
+router.get("/sessions/recent", async (_req, res) => {
+  try {
+    const rows = await query(
+      `SELECT id, started_at AS startedAt, TRIM(patient_first_name || ' ' || patient_last_name) AS patientName FROM sessions ORDER BY started_at DESC LIMIT 3`,
+    );
+    res.json(
+      rows.map((s: { id: number; startedAt: string; patientName: string | null }) => ({
+        id: s.id,
+        startedAt: s.startedAt,
+        maskedName: `${(s.patientName ?? "").trim().charAt(0)}****`,
+      })),
+    );
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || "Failed to load recent sessions" });
+  }
+});
+
 router.post("/sessions", async (req, res) => {
   const body = CreateSessionBody.parse(req.body);
 
@@ -92,7 +112,7 @@ router.post("/sessions", async (req, res) => {
     return;
   }
 
-  const token = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const token = crypto.randomBytes(4).toString("hex").toUpperCase();
   const tags = await getTransactionTags();
   const sourceSessionId = crypto.randomUUID();
   const result = await run(
@@ -176,7 +196,9 @@ router.post("/sessions/token", async (req, res) => {
   res.json({ ...session, vitals });
 });
 
-router.get("/sessions/:id", async (req, res) => {
+// Patient details are only readable by a signed-in admin; patients reach
+// their own record via the reference code or token endpoints instead.
+router.get("/sessions/:id", requireAuth, async (req, res) => {
   const { id } = GetSessionParams.parse({ id: Number(req.params.id) });
 
   const sessions = await query(`${SESSION_SELECT} WHERE id = ?`, [id]);

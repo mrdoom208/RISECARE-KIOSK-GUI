@@ -1,7 +1,20 @@
 import type { NextFunction, Request, Response } from "express";
+import rateLimit from "express-rate-limit";
 import { query } from "@workspace/db";
 
 export const REAUTH_TTL_MS = 5 * 60 * 1000;
+
+// Shared limiter for sensitive actions (power commands, updates). Successful
+// requests count too: the action itself is the thing being limited.
+export const sensitiveLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res, _next, options) => {
+    res.status(429).json({ error: "rate_limited", message: options.message });
+  },
+});
 
 export interface AuthAccount {
   id: number;

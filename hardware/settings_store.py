@@ -143,3 +143,41 @@ def save_temperature_offset(value):
     offset = round(offset, 2)
     update_section("temperature_offset", offset)
     return offset
+
+
+# Fine offset (cm) added to every measured height; set from the kiosk advanced
+# calibration. Stored top-level (not in the vl53l1x section) so a height
+# calibration cannot wipe it.
+HEIGHT_OFFSET_DEFAULT = 0.0
+HEIGHT_OFFSET_MIN = -50.0
+HEIGHT_OFFSET_MAX = 50.0
+
+
+def normalize_height_offset(value):
+    """Validate the fixed offset added to the VL53L1X height reading."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return HEIGHT_OFFSET_DEFAULT
+    offset = float(value)
+    if not (HEIGHT_OFFSET_MIN <= offset <= HEIGHT_OFFSET_MAX):
+        return HEIGHT_OFFSET_DEFAULT
+    return round(offset, 2)
+
+
+def load_height_offset():
+    try:
+        return normalize_height_offset(
+            load_settings().get("height_offset", HEIGHT_OFFSET_DEFAULT)
+        )
+    except (OSError, ValueError, TypeError):
+        return HEIGHT_OFFSET_DEFAULT
+
+
+def save_height_offset(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("Invalid height offset")
+    offset = float(value)
+    if not (HEIGHT_OFFSET_MIN <= offset <= HEIGHT_OFFSET_MAX):
+        raise ValueError("Invalid height offset")
+    offset = round(offset, 2)
+    update_section("height_offset", offset)
+    return offset

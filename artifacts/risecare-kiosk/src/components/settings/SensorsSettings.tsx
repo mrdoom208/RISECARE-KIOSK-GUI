@@ -1,12 +1,17 @@
-import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Loader2, CheckCircle2, XCircle, HeartPulse, Ruler, Scale, Thermometer, Zap, RefreshCw, Printer, Activity, ChevronDown } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { ArrowLeft, Loader2, CheckCircle2, XCircle, HeartPulse, Ruler, Scale, Thermometer, RefreshCw, Printer, Activity, ChevronDown, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/use-rate-limit";
+import { useSensorWebSocket } from "@/hooks/use-sensor-websocket";
 import { ModalShell } from "@/components/ModalShell";
+import InstructionModal from "@/components/InstructionModal";
+import { sensorGuides } from "@/data/sensorGuides";
+import type { SensorGuide } from "@/types/sensorGuide";
 import { fetchSensorSettings, normalizeSensorSettings, persistSensorSettings } from "@/lib/sensor-settings";
 import { Z_INDEX } from "@/lib/z-index";
 
@@ -23,6 +28,27 @@ const sensors = [
   { id: "temperature", name: "Temperature", icon: Thermometer, unit: "°C", key: "celsius", decimals: 1, canCalibrate: false },
 ];
 
+// Dashboard-style instruction cards: each settings sensor maps to the guide
+// shown on the Dashboard before a reading starts.
+const guideFor = (name: string) => sensorGuides.find((g) => g.name === name);
+const sensorGuidesById: Record<string, SensorGuide | undefined> = {
+  bp: guideFor("Blood Pressure Cuff"),
+  heartrate: guideFor("Pulse Oximeter Sensor"),
+  height: guideFor("Height Measurement Sensor"),
+  weight: guideFor("Body Weight Scale"),
+  temperature: guideFor("Thermometer"),
+};
+
+// Hints shown in the reading modal while a test runs, mirroring the live
+// reading messages used on the Dashboard.
+const testPendingHints: Record<string, string> = {
+  bp: "Keep your arm still while the cuff measures and releases pressure...",
+  heartrate: "Keep your finger still on the sensor while the reading is being measured...",
+  height: "Stand straight under the sensor and remain still...",
+  weight: "Step onto the center of the platform and stand still...",
+  temperature: "Position your forehead in front of the sensor...",
+};
+
 type Feedback = {
   type: "test" | "calibrate";
   status: "pending" | "success" | "fail";
@@ -30,7 +56,9 @@ type Feedback = {
   value?: string;
 };
 
-const TEST_TIMEOUT = 12000;
+// Fallback sessionId used until the dedicated test session is fetched. The
+// API server recognizes this token and never saves its readings either.
+const TEST_SESSION_TOKEN = "sensor-test";
 const CAL_TIMEOUT = 20000;
 const HEIGHT_CAL_TIMEOUT = 45000;
 const RATE_LIMIT_MS = 2000;
@@ -38,7 +66,6 @@ const RATE_LIMIT_MS = 2000;
 export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const { toast } = useToast();
   const { isRateLimited: isGloballyRateLimited } = useRateLimit(1000);
-  const [sessionId] = useState(() => `session-${Date.now()}`);
   const [enabledSensors, setEnabledSensors] = useState<Record<string, boolean>>({});
   const [confirmReset, setConfirmReset] = useState(false);
   const [printFeedback, setPrintFeedback] = useState<Feedback | null>(null);
@@ -49,15 +76,68 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const [bpRatios, setBpRatios] = useState({ systolic: 0.45, diastolic: 0.85 });
   const [tempAdvancedOpen, setTempAdvancedOpen] = useState(false);
   const [temperatureOffset, setTemperatureOffset] = useState(3.4);
-  const testTimestamps = useRef<Record<string, number>>({});
+  const [weightAdvancedOpen, setWeightAdvancedOpen] = useState(false);
+  // Default per-kg matches the HX711 counts-per-kg constant (loadcell.py);
+  // the query below replaces it with the saved value.
+  const [weightCalibration, setWeightCalibration] = useState({ offsetRaw: 0, perKgRaw: 28205 });
+  const [heightAdvancedOpen, setHeightAdvancedOpen] = useState(false);
+  const [heightOffset, setHeightOffset] = useState(0);
+  // Dashboard-style test flow: the instruction modal opens first, then the
+  // live reading modal tracks the test while it runs.
+  const [instructionSensor, setInstructionSensor] = useState<string | null>(null);
+  const [readingSensor, setReadingSensor] = useState<string | null>(null);
+  const [liveReading, setLiveReading] = useState<Record<string, any>>({});
   const calTimestamps = useRef<Record<string, number>>({});
   const feedbackTimers = useRef<Record<string, NodeJS.Timeout>>({});
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAction = useRef<Record<string, number>>({});
+  const readingSensorRef = useRef<string | null>(null);
+  readingSensorRef.current = readingSensor;
+  // Short rolling window for the live cuff-pressure display only, like the
+  // Dashboard reading modal.
+  const bpPressureSamplesRef = useRef<number[]>([]);
   const isRateLimited = (sensorId: string) => {
     const last = lastAction.current[sensorId];
     return last != null && Date.now() - last < RATE_LIMIT_MS;
   };
+
+  // Live sensor data pushed over WebSocket while the reading modal is open,
+  // exactly like the Dashboard's reading display.
+  useSensorWebSocket({
+    onSensorReading: useCallback((sensor: string, data: any) => {
+      if (readingSensorRef.current !== sensor) return;
+
+      let displayData = data;
+      if (sensor === "bp") {
+        const pressure = Number(data.pressure);
+        if (data.status !== "running") {
+          bpPressureSamplesRef.current = [];
+        } else if (Number.isFinite(pressure)) {
+          const samples = [...bpPressureSamplesRef.current, pressure].slice(-3);
+          bpPressureSamplesRef.current = samples;
+          const sorted = [...samples].sort((a, b) => a - b);
+          displayData = { ...data, displayPressure: sorted[Math.floor(sorted.length / 2)] };
+        }
+      }
+
+      setLiveReading((prev) => {
+        const previous = prev[sensor] ?? {};
+        const next = { ...previous, ...displayData, _receivedAt: Date.now() };
+        // The finger left the sensor, or the driver rejected the reading:
+        // drop the measurement so the modal asks for a finger again instead
+        // of showing a stale number.
+        if (data.fingerDetected === false || data.hrValid === false) {
+          delete next.bpm;
+          next.hrValid = false;
+        }
+        if (data.fingerDetected === false || data.spo2Valid === false) {
+          delete next.spo2;
+          next.spo2Valid = false;
+        }
+        return { ...prev, [sensor]: next };
+      });
+    }, []),
+  });
 
   const hasPending = Object.values(feedback).some((f) => f?.status === "pending");
 
@@ -90,6 +170,41 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   useEffect(() => {
     if (typeof savedTemperatureOffset === "number") setTemperatureOffset(savedTemperatureOffset);
   }, [savedTemperatureOffset]);
+
+  const { data: savedWeightCalibration } = useQuery({
+    queryKey: ["weight-calibration"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/weight-calibration");
+      if (!res.ok) throw new Error("Failed to load weight calibration");
+      return await res.json() as { offsetRaw: number | null; perKgRaw: number };
+    },
+    enabled: isOpen,
+  });
+
+  useEffect(() => {
+    if (savedWeightCalibration) {
+      setWeightCalibration({
+        offsetRaw: savedWeightCalibration.offsetRaw ?? 0,
+        perKgRaw: savedWeightCalibration.perKgRaw,
+      });
+    }
+  }, [savedWeightCalibration]);
+
+  const { data: savedHeightOffset } = useQuery({
+    queryKey: ["height-offset"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/height-offset");
+      if (!res.ok) throw new Error("Failed to load height offset");
+      return await res.json() as { heightOffset: number };
+    },
+    enabled: isOpen,
+  });
+
+  useEffect(() => {
+    if (typeof savedHeightOffset?.heightOffset === "number") {
+      setHeightOffset(savedHeightOffset.heightOffset);
+    }
+  }, [savedHeightOffset]);
 
   const saveBpRatiosMutation = useMutation({
     mutationFn: async () => {
@@ -129,6 +244,54 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
     onSuccess: (data) => {
       toast({
         title: "Temperature offset saved",
+        description: data.hardwareSynced
+          ? "New offset will be used for the next measurement."
+          : "Saved on the kiosk and will sync to the sensor device when it reconnects.",
+      });
+    },
+    onError: (error) => {
+      toast({ title: "Settings not saved", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const saveWeightCalibrationMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/sensors/weight-calibration", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weightCalibration }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save weight calibration");
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Weight calibration saved",
+        description: data.hardwareSynced
+          ? "New values will be used for the next measurement."
+          : "Saved on the kiosk and will sync to the sensor device when it reconnects.",
+      });
+    },
+    onError: (error) => {
+      toast({ title: "Settings not saved", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const saveHeightOffsetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/sensors/height-offset", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heightOffset }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save height offset");
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Height offset saved",
         description: data.hardwareSynced
           ? "New offset will be used for the next measurement."
           : "Saved on the kiosk and will sync to the sensor device when it reconnects.",
@@ -197,6 +360,20 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
 
 
 
+  // Single dedicated test session from the server: one row, created once and
+  // reused for every test. The API server never saves its readings, so test
+  // measurements stay display-only and never touch patient data.
+  const { data: testSession } = useQuery({
+    queryKey: ["sensor-test-session"],
+    queryFn: async () => {
+      const res = await fetch("/api/sensors/test-session");
+      if (!res.ok) throw new Error("Failed");
+      return (await res.json()) as { sessionId: number };
+    },
+    enabled: isOpen,
+  });
+  const sessionId = testSession?.sessionId != null ? String(testSession.sessionId) : TEST_SESSION_TOKEN;
+
   const { data: calibrationResults } = useQuery({
     queryKey: ["calibration-results"],
     queryFn: async () => {
@@ -220,17 +397,6 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   });
   const calibrationProgressRef = useRef(calibrationProgress);
   calibrationProgressRef.current = calibrationProgress;
-
-  const { data: testResults } = useQuery({
-    queryKey: ["test-results"],
-    queryFn: async () => {
-      const res = await fetch("/api/sensors/test-results");
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    enabled: isOpen && hasPending,
-    refetchInterval: hasPending ? 1000 : false,
-  });
 
   const commandMutation = useMutation({
     mutationFn: async ({
@@ -265,36 +431,6 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
         variant: "destructive",
       });
     },
-  });
-
-  const testAllMutation = useMutation({
-    mutationFn: async (sensorIds: string[]) => {
-      const res = await fetch("/api/sensors/test-all", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, sensors: sensorIds }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to start test all",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const { data: testAllResults } = useQuery({
-    queryKey: ["test-all-results"],
-    queryFn: async () => {
-      const res = await fetch("/api/sensors/test-all-results");
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    enabled: isOpen && hasPending,
-    refetchInterval: hasPending ? 1000 : false,
   });
 
   const refreshMutation = useMutation({
@@ -340,13 +476,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
           const fb = next[sensorId];
           if (!fb || fb.status !== "pending") continue;
 
-          if (fb.type === "test") {
-            const started = testTimestamps.current[sensorId];
-            if (now - started > TEST_TIMEOUT) {
-              next[sensorId] = { type: "test", status: "fail", message: "Test timed out — no response from sensor" };
-              changed = true;
-            }
-          } else if (fb.type === "calibrate") {
+          if (fb.type === "calibrate") {
             const started = calTimestamps.current[sensorId];
             const heightReady = sensorId === "height" &&
               calibrationProgressRef.current?.height?._receivedAt > started &&
@@ -374,36 +504,6 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
       clearFeedbackAfter(sensorId, delay);
     }
   }, [feedback]);
-
-  // Check test results
-  useEffect(() => {
-    for (const sensorId of Object.keys(feedback)) {
-      const fb = feedback[sensorId];
-      if (fb?.type !== "test" || fb.status !== "pending") continue;
-
-      const started = testTimestamps.current[sensorId];
-      const result = testResults?.[sensorId];
-      if (result && result._receivedAt > started) {
-        if (result.status === "success") {
-          const sensor = sensors.find((s) => s.id === sensorId);
-          if (!sensor) continue;
-          const val = result[sensor.key];
-          setSensorFeedback(sensorId, {
-            type: "test",
-            status: "success",
-            message: `Test successful`,
-            value: val != null ? `${Number(val).toFixed(sensor.decimals)} ${sensor.unit}` : undefined,
-          });
-        } else {
-          setSensorFeedback(sensorId, {
-            type: "test",
-            status: "fail",
-            message: "Test failed — sensor returned error",
-          });
-        }
-      }
-    }
-  }, [testResults, feedback]);
 
   // Check calibration results
   useEffect(() => {
@@ -457,34 +557,52 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const handleTest = (sensorId: string) => {
     if (isRateLimited(sensorId)) return;
     lastAction.current[sensorId] = Date.now();
-    testTimestamps.current[sensorId] = Date.now();
-    setSensorFeedback(sensorId, {
-      type: "test",
-      status: "pending",
-      message: "Testing sensor...",
-    });
-    commandMutation.mutate({ sensor: sensorId, value: 3 });
+    // Show the Dashboard instruction card first; Start begins a live
+    // measurement (value 1) exactly like the Dashboard.
+    setInstructionSensor(sensorId);
   };
 
-  const handleTestAll = () => {
-    const enabledIds = sensors.filter((s) => enabledSensors[s.id]).map((s) => s.id);
-    if (enabledIds.length === 0) {
-      toast({
-        title: "No sensors enabled",
-        description: "Enable at least one sensor to test",
-        variant: "destructive",
+  // Starts a real measurement under the dedicated test session — the same
+  // command the Dashboard sends. The server never saves these readings.
+  const startSensorTest = async (sensorId: string) => {
+    try {
+      const res = await fetch("/api/sensors/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, sensor: sensorId, value: 1 }),
       });
+      if (!res.ok) throw new Error("Failed to start sensor");
+    } catch {
+      toast({ title: "Sensor error", description: "Failed to start sensor reading", variant: "destructive" });
       return;
     }
-    enabledIds.forEach((id) => {
-      testTimestamps.current[id] = Date.now();
-      setSensorFeedback(id, {
-        type: "test",
-        status: "pending",
-        message: "Testing sensor...",
-      });
+    // Reset the live state so the modal only shows this test's data.
+    setLiveReading((prev) => {
+      const next = { ...prev };
+      delete next[sensorId];
+      return next;
     });
-    testAllMutation.mutate(enabledIds);
+    bpPressureSamplesRef.current = [];
+    setInstructionSensor(null);
+    setReadingSensor(sensorId);
+  };
+
+  // Stops the live measurement (value 0) and closes the reading modal — the
+  // Dashboard's Done/Cancel path.
+  const finishTestReading = async () => {
+    const sensorId = readingSensor;
+    setReadingSensor(null);
+    if (!sensorId) return;
+    try {
+      const res = await fetch("/api/sensors/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, sensor: sensorId, value: 0 }),
+      });
+      if (!res.ok) throw new Error("Failed to stop sensor");
+    } catch {
+      toast({ title: "Sensor error", description: "Failed to stop sensor", variant: "destructive" });
+    }
   };
 
   const handleCalibrate = (sensorId: string) => {
@@ -592,6 +710,212 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
   const clearPrintFeedback = () => {
     if (feedbackTimers.current["printer"]) clearTimeout(feedbackTimers.current["printer"]);
     feedbackTimers.current["printer"] = setTimeout(() => setPrintFeedback(null), 4000);
+  };
+
+  // Dashboard-style reading modal shown while a sensor test runs. It displays
+  // the same live WebSocket data as the Dashboard's reading modal; nothing is
+  // ever saved — the readings belong to the dedicated test session.
+  const renderTestReading = () => {
+    if (!readingSensor) return null;
+    const sensor = sensors.find((s) => s.id === readingSensor);
+    if (!sensor) return null;
+    const live = liveReading[readingSensor];
+    const isHeartRate = readingSensor === "heartrate";
+    const hrLive = isHeartRate ? live : null;
+    const fingerPresent = hrLive?.fingerDetected === true;
+    const liveRaw = !isHeartRate && readingSensor !== "bp" ? live?.[sensor.key] : null;
+    const liveValue = liveRaw != null && Number(liveRaw) > 0 ? Number(liveRaw) : null;
+
+    // Blood pressure mirrors the Dashboard: staged progress while the cuff
+    // runs, then the final SYS/DIA and pulse.
+    const bpReading = readingSensor === "bp" ? live : null;
+    const bpStage = String(bpReading?.stage ?? "");
+    const cuffPulseRate = Number(bpReading?.pulseRate);
+    const bpCurrentPressure = Number(bpReading?.displayPressure ?? bpReading?.pressure);
+    const bpIsRunning = bpReading?.status === "running";
+    const hasBpCurrentPressure = Number.isFinite(bpCurrentPressure) && bpCurrentPressure > 0;
+    const bpComplete = bpReading?.status === "success" &&
+      Number.isFinite(Number(bpReading?.systolic)) && Number.isFinite(Number(bpReading?.diastolic)) &&
+      Number.isFinite(cuffPulseRate) && cuffPulseRate > 0 && cuffPulseRate <= 300;
+    const bpFailed = bpReading?.status === "failed" || bpReading?.status === "invalid";
+    const bpOverallProgress = Math.max(0, Math.min(100, Number(bpReading?.progress) || 0));
+    const bpStageLabel =
+      bpStage === "starting"
+        ? "Preparing cuff..."
+        : bpStage === "inflating"
+          ? "Inflating cuff..."
+          : bpStage === "settling"
+            ? "Cuff inflated; settling..."
+            : bpStage === "deflating"
+              ? "Releasing cuff pressure..."
+              : "Measuring cuff pressure...";
+
+    return (
+      <>
+        <h2 className="text-2xl font-bold mb-6 text-center">{sensor.name}</h2>
+
+        {readingSensor === "bp" ? (
+          <>
+            {bpIsRunning && (
+              <div className="mb-6 space-y-4" aria-live="polite">
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center">
+                  <p className="font-semibold text-amber-800">Experimental measurement</p>
+                  <p className="mt-1 text-sm text-amber-800/90">Not for diagnosis or treatment decisions.</p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-secondary/40 p-4">
+                  <p className="text-center text-base font-semibold text-foreground">{bpStageLabel}</p>
+                  <div className="mt-3 flex justify-between text-sm text-muted-foreground">
+                    <span>Measurement progress</span>
+                    <span>{Math.round(bpOverallProgress)}%</span>
+                  </div>
+                  <Progress value={bpOverallProgress} aria-label="Blood pressure measurement progress" className="mt-2" />
+                </div>
+              </div>
+            )}
+
+            <div className="text-center mb-8">
+              <div className={`font-bold font-display text-primary mb-2 ${bpIsRunning || bpComplete || bpFailed ? "text-6xl" : "text-4xl"}`}>
+                {bpIsRunning ? (
+                  hasBpCurrentPressure ? bpCurrentPressure.toFixed(0) : "—"
+                ) : bpComplete ? (
+                  `${Number(bpReading?.systolic).toFixed(0)}/${Number(bpReading?.diastolic).toFixed(0)}`
+                ) : bpFailed ? (
+                  "Invalid"
+                ) : (
+                  <span role="status" aria-label="Measuring blood pressure" className="inline-flex items-center justify-center">
+                    <Loader2 className="w-10 h-10 animate-spin" />
+                  </span>
+                )}
+              </div>
+              <div className="text-xl text-muted-foreground">{bpFailed ? "" : "mmHg"}</div>
+            </div>
+
+            {bpComplete && (
+              <p className="text-center text-lg font-semibold mb-6">Pulse: {cuffPulseRate.toFixed(0)} bpm</p>
+            )}
+
+            {bpFailed && (
+              <div role="alert" className="mb-6 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-center">
+                <p className="text-lg font-bold text-destructive">Invalid BP result</p>
+                <p className="mt-1 text-sm text-foreground">
+                  {bpReading?.error || "The cuff could not calculate a valid SYS/DIA reading."}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Reposition the cuff, keep your arm still, and try again.
+                </p>
+              </div>
+            )}
+
+            <p className="text-center text-muted-foreground mb-6">
+              {bpComplete
+                ? "Measurement complete. Press Done to continue."
+                : bpIsRunning
+                  ? "Keep your arm still while the cuff measures and releases pressure..."
+                  : "Waiting for the cuff to start..."}
+            </p>
+          </>
+        ) : isHeartRate ? (
+          fingerPresent ? (
+            <>
+              <div className="flex items-center justify-center gap-6 mb-6">
+                <div className="text-center">
+                  <div className={`font-bold font-display text-primary mb-1 ${hrLive?.bpm != null ? "text-5xl" : "text-3xl"}`}>
+                    {hrLive?.bpm != null ? Number(hrLive.bpm).toFixed(0) : (
+                      <span role="status" aria-label="Measuring heart rate" className="inline-flex items-center justify-center">
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-base text-muted-foreground">bpm</div>
+                  <div className="text-sm text-muted-foreground/70 mt-1">Heart Rate</div>
+                </div>
+                <div className="text-4xl text-muted-foreground/30 font-light">|</div>
+                <div className="text-center">
+                  <div className={`font-bold font-display text-primary mb-1 ${hrLive?.spo2 != null ? "text-5xl" : "text-3xl"}`}>
+                    {hrLive?.spo2 != null ? Number(hrLive.spo2).toFixed(0) : (
+                      <span role="status" aria-label="Measuring oxygen saturation" className="inline-flex items-center justify-center">
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-base text-muted-foreground">%</div>
+                  <div className="text-sm text-muted-foreground/70 mt-1">SpO2</div>
+                </div>
+              </div>
+              <div className="mb-6 space-y-2" aria-live="polite">
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Collecting sensor samples</span>
+                  <span>{typeof hrLive?.sampleProgress === "number" ? `${Math.round(hrLive.sampleProgress)}%` : "—"}</span>
+                </div>
+                <Progress
+                  value={typeof hrLive?.sampleProgress === "number" ? Math.round(hrLive.sampleProgress) : 0}
+                  aria-label="Heart rate and oxygen saturation sample progress"
+                />
+              </div>
+              <p className="text-center text-muted-foreground mb-6">
+                Keep your finger still on the sensor while the reading is being measured...
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center py-6 mb-6">
+              <div className="w-24 h-24 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-5">
+                <Fingerprint className="w-12 h-12 text-primary" />
+              </div>
+              <p className="text-3xl font-display font-bold text-foreground mb-2">
+                Please insert your finger
+              </p>
+              <p className="text-lg text-muted-foreground max-w-xs">
+                {hrLive == null
+                  ? "Waiting for the pulse oximeter sensor to report..."
+                  : "Place your finger on the pulse oximeter sensor to start measuring."}
+              </p>
+            </div>
+          )
+        ) : (
+          <>
+            <div className="text-center mb-8">
+              <div className={`font-bold font-display text-primary mb-2 ${liveValue != null ? "text-6xl" : "text-4xl"}`}>
+                {liveValue != null ? liveValue.toFixed(sensor.decimals) : (
+                  <span role="status" aria-label={`Measuring ${sensor.name.toLowerCase()}`} className="inline-flex items-center justify-center">
+                    <Loader2 className="w-10 h-10 animate-spin" />
+                  </span>
+                )}
+              </div>
+              {liveValue != null && <div className="text-xl text-muted-foreground">{sensor.unit}</div>}
+            </div>
+            <p className="text-center text-muted-foreground mb-6">
+              {testPendingHints[readingSensor] ?? "Waiting for the sensor..."}
+            </p>
+          </>
+        )}
+
+        <div className="flex gap-4">
+          {readingSensor === "bp" && bpIsRunning ? (
+            <button
+              onClick={() => void finishTestReading()}
+              className="flex-1 px-6 py-4 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 font-semibold text-lg"
+            >
+              Stop
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => void finishTestReading()}
+                className="flex-1 px-6 py-4 bg-gray-200 rounded-lg hover:bg-gray-300 font-semibold text-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void finishTestReading()}
+                className="flex-1 px-6 py-4 bg-primary text-white rounded-lg hover:bg-primary-dark font-semibold text-lg"
+              >
+                Done
+              </button>
+            </>
+          )}
+        </div>
+      </>
+    );
   };
 
   return (
@@ -842,6 +1166,134 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                       </div>
                     )}
 
+                    {sensor.id === "weight" && (
+                      <div className="rounded-xl border border-border/50 bg-background/40 p-4">
+                        <button
+                          type="button"
+                          onClick={() => setWeightAdvancedOpen((value) => !value)}
+                          className="flex w-full items-center justify-between gap-3 text-left"
+                          aria-expanded={weightAdvancedOpen}
+                        >
+                          <span className="text-base font-semibold">Advanced calibration</span>
+                          <ChevronDown className={`h-5 w-5 transition-transform ${weightAdvancedOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {weightAdvancedOpen && (
+                          <div className="mt-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                              Raw scale values: weight = (raw − offset) ÷ per kg. The offset is the reading with an empty
+                              platform; per kg is the raw counts one kilogram adds. Adjust only against a trusted reference
+                              scale. Taring from this page replaces these values on the device.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <label className="space-y-1.5">
+                                <span className="text-sm font-medium">Offset (raw counts)</span>
+                                <input
+                                  type="number"
+                                  min="-8388608"
+                                  max="8388607"
+                                  step="1"
+                                  value={weightCalibration.offsetRaw}
+                                  onChange={(event) => setWeightCalibration((current) => ({ ...current, offsetRaw: Number(event.target.value) }))}
+                                  className="h-12 w-full rounded-lg border border-input bg-background px-3 text-base"
+                                />
+                              </label>
+                              <label className="space-y-1.5">
+                                <span className="text-sm font-medium">Per kg (raw counts)</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="10000000"
+                                  step="1"
+                                  value={weightCalibration.perKgRaw}
+                                  onChange={(event) => setWeightCalibration((current) => ({ ...current, perKgRaw: Number(event.target.value) }))}
+                                  className="h-12 w-full rounded-lg border border-input bg-background px-3 text-base"
+                                />
+                              </label>
+                            </div>
+                            {(!Number.isFinite(weightCalibration.offsetRaw) ||
+                              !Number.isFinite(weightCalibration.perKgRaw) ||
+                              weightCalibration.offsetRaw < -8388608 ||
+                              weightCalibration.offsetRaw > 8388607 ||
+                              weightCalibration.perKgRaw < 1 ||
+                              weightCalibration.perKgRaw > 10000000) && (
+                              <p className="text-sm text-destructive">
+                                Offset must be between -8388608 and 8388607, and per kg between 1 and 10000000 (raw counts).
+                              </p>
+                            )}
+                            <Button
+                              onClick={() => saveWeightCalibrationMutation.mutate()}
+                              disabled={
+                                saveWeightCalibrationMutation.isPending ||
+                                !Number.isFinite(weightCalibration.offsetRaw) ||
+                                !Number.isFinite(weightCalibration.perKgRaw) ||
+                                weightCalibration.offsetRaw < -8388608 ||
+                                weightCalibration.offsetRaw > 8388607 ||
+                                weightCalibration.perKgRaw < 1 ||
+                                weightCalibration.perKgRaw > 10000000
+                              }
+                              variant="outline"
+                              size="lg"
+                              className="h-12 w-full text-base"
+                            >
+                              {saveWeightCalibrationMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+                              Save weight calibration
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {sensor.id === "height" && (
+                      <div className="rounded-xl border border-border/50 bg-background/40 p-4">
+                        <button
+                          type="button"
+                          onClick={() => setHeightAdvancedOpen((value) => !value)}
+                          className="flex w-full items-center justify-between gap-3 text-left"
+                          aria-expanded={heightAdvancedOpen}
+                        >
+                          <span className="text-base font-semibold">Advanced calibration</span>
+                          <ChevronDown className={`h-5 w-5 transition-transform ${heightAdvancedOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {heightAdvancedOpen && (
+                          <div className="mt-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                              Fixed value added to every measured height. Adjust only against a trusted reference.
+                            </p>
+                            <label className="block space-y-1.5">
+                              <span className="text-sm font-medium">Height offset (cm)</span>
+                              <input
+                                type="number"
+                                min="-50"
+                                max="50"
+                                step="0.1"
+                                value={heightOffset}
+                                onChange={(event) => setHeightOffset(Number(event.target.value))}
+                                className="h-12 w-full rounded-lg border border-input bg-background px-3 text-base"
+                              />
+                            </label>
+                            {(!Number.isFinite(heightOffset) || heightOffset < -50 || heightOffset > 50) && (
+                              <p className="text-sm text-destructive">Offset must be between -50 and 50 cm.</p>
+                            )}
+                            <Button
+                              onClick={() => saveHeightOffsetMutation.mutate()}
+                              disabled={
+                                saveHeightOffsetMutation.isPending ||
+                                !Number.isFinite(heightOffset) ||
+                                heightOffset < -50 ||
+                                heightOffset > 50
+                              }
+                              variant="outline"
+                              size="lg"
+                              className="h-12 w-full text-base"
+                            >
+                              {saveHeightOffsetMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+                              Save height offset
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Feedback */}
                     {fb && (
                       <div
@@ -873,9 +1325,6 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                           <div className="flex items-center gap-2 shrink-0">
                             {fb.value && (
                               <span className="text-2xl font-bold text-primary">{fb.value}</span>
-                            )}
-                            {fb.status === "pending" && fb.type === "test" && (
-                              <span className="text-sm text-muted-foreground">timeout 12s</span>
                             )}
                             {fb.status === "pending" && fb.type === "calibrate" && (
                               <span className="text-sm text-muted-foreground">
@@ -1106,47 +1555,7 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                 />
                 {refreshing ? "Re-probing sensors…" : "Refresh Status"}
               </Button>
-              <Button
-                onClick={handleTestAll}
-                disabled={testAllMutation.isPending || hasPending || !sensorStatus?.connected}
-                size="lg"
-                className="sm:flex-[1.5] h-12 text-base"
-              >
-                {testAllMutation.isPending ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Zap className="w-5 h-5" />
-                )}
-                Test All Sensors
-              </Button>
             </div>
-
-            {/* Test All Summary */}
-            {testAllResults?.completed && testAllResults?.summary && (
-              <div className="mt-5 p-5 rounded-2xl border border-border/60 bg-secondary/40">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <p className="text-lg font-semibold">Test Summary</p>
-                  <span className="text-sm text-muted-foreground text-right">Published to risecare/test/summary</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.entries(testAllResults.summary).map(([sensor, status]) => (
-                    <div key={sensor} className="flex items-center gap-2">
-                      {status === "working" ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
-                      ) : (
-                        <XCircle className="w-5 h-5 text-red-500" />
-                      )}
-                      <span className="text-base capitalize font-medium">{sensor}</span>
-                      <span
-                        className={`ml-auto text-sm ${status === "working" ? "text-green-600" : "text-red-600"}`}
-                      >
-                        {status === "working" ? "Working" : "Not working"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Reset calibration */}
             <div className="mt-5 pt-4 border-t border-border/50">
@@ -1181,6 +1590,28 @@ export function SensorsSettings({ isOpen, onClose }: SensorsSettingsProps) {
                 </Button>
               )}
             </div>
+      </ModalShell>
+
+      {/* Dashboard-style test flow: instruction card first, then the live
+          reading modal that tracks the test result. */}
+      <InstructionModal
+        isOpen={instructionSensor !== null}
+        onClose={() => setInstructionSensor(null)}
+        onStart={() => {
+          if (!instructionSensor) return;
+          void startSensorTest(instructionSensor);
+        }}
+        sensorGuide={instructionSensor != null ? sensorGuidesById[instructionSensor] : undefined}
+        zIndex={Z_INDEX.SETTINGS_NESTED_2}
+      />
+
+      <ModalShell
+        open={readingSensor !== null}
+        zIndex={Z_INDEX.SETTINGS_NESTED_2}
+        backdrop="blur"
+        panelClassName="bg-card rounded-3xl shadow-2xl p-8 w-full max-w-md border border-border/50"
+      >
+        {renderTestReading()}
       </ModalShell>
     </>
   );

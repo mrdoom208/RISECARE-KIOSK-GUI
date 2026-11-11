@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { query } from "@workspace/db";
+import { requireAuth } from "../auth";
 import { getPortalBaseUrl, getTransactionTags } from "../device";
 import { logger } from "../logger";
 import { publish } from "../mqtt";
@@ -17,10 +18,10 @@ async function buildSurveyUrl(): Promise<string | null> {
   return `${baseUrl}/survey?kioskId=${encodeURIComponent(kioskId)}`;
 }
 
-router.post("/print/test", async (_req, res) => {
+router.post("/print/test", requireAuth, async (_req, res) => {
   const sent = publish("risecare/command/printer", {
     sensor: "printer",
-    value: 3,
+    value: 13,
     sessionId: `test-${Date.now()}`,
     timestamp: new Date().toISOString(),
   });

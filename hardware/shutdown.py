@@ -6,23 +6,37 @@ import mqtt_client
 COMMAND_TOPIC = "risecare/command/+"
 
 
-def run(cmd):
-    try:
-        subprocess.run(cmd, check=False)
-    except Exception as e:
-        print(f"Failed to run {cmd}: {e}")
+def run(commands):
+    """Run the first power command that succeeds."""
+    for cmd in commands:
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        except Exception as e:
+            print(f"Failed to run {cmd}: {e}")
+            continue
+        if result.returncode == 0:
+            return True
+        detail = (result.stderr or result.stdout or "").strip()
+        print(f"Command {cmd} failed ({result.returncode}): {detail}")
+    return False
 
 
 def on_command(sensor, session_id, value, payload):
     if sensor == "shutdown":
         print("Shutdown command received. Shutting down system...")
-        run(["sudo", "shutdown", "-h", "now"])
+        run((["sudo", "shutdown", "-h", "now"],
+             ["sudo", "systemctl", "poweroff"],
+             ["sudo", "poweroff"]))
     elif sensor == "restart":
         print("Restart command received. Restarting system...")
-        run(["sudo", "reboot"])
+        # The sudoers rule that allows `shutdown` may not allow `reboot`, so
+        # reuse the working shutdown binary and fall back to systemd/reboot.
+        run((["sudo", "shutdown", "-r", "now"],
+             ["sudo", "systemctl", "reboot"],
+             ["sudo", "reboot"]))
     elif sensor == "lock":
         print("Lock command received. Locking screen...")
-        run(["loginctl", "lock-session"])
+        run((["loginctl", "lock-session"],))
     else:
         print(f"Unknown power command: {sensor}")
 

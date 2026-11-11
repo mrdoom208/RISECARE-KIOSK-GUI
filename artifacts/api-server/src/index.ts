@@ -9,6 +9,7 @@ import { startHeartbeatLoop, startSyncLoop } from "./device";
 import { setupWebSocket } from "./ws";
 import { logger } from "./logger";
 import { logSystem, pruneSystemLogs } from "./system-log";
+import { appVersion } from "./routes/system";
 
 const rawPort = process.env["PORT"];
 
@@ -37,7 +38,7 @@ const server = app.listen(port, host, async () => {
     port,
     host,
     environment: process.env.NODE_ENV ?? "development",
-    version: process.env.APP_VERSION ?? "0.0.0",
+    version: appVersion,
   });
   void logSystem("INFO", "Database", "Database connection verified");
 

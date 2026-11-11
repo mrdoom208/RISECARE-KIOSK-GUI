@@ -1,11 +1,12 @@
 import { useLocation } from "wouter";
 import { useState } from "react";
-import { Activity, ArrowRight, ClipboardList, Lock, Search, UserPlus } from "lucide-react";
+import { Activity, ArrowRight, Lock, Search, Settings, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useRateLimit } from "@/hooks/use-rate-limit";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import LoginDialog from "@/components/LoginDialog";
+import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import TermsAgreementDialog from "@/components/TermsAgreementDialog";
 import { apiErrorMessage } from "@/lib/api-error";
 
@@ -14,12 +15,29 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const [showTerms, setShowTerms] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const { hasAccess, loggingIn, error: authError, login } = useAdminAuth();
+  const [showSettings, setShowSettings] = useState(false);
+  // Which action opened the login dialog, so it continues to the right place.
+  const [loginIntent, setLoginIntent] = useState<"history" | "settings">("history");
+  const { account, hasAccess, loggingIn, error: authError, login, logout } = useAdminAuth();
 
-  const { data: sessions, isLoading, isError, error } = useQuery<any[]>({
-    queryKey: ["home-history-sessions"],
+  // Controlled by Settings > Recent Sessions: locked when off, public (masked
+  // names) when on -- no admin login needed.
+  const { data: recentSessionsSetting } = useQuery<{ enabled: boolean }>({
+    queryKey: ["recent-sessions-enabled"],
     queryFn: async () => {
-      const res = await fetch("/api/sessions");
+      const res = await fetch("/api/settings/recent-sessions");
+      if (!res.ok) throw new Error("Failed to fetch recent sessions setting");
+      return res.json();
+    },
+  });
+  const showRecentSessions = recentSessionsSetting?.enabled ?? true;
+
+  const { data: sessions, isLoading, isError, error } = useQuery<
+    { id: number; startedAt: string; maskedName: string }[]
+  >({
+    queryKey: ["home-recent-sessions"],
+    queryFn: async () => {
+      const res = await fetch("/api/sessions/recent");
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(
@@ -28,7 +46,7 @@ export default function Home() {
       }
       return res.json();
     },
-    enabled: hasAccess,
+    enabled: showRecentSessions,
   });
 
   return (
@@ -85,16 +103,21 @@ export default function Home() {
           <div className="flex-1">
             <button
               onClick={() => {
-                if (isRateLimited("view-history")) return;
-                setShowLogin(true);
+                if (isRateLimited("settings")) return;
+                if (hasAccess) {
+                  setShowSettings(true);
+                } else {
+                  setLoginIntent("settings");
+                  setShowLogin(true);
+                }
               }}
               className="w-full bg-card hover:bg-secondary text-foreground p-5 rounded-[1rem] shadow-xl shadow-black/5 flex flex-col items-center justify-center gap-2 border border-border"
             >
               <div className="bg-primary/10 p-3 rounded-full text-primary">
-                <ClipboardList className="w-8 h-8" />
+                <Settings className="w-8 h-8" />
               </div>
               <span className="text-2xl font-bold font-display">
-                View History
+                Settings
               </span>
             </button>
           </div>
@@ -121,7 +144,8 @@ export default function Home() {
           <ArrowRight className="w-6 h-6 text-primary shrink-0 ml-auto" />
         </button>
 
-        {/* Recent Sessions widget */}
+        {/* Recent Sessions widget: locked unless an admin is signed in AND
+            Settings > Recent Sessions is enabled */}
         <div className="mt-8 w-full max-w-2xl"
         >
           <div className="flex items-center justify-between mb-3 px-2">
@@ -132,6 +156,7 @@ export default function Home() {
               type="button"
               onClick={() => {
                 if (isRateLimited("view-all-history")) return;
+                setLoginIntent("history");
                 setShowLogin(true);
               }}
               className="text-primary text-lg font-semibold flex items-center gap-1"
@@ -141,7 +166,7 @@ export default function Home() {
           </div>
 
           <div className="bg-card border border-border/50 rounded-2xl shadow-lg overflow-hidden backdrop-blur-md bg-white/80">
-            {!hasAccess ? (
+            {!showRecentSessions ? (
               <div className="p-6 text-center">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <Lock className="h-6 w-6" />
@@ -156,6 +181,7 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     if (isRateLimited("view-history-locked")) return;
+                    setLoginIntent("history");
                     setShowLogin(true);
                   }}
                   className="mt-4 inline-flex items-center gap-2 text-primary text-lg font-semibold"
@@ -190,7 +216,7 @@ export default function Home() {
                         </div>
                         <div>
                           <p className="text-xl font-bold text-foreground">
-                            {session.patientName}
+                            {session.maskedName}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             {format(
@@ -218,15 +244,30 @@ export default function Home() {
         open={showLogin}
         onOpenChange={setShowLogin}
         title="Admin Login"
-        description="Enter your admin credentials to view session history."
+        description={
+          loginIntent === "settings"
+            ? "Sign in to manage this device"
+            : "Enter your admin credentials to view session history."
+        }
         error={authError}
         verifying={loggingIn}
         onSubmit={async (username, password) => {
-          const ok = await login(username, password, "history");
+          const ok = await login(username, password, loginIntent);
           if (ok) {
             setShowLogin(false);
-            setLocation("/history");
+            if (loginIntent === "settings") setShowSettings(true);
+            else setLocation("/history");
           }
+        }}
+      />
+
+      <SettingsDialog
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        account={account}
+        onLogout={() => {
+          void logout();
+          setShowSettings(false);
         }}
       />
 
