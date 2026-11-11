@@ -252,7 +252,6 @@ export function ServerStatusSettings() {
                 {status.mqtt.connected ? "Online" : "Offline"}
               </StatusPill>
             </div>
-            <p className="truncate text-sm text-muted-foreground">{status.mqtt.broker}</p>
           </InfoCard>
 
           <InfoCard icon={Cloud} title="RiseCare Portal">
@@ -274,12 +273,6 @@ export function ServerStatusSettings() {
                 </StatusPill>
               )}
             </div>
-            <p className="truncate text-sm text-muted-foreground">
-              {portal?.link || status.portal.link || "Not configured"}
-            </p>
-            {portal?.status != null && (
-              <p className="text-xs text-muted-foreground">HTTP {portal.status}</p>
-            )}
           </InfoCard>
 
           <InfoCard icon={HardDrive} title="Kiosk Sync">

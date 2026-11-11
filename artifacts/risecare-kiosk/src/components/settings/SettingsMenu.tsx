@@ -112,20 +112,6 @@ export function SettingsMenu({
     enabled: networkEnabled,
   });
 
-  const { data: systemStatus, isLoading: systemStatusLoading } = useQuery<{
-    online?: boolean;
-    status?: "online" | "degraded";
-  }>({
-    queryKey: ["system-status"],
-    queryFn: async () => {
-      const res = await fetch("/api/system/status");
-      if (!res.ok) throw new Error("Failed to fetch server status");
-      return res.json();
-    },
-    refetchInterval: 10000,
-    refetchIntervalInBackground: false,
-  });
-
   const openUpdateDialog = () => {
     if (isRateLimited("updates-menu")) return;
     setShowUpdateDialog(true);
@@ -205,28 +191,6 @@ export function SettingsMenu({
             onNavigate("server-status");
           }}
           ariaLabel="Open Server Status"
-          trailing={
-            <span className="flex items-center gap-2" aria-live="polite">
-              {systemStatusLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              ) : systemStatus?.status === "degraded" ? (
-                <span className="flex items-center gap-1.5 text-sm font-bold text-amber-600">
-                  <span className="h-2 w-2 rounded-full bg-current" />
-                  Degraded
-                </span>
-              ) : systemStatus?.online ? (
-                <span className="flex items-center gap-1.5 text-sm font-bold text-green-600">
-                  <span className="h-2 w-2 rounded-full bg-current" />
-                  Online
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 text-sm font-bold text-red-500">
-                  <span className="h-2 w-2 rounded-full bg-current" />
-                  Offline
-                </span>
-              )}
-            </span>
-          }
         />
         <SettingsMenuItem
           icon={Info}
