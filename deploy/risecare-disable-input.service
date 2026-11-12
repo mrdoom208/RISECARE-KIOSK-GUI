@@ -1,0 +1,24 @@
+# Block keyboard, mouse and touchscreen for 10 seconds at startup.
+# The service runs as admin, who must be able to read /dev/input:
+#   sudo usermod -aG input admin
+# Install (adjust the repo path if needed):
+#   sudo cp deploy/risecare-disable-input.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now risecare-disable-input.service
+# The grab is released when the process exits, so nothing needs stopping.
+# Add "Before=<your-kiosk-unit>.service" under [Unit] so the lock starts
+# together with the kiosk and covers its whole boot.
+
+[Unit]
+Description=RISECARE kiosk input lock (10s)
+ConditionPathExists=/dev/input
+
+[Service]
+Type=oneshot
+User=admin
+SupplementaryGroups=input
+ExecStart=/usr/bin/python3 /home/admin/RISECARE-KIOSK-GUI/deploy/disable-input.py 10
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target
