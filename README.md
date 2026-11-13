@@ -550,7 +550,7 @@ Health status is automatically evaluated from the thresholds implemented in
 | Blood Pressure | <120 and <80 mmHg | systolic <90 or diastolic <60, or any other non-normal value below critical | ≥180 systolic or ≥120 diastolic |
 | Heart Rate | 60-100 bpm | 40-59 or 101-149 | <40 or ≥150 |
 | SpO2 | ≥95% | 91-94% | ≤90% |
-| Temperature | 36.0-37.9°C | 35.0-35.9°C or 38.0-39.9°C | <35.0°C or ≥40.0°C |
+| Temperature | 35.5-37.9°C | 35.0-35.4°C or 38.0-39.9°C | <35.0°C or ≥40.0°C |
 | BMI | 18.5-24.9 | any other value (no critical tier) | — |
 
 Readings outside plausible clinical bounds (for example blood pressure where

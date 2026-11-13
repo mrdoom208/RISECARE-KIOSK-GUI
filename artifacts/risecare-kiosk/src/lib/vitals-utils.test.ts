@@ -48,9 +48,9 @@ test("SpO2 status boundaries", () => {
 });
 
 test("temperature status boundaries", () => {
-  assert.equal(getTempStatus(36), "normal");
+  assert.equal(getTempStatus(35.5), "normal");
   assert.equal(getTempStatus(37.9), "normal");
-  assert.equal(getTempStatus(35.9), "warning");
+  assert.equal(getTempStatus(35.4), "warning");
   assert.equal(getTempStatus(38), "warning");
   assert.equal(getTempStatus(39.9), "warning");
   assert.equal(getTempStatus(34.9), "critical");

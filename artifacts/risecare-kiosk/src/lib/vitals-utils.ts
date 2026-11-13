@@ -34,7 +34,7 @@ export function getSpO2Status(spo2?: number | null): VitalStatus {
 export function getTempStatus(temp?: number | null): VitalStatus {
   if (temp == null || !Number.isFinite(temp) || temp < 20 || temp > 50) return 'unknown';
   if (temp < 35 || temp >= 40) return 'critical';
-  if (temp < 36 || temp >= 38) return 'warning';
+  if (temp < 35.5 || temp >= 38) return 'warning';
   return 'normal';
 }
 

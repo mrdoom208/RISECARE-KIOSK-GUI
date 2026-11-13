@@ -571,8 +571,8 @@ function getSpO2Message(status: VitalStatus, spo2?: number | null) {
   return "Not assessed.";
 }
 function getTempMessage(s: VitalStatus, temp?: number | null) {
-  if (s === "normal") return "Within the selected screening range (36.0-37.9 °C).";
-  if (s === "warning" && temp != null && temp < 36) return "Below the selected screening range; repeat and seek advice if it persists.";
+  if (s === "normal") return "Within the selected screening range (35.5-37.9 °C).";
+  if (s === "warning" && temp != null && temp < 35.5) return "Below the selected screening range; repeat and seek advice if it persists.";
   if (s === "warning") return "Fever-range reading (38.0-39.9 °C); repeat and monitor symptoms.";
   if (s === "critical" && temp != null && temp < 35) return "Below 35 °C; repeat and seek urgent clinical advice.";
   if (s === "critical") return "At least 40 °C; seek urgent clinical advice, especially if unwell.";
